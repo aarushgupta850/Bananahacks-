@@ -1,0 +1,55 @@
+/* A square drawing area. Put DrawingCanvas and GhostLayer inside .canvas-stack to layer them. */
+.canvas-stack {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.drawing-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1; /* keeps the 768 scaling exact: as wide as it is tall */
+  cursor: crosshair;
+  touch-action: none; /* a finger draws instead of scrolling the page (iPad) */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* no magnifier on long press (iOS) */
+}
+
+.drawing-canvas.is-readonly {
+  cursor: default;
+}
+
+.drawing-canvas path {
+  fill: var(--ink);
+}
+
+.ghost-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: var(--ghost-opacity);
+}
+
+.ghost-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ghost-construction {
+  stroke-dasharray: 14 12;
+}
+
+.ghost-keypoints circle {
+  fill: var(--accent);
+}

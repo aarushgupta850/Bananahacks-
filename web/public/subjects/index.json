@@ -1,0 +1,10 @@
+{
+  "subjects": [
+    {
+      "subject": "fox",
+      "title": "Fox (demo)",
+      "thumb": "demo-fox-medium/thumb.svg",
+      "packs": { "medium": "demo-fox-medium" }
+    }
+  ]
+}
