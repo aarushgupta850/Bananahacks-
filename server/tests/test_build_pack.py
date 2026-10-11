@@ -210,3 +210,16 @@ def test_always_builds_a_pack_from_a_busy_drawing_and_runs_the_safety_check():
     schema.Pack.model_validate(pack)
     assert len([s for s in pack["strokes"] if s["tier"] != "construction"]) <= 60
     assert len(checked) == 1
+
+
+def test_clean_drawing_whitens_an_uneven_page_and_keeps_the_ink_black():
+    import numpy as np
+
+    from build_pack import clean_drawing
+
+    page = np.tile(np.linspace(170, 235, 768, dtype=np.float32), (768, 1))  # unevenly lit gray page
+    page[380:388, 100:700] = 30  # one ink line
+    out = np.asarray(clean_drawing(Image.fromarray(page.astype(np.uint8)).convert("RGB")))
+    assert out.shape == (768, 768)
+    assert out[100, 50] == 255 and out[100, 700] == 255  # the page is white on both the dark and the light side
+    assert out[384, 400] < 40  # the ink stays black

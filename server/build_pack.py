@@ -11,7 +11,7 @@ What it does:
    with a clear message.
 3. Finds the parts (OWLv2) and builds the lesson plan (tiers, order, steps).
 4. Checks the whole pack against pipeline/schema.py (a mirror of types.ts) BEFORE writing anything.
-5. Writes web/public/subjects/<subject>-<difficulty>/: target.png (768, clean black lines on white),
+5. Writes web/public/subjects/<subject>-<difficulty>/: target.png (768, the chosen drawing cleaned to black on white),
    thumb.png (256), pack.json, and pipeline/ images for the "How this lesson was made" panel
    (candidate-0..3, skeleton, parts, plus source for photo packs; webp, 300 KB or less each).
 6. Adds the pack to web/public/subjects/index.json, keeping every other subject as it was.
@@ -140,6 +140,26 @@ def render_target(strokes: list) -> Image.Image:
                 r = 2.5 * scale
                 draw.ellipse((x - r, y - r, x + r, y + r), fill=0)
     return canvas.resize((SIZE, SIZE), Image.LANCZOS)
+
+
+def clean_drawing(image: Image.Image) -> Image.Image:
+    """The drawing the user copies: the chosen AI drawing itself, cleaned up (gray or uneven page to white, ink to
+    crisp black, colour removed). It keeps the drawing's line weight and small details, which re-drawing it from
+    the traced strokes lost. The traced strokes come from this same image, so the lesson's guides and the
+    measurements still line up with it."""
+    import numpy as np
+    from scipy import ndimage
+
+    gray = np.asarray(image.convert("L"), dtype=np.float32)
+    # The page's brightness around each pixel: the lightest value nearby, smoothed (pages are often unevenly lit).
+    page = ndimage.uniform_filter(ndimage.maximum_filter(gray, size=31), size=31)
+    ratio = gray / np.maximum(page, 1.0)  # 1 = page, lower = ink
+    # The ink's level: the darkest 2% of pixels, but at most half the page's brightness, so a drawing with very
+    # little ink (under 2% of the image) doesn't mistake the page for ink.
+    ink = min(float(np.percentile(ratio, 2)), 0.5)
+    white_from = 1.0 - 0.18 * (1.0 - ink)  # this close to the page counts as page
+    out = np.clip((ratio - ink) / max(white_from - ink, 1e-3), 0.0, 1.0) ** 1.6
+    return Image.fromarray((out * 255).astype(np.uint8), "L").resize((SIZE, SIZE), Image.LANCZOS)
 
 
 def skeleton_image(image: Image.Image) -> Image.Image:
@@ -291,7 +311,7 @@ def make_pack(
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
                          len(best.strokes), parts, plan, n_candidates=len(candidates))
-    target = render_target(best.strokes)
+    target = clean_drawing(best.image)
     assets = {
         "target.png": png_bytes(target),
         "thumb.png": png_bytes(target.resize((256, 256), Image.LANCZOS)),
