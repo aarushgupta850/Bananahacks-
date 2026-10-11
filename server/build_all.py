@@ -4,6 +4,7 @@ Run from the repo root, with server/.venv active (needs the GPU):
     python server/build_all.py                      # every pack in PACKS
     python server/build_all.py --only cat,house     # just these subjects
     python server/build_all.py --only fish --seed 10   # other seeds, when a drawing came out wrong
+    python server/build_all.py --only fox,cat --difficulty simple   # the same subjects at another difficulty
 
 Each pack is built exactly as build_pack.py builds it (4 candidates, a retry with new seeds, the 6-60 stroke
 gate). If no candidate passes, the subject's next wording is tried: the house needs a simpler one than
@@ -85,6 +86,8 @@ def main(argv: list[str] | None = None, build_fn=build, subjects_dir: Path = SUB
     parser = argparse.ArgumentParser(description="Build every ready-made subject pack.")
     parser.add_argument("--only", help="comma-separated subject ids, e.g. 'cat,house'")
     parser.add_argument("--seed", type=int, default=0, help="first seed for every pack (default 0)")
+    parser.add_argument("--difficulty", choices=["simple", "medium", "detailed"],
+                        help="build every chosen subject at this difficulty instead of the one in PACKS")
     args = parser.parse_args(argv)
     # Before any Hugging Face library loads: use the model cache from .env (HF_HOME) and stay offline.
     # build_pack.py does this in its own main(), which this script doesn't go through.
@@ -94,7 +97,7 @@ def main(argv: list[str] | None = None, build_fn=build, subjects_dir: Path = SUB
     if wanted and len(packs) != len(wanted):
         known = ", ".join(p[0] for p in PACKS)
         parser.error(f"unknown subject in --only (known: {known})")
-    results = [build_one(subject, difficulty, wordings, build_fn, subjects_dir, args.seed)
+    results = [build_one(subject, args.difficulty or difficulty, wordings, build_fn, subjects_dir, args.seed)
                for subject, difficulty, wordings in packs]
     print("\n" + table(results))
     failed = [r["pack"] for r in results if r["wording"] is None]
