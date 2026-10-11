@@ -50,3 +50,18 @@ def test_solid_black_fill_is_penalized():
 
 def test_blank_page_never_wins():
     assert line_metrics(blank())["score"] >= 1000
+
+
+def test_colored_drawing_is_rejected():
+    colored = clean_circle()
+    ImageDraw.Draw(colored).ellipse((260, 260, 508, 508), fill=(230, 120, 30))  # orange fur
+    m = line_metrics(colored)
+    assert m["color"] > 0.15
+    assert m["score"] >= 1000
+    assert line_metrics(clean_circle())["color"] < 0.05
+
+
+def test_tinted_near_black_lines_are_not_color():
+    image = blank()
+    ImageDraw.Draw(image).ellipse((184, 184, 584, 584), outline=(30, 22, 16), width=6)  # warm black
+    assert line_metrics(image)["color"] < 0.15

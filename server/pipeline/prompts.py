@@ -37,10 +37,17 @@ VARIANTS = {
         "very few lines, no details, no shading, no solid black areas, no text, no logo, "
         "isolated on plain white background"
     ),
+    # "icon_clean" (the cleanest in the second speed test) plus fixes for what it still did:
+    # one fox came out in full color, and some seeds still drew a circle frame around the subject.
+    "icon_mono": (
+        "minimalist black and white line icon of {subject}, full body, bold uniform black outline only, "
+        "flat, very few lines, no details, no shading, no solid black areas, no text, no logo, "
+        "no frame, no border, isolated on plain white background"
+    ),
 }
 
 # The variant the pipeline uses. Set from the speed test results (see server/SPEEDTEST.md).
-CHOSEN = "icon"
+CHOSEN = "icon_clean"
 
 
 def line_art_prompt(subject: str, variant: str = CHOSEN) -> str:

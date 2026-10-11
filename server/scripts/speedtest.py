@@ -148,7 +148,7 @@ def stage_text(subjects: list[str], seeds: int, variants: list[str], earlier: li
                 print(
                     f"[text] {slug:<8} {variant:<10} seed {seed}: {seconds:4.1f} s  score {metrics['score']:6.1f}  "
                     f"specks {metrics['specks']:3d}  pieces {metrics['pieces']:3d}  "
-                    f"gray {metrics['gray_ratio']:.2f}  ink {metrics['ink']:.1%}"
+                    f"gray {metrics['gray_ratio']:.2f}  color {metrics['color']:.2f}  ink {metrics['ink']:.1%}"
                 )
     del pipe
     models.free_gpu()
@@ -191,7 +191,7 @@ def rank_variants(images: list[dict]) -> list[dict]:
         if not mine:
             continue
         row = {"variant": variant, "count": len(mine)}
-        for key in ("score", "specks", "pieces", "gray_ratio", "ink", "seconds"):
+        for key in ("score", "specks", "pieces", "gray_ratio", "color", "ink", "seconds"):
             row[key] = statistics.mean(i[key] for i in mine)
         row["by_subject"] = {
             s: statistics.mean(i["score"] for i in mine if i["subject"] == s)
@@ -324,11 +324,11 @@ def stage_parts(targets: list[tuple[str, Path]]) -> dict:
             if score >= OWL_THRESHOLD_LOW:
                 color = (59, 108, 255) if score >= OWL_THRESHOLD else (242, 122, 94)
                 draw.rectangle(box, outline=color, width=3)
-                draw.text((box[0] + 4, box[1] + 4), f"{label} {score:.2f}", fill=color)
+                draw.text((box[0] + 4, box[1] + 4), f"{label} {score:.3f}", fill=color)
         image.save(OUT_DIR / f"owl-{slug}.png")
         found = sum(max(p["plain"], p["qualified"]) >= OWL_THRESHOLD for p in parts)
         print(f"[parts] {slug:<8} {found}/{len(labels)} parts at {OWL_THRESHOLD}: "
-              + ", ".join(f"{p['label']} {max(p['plain'], p['qualified']):.2f}" for p in parts))
+              + ", ".join(f"{p['label']} {max(p['plain'], p['qualified']):.3f}" for p in parts))
         subjects.append({"subject": subject, "image": Path(image_path).name, "parts": parts})
 
     result = {
@@ -401,14 +401,16 @@ def write_report(results: dict) -> None:
             f"## Prompt comparison ({len(subjects)} subjects, cleanest first)",
             "",
             "Score from `server/pipeline/quality.py`, lower is cleaner: specks + half the separate pieces "
-            "+ 50 x gray-per-ink ratio (shading) + a penalty for solid fills or a blank page.",
+            "+ 50 x gray-per-ink ratio (shading) + penalties for solid fills, a blank page or color "
+            "(any image scoring 1000+ was rejected outright). Earlier runs' images are re-scored with the current "
+            "quality.py, so every variant is judged the same way.",
             "",
-            "| Variant | Images | Score | Specks | Pieces | Gray ratio | Ink | Seconds |",
-            "|---|---|---|---|---|---|---|---|",
+            "| Variant | Images | Score | Specks | Pieces | Gray ratio | Color | Ink | Seconds |",
+            "|---|---|---|---|---|---|---|---|---|",
         ]
         lines += [
             f"| {r['variant']} | {r['count']} | {r['score']:.1f} | {r['specks']:.1f} | {r['pieces']:.1f} | "
-            f"{r['gray_ratio']:.2f} | {r['ink']:.1%} | {r['seconds']:.1f} |"
+            f"{r['gray_ratio']:.2f} | {r['color']:.2f} | {r['ink']:.1%} | {r['seconds']:.1f} |"
             for r in ranking
         ]
         if len(subjects) > 1:
@@ -457,7 +459,7 @@ def write_report(results: dict) -> None:
         ]
         for item in parts["subjects"]:
             found = sum(max(p["plain"], p["qualified"]) >= OWL_THRESHOLD for p in item["parts"])
-            scores = ", ".join(f"{p['label']} {p['plain']:.2f} / {p['qualified']:.2f}" for p in item["parts"])
+            scores = ", ".join(f"{p['label']} {p['plain']:.3f} / {p['qualified']:.3f}" for p in item["parts"])
             lines.append(f"| {slugify(item['subject'])} (`{item['image']}`) | {found}/{len(item['parts'])} | {scores} |")
     elif parts and parts["status"] == "ok":
         lines += ["", "Part results are from an older version of this script; rerun with --stages parts."]
@@ -521,6 +523,12 @@ def main(argv: list[str] | None = None) -> int:
         "transformers": transformers.__version__,
         "python": platform.python_version(),
     }
+
+    # Re-score images from earlier runs with the current quality.py (its checks may have changed since).
+    if results.get("text", {}).get("status") == "ok":
+        for item in results["text"]["images"]:
+            if Path(item["path"]).is_file():
+                item.update(line_metrics(Image.open(item["path"])))
 
     def save() -> None:  # after every stage, so a crash later doesn't lose finished work
         RESULTS_PATH.write_text(json.dumps(results, indent=1), encoding="utf-8")
