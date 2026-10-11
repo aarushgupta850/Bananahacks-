@@ -18,7 +18,7 @@ function GhostShape({ ghost, leaving }: { ghost: Ghost; leaving: boolean }) {
   if (ghost.kind === 'keypoints') {
     return (
       <g className={`ghost-keypoints${state}`}>
-        {ghost.points.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={8} />)}
+        {ghost.points.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={11} />)}
       </g>
     )
   }
