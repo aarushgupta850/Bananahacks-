@@ -35,12 +35,13 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  opacity: var(--ghost-opacity);
 }
 
+/* Guide lines are the accent at 30%. (stroke-opacity, not opacity, so the fade animations still work.) */
 .ghost-line {
   fill: none;
   stroke: var(--accent);
+  stroke-opacity: var(--ghost-opacity);
   stroke-width: 6;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -52,6 +53,9 @@
 
 .ghost-keypoints circle {
   fill: var(--accent);
+  fill-opacity: 0.7; /* Hints: the dots are all the help there is, so they must be easy to see */
+  stroke: var(--surface);
+  stroke-width: 3;
 }
 
 /* ---------- paper texture ---------- */

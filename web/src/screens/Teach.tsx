@@ -2,31 +2,39 @@
 // and adapts: in Auto it fades from full guides (Guided) to dots to connect (Hints) to nothing (Check-in) as
 // accuracy rises, and steps back when it drops. The UI only shows what the teacher returns.
 // Everything that happens is recorded so the report can replay it at 4x.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CanvasToolbar from '../canvas/CanvasToolbar'
 import { strokesToPngBase64 } from '../canvas/canvasPng'
 import DrawingCanvas from '../canvas/DrawingCanvas'
 import GhostLayer from '../canvas/GhostLayer'
-import type { PenSize } from '../canvas/geometry'
+import { strokeToPath, PEN_SIZES, TARGET_SIZE, toSvgPoints, type PenSize } from '../canvas/geometry'
 import { engine } from '../engine'
 import type { Ghost, HelpLevel, ModeChange, Mode, Pack, StrokeResult, UserStroke } from '../engine/types'
 import { checkLive, regenerate } from '../lib/live'
 import { usePack, useSession, type TeachRecording } from '../session'
 import CountdownRing from './CountdownRing'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
+import { skipStep } from './skipStep'
+import { guideMovement, IDENTITY, traceStrokes, type Similarity } from './trace'
 import { useCountdown } from './useCountdown'
 
 const LESSON_SECONDS = 120
 const SHOW_ME_MS = 3000
 const TOAST_MS = 4000
 const CHEER_MS = 1600
+// After this many strokes on one step without finishing it, the full guide line shows (even in Hints or
+// Check-in) with a nudge toward "Skip step". The engine itself moves on after a few more.
+const STUCK_AFTER = 3
+// How faint the trace of the real drawing is at each help level: it fades with the help, and Check-in has none.
+const TRACE_OPACITY: Record<HelpLevel, number> = { guided: 0.22, hints: 0.12, checkin: 0 }
 
 // "Happy accidents" (only with ?happy=1 in the URL, and only when the live server is online): a stroke that
 // scores below 0.35 is sent to image AI, which redraws the target around the user's lines. The lesson then
 // carries on with the new guides, so the mistake becomes part of the drawing.
 const HAPPY = new URLSearchParams(window.location.search).get('happy') === '1'
 const HAPPY_BELOW = 0.35
-const HAPPY_COOLDOWN_MS = 30_000 // at most one redraw every 30 s, so the guides don't keep changing
+const HAPPY_COOLDOWN_MS = 45_000 // at most one redraw every 45 s...
+const HAPPY_MAX = 2              // ...and two per lesson: each redraw restarts the steps, so more would never let a lesson end
 const SWAP_FADE_MS = 400
 const HAPPY_TOAST = 'Nice, we\u2019ve worked that into your drawing.'
 
@@ -56,7 +64,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
   // replaces both with the redrawn pack's.
   const [lesson, setLesson] = useState(() => {
     const steps = engine.buildLesson(pack, session.weaknesses)
-    return { steps, teacher: engine.createTeacher(pack, steps, 'auto') }
+    return { pack, steps, teacher: engine.createTeacher(pack, steps, 'auto') }
   })
   const [result, setResult] = useState<StrokeResult>(() => lesson.teacher.state())
   const [mode, setModeState] = useState<Mode>('auto')
@@ -65,7 +73,12 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const [meter, setMeter] = useState<number | null>(null) // eased accuracy, 0-1; null before the first match
   const [showMe, setShowMe] = useState<Ghost[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [cheer, setCheer] = useState(0) // bumped when a step is finished, to flash "Step done"
+  const [cheer, setCheer] = useState<{ id: number; text: string } | null>(null) // "Step done" / "Drawn for you"
+  const [assisted, setAssisted] = useState<UserStroke[]>([]) // lines drawn for the user by "Skip step"
+  const [stuck, setStuck] = useState(false) // several strokes on this step without finishing it
+  const triesHere = useRef(0)
+  const skipNoise = useRef(new Set<number>()) // help-level changes (indices in teacher.history()) made by skips
+  const happyCount = useRef(0)
   const [toastKind, setToastKind] = useState<'warning' | 'happy'>('warning')
   // Happy accidents: is the live server up, is a redraw on its way, and the old guides fading out after a swap.
   const [liveOnline, setLiveOnline] = useState(false)
@@ -104,20 +117,46 @@ export default function Teach({ onBack, onNext }: NavProps) {
     recording.current.events.push({ t, type: 'stroke', stroke }, { t, type: 'ghosts', ghosts: next.ghosts })
     setStrokes((previous) => [...previous, stroke])
     // A quick "Step done" when this stroke finished a step (not on the last one: the panel above says so).
-    if (!next.done && next.completedStepIds.length > result.completedStepIds.length) {
-      const id = ++cheers.current
-      setCheer(id)
-      later(CHEER_MS, () => setCheer((current) => (current === id ? 0 : current)))
-    }
+    if (!next.done && next.completedStepIds.length > result.completedStepIds.length) flash('Step done')
     setResult(next)
-    setShowMe(null)
+    // Stuck on a step: show its whole guide line until the step is done, and point at "Skip step".
+    triesHere.current = next.currentStepId === result.currentStepId && !next.done ? triesHere.current + 1 : 0
+    const isStuck = triesHere.current >= STUCK_AFTER
+    setStuck(isStuck)
+    setShowMe(isStuck && next.helpLevel !== 'guided' ? lesson.teacher.showMe() : null)
     const accuracy = next.accuracy
     if (accuracy !== null) setMeter((m) => (m === null ? accuracy : m + (accuracy - m) * METER_EASING))
     if (next.warning) showToast(next.warning, 'warning')
     if (HAPPY && liveOnline && !redrawing && accuracy !== null && accuracy < HAPPY_BELOW && !next.done) {
-      happyAccident([...strokes, stroke])
+      happyAccident([...assisted, ...strokes, stroke])
     }
   }
+
+  function flash(text: string) {
+    const id = ++cheers.current
+    setCheer({ id, text })
+    later(CHEER_MS, () => setCheer((current) => (current?.id === id ? null : current)))
+  }
+
+  // "Skip step": the app draws this step's lines (in soft gray, so it's clear the user didn't draw them) and the
+  // lesson moves on; the user can draw the next step or skip again.
+  function skip() {
+    const { result: next, drawn, ignoreHistory: [from, to] } = skipStep(lesson.teacher, lesson.steps, mode)
+    for (let i = from; i < to; i++) skipNoise.current.add(i)
+    const t = sinceStart(startedAt.current)
+    drawn.forEach((stroke) => recording.current.events.push({ t, type: 'stroke', stroke }))
+    recording.current.events.push({ t, type: 'ghosts', ghosts: next.ghosts })
+    setAssisted((previous) => [...previous, ...drawn])
+    setResult(next)
+    setShowMe(null)
+    setStuck(false)
+    triesHere.current = 0
+    lastRedrawAt.current = t // no AI redraw right after a skip: the user just asked for the plan's own lines
+    if (!next.done) flash('Drawn for you. Your turn!')
+  }
+
+  // A teacher's help-level changes, without the ones "Skip step" caused (those weren't the user's doing).
+  const realHistory = (teacher: typeof lesson.teacher) => teacher.history().filter((_, i) => !skipNoise.current.has(i))
 
   function showToast(text: string, kind: 'warning' | 'happy') {
     setToast(text)
@@ -135,8 +174,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
   // Any failure (offline, busy, too slow) is silent: the current lesson simply continues.
   function happyAccident(drawing: UserStroke[]) {
     const now = sinceStart(startedAt.current)
-    if (now - lastRedrawAt.current < HAPPY_COOLDOWN_MS) return
+    if (happyCount.current >= HAPPY_MAX || now - lastRedrawAt.current < HAPPY_COOLDOWN_MS) return
     lastRedrawAt.current = now
+    happyCount.current++
     setRedrawing(true)
     regenerate({ prompt: subjectWords(pack), canvasBase64: strokesToPngBase64(drawing), difficulty: pack.difficulty })
       .then((newPack) => {
@@ -147,12 +187,15 @@ export default function Teach({ onBack, onNext }: NavProps) {
         const teacher = engine.createTeacher(newPack, newPack.steps, now.mode)
         const fresh = teacher.state()
         if (fresh.done) return // the AI kept nothing new to draw: stay on the current lesson
-        earlierHistory.current.push(...now.teacher.history())
+        earlierHistory.current.push(...realHistory(now.teacher))
+        skipNoise.current = new Set()
+        triesHere.current = 0
+        setStuck(false)
         // Crossfade: the old guides fade out while the new ones fade in.
         setFadingGhosts(now.ghosts)
         later(SWAP_FADE_MS, () => setFadingGhosts(null))
         setSwaps((n) => n + 1)
-        setLesson({ steps: newPack.steps, teacher })
+        setLesson({ pack: newPack, steps: newPack.steps, teacher })
         setResult(fresh)
         setShowMe(null)
         recording.current.events.push({ t: sinceStart(startedAt.current), type: 'ghosts', ghosts: fresh.ghosts })
@@ -178,7 +221,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const finish = useCallback(() => {
     update({
       steps: lesson.steps,
-      modeHistory: [...earlierHistory.current, ...lesson.teacher.history()],
+      modeHistory: [...earlierHistory.current, ...realHistory(lesson.teacher)],
       teachRecording: { events: [...recording.current.events] },
     })
     onNext()
@@ -190,6 +233,15 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const stepIndex = lesson.steps.findIndex((s) => s.id === result.currentStepId)
   const step = stepIndex >= 0 ? lesson.steps[stepIndex] : undefined
   const ghosts = showMe ?? result.ghosts
+
+  // The trace of the real drawing, moved the same way the guides have moved to follow the user.
+  const plan = useMemo(() => new Map(lesson.pack.strokes.map((s) => [s.id, s.points])), [lesson.pack])
+  // showMe() only reads the teacher (full guides, wherever they are now); it changes nothing.
+  const movement: Similarity = useMemo(
+    () => (result.done ? null : guideMovement(lesson.teacher.showMe(), plan)) ?? IDENTITY,
+    [lesson, result, plan],
+  )
+  const traced = result.done ? [] : traceStrokes(lesson.pack.strokes, lesson.steps, stepIndex)
   // Steps the teacher had to drop (nothing to draw) never show up as completed, so a finished lesson is shown full.
   const stepsDone = result.done ? lesson.steps.length : result.completedStepIds.length
 
@@ -209,7 +261,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
               <>
                 <span className="step-count">Step {stepIndex + 1} of {lesson.steps.length}</span>
                 <h2>{step.label}</h2>
-                <p>{step.tip}</p>
+                <p>{stuck ? 'Stuck? Trace the blue line, or press Skip step and we\u2019ll draw this part for you.' : step.tip}</p>
               </>
             ) : (
               <>
@@ -225,11 +277,22 @@ export default function Teach({ onBack, onNext }: NavProps) {
             <div className="step-progress-fill" style={{ width: `${(stepsDone / Math.max(1, lesson.steps.length)) * 100}%` }} />
           </div>
           <div className="canvas-stack">
+            {/* Under everything: a faint trace of the real drawing, revealed part by part as the lesson goes on. */}
+            <svg className="trace-layer" viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`} aria-hidden="true"
+              style={{ opacity: TRACE_OPACITY[result.helpLevel] }}>
+              <g transform={`matrix(${movement.a} ${movement.b} ${-movement.b} ${movement.a} ${movement.tx} ${movement.ty})`}>
+                {traced.map((t) => <polyline key={t.id} points={toSvgPoints(t.points)} vectorEffect="non-scaling-stroke" />)}
+              </g>
+            </svg>
+            {/* Lines "Skip step" drew for the user, in soft gray so they're never mistaken for the user's own ink. */}
+            <svg className="assist-layer" viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`} aria-hidden="true">
+              {assisted.map((stroke, i) => <path key={i} d={strokeToPath(stroke.points, true, PEN_SIZES.medium)} />)}
+            </svg>
             <DrawingCanvas strokes={strokes} onStroke={handleStroke} penSize={penSize} label="Lesson canvas. Draw over the ghost lines." />
             {fadingGhosts && <div className="ghost-swap is-out"><GhostLayer ghosts={fadingGhosts} /></div>}
             <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} /></div>
             {redrawing && <p className="teach-redrawing" role="status">Working your line into the drawing…</p>}
-            {cheer !== 0 && !result.done && <p key={cheer} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>Step done</p>}
+            {cheer && !result.done && <p key={cheer.id} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>{cheer.text}</p>}
             {toast && !result.done && (
               <p className={toastKind === 'happy' ? 'teach-toast is-happy' : 'teach-toast'} role="status">
                 <span aria-hidden="true">{toastKind === 'happy' ? '✨ ' : '⚠ '}</span>{toast}
@@ -241,7 +304,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
             penSize={penSize}
             onPenSize={setPenSize}
             onUndo={() => setStrokes((s) => s.slice(0, -1))}
-            onClear={() => setStrokes([])}
+            onClear={() => { setStrokes([]); setAssisted([]) }}
             canUndo={strokes.length > 0}
           />
         </div>
@@ -283,9 +346,16 @@ export default function Teach({ onBack, onNext }: NavProps) {
             <span className="mode-hint">{MODES.find((m) => m.id === mode)?.hint}</span>
           </div>
 
-          <button type="button" className="btn" onClick={revealStep} disabled={result.done}>
-            Show me
-          </button>
+          <div className="teach-actions">
+            <button type="button" className="btn" onClick={revealStep} disabled={result.done}>
+              Show me
+            </button>
+            {/* Always a way forward: the app draws this step and the next one appears. */}
+            <button type="button" className={stuck ? 'btn btn-primary' : 'btn'} onClick={skip} disabled={result.done}
+              title="Draw this step for me and go to the next one">
+              Skip step
+            </button>
+          </div>
         </aside>
       </div>
     </PlaceholderScreen>

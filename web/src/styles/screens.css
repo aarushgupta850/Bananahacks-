@@ -1534,3 +1534,43 @@ dialog.pipeline-panel {
     justify-content: center;
   }
 }
+
+/* ---------- lesson: trace of the real drawing, lines drawn by "Skip step" ---------- */
+
+.trace-layer,
+.assist-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* drawing goes straight through */
+}
+
+/* The real lines, thin and faint (the layer's opacity follows the help level). */
+.trace-layer polyline {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trace-layer {
+  transition: opacity 400ms ease-out;
+}
+
+.assist-layer path {
+  fill: var(--ink);
+  opacity: 0.35; /* soft pencil: clearly drawn, clearly not the user's own black ink, and not a blue guide */
+}
+
+.teach-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.teach-actions .btn {
+  padding-inline: var(--space-2);
+  white-space: nowrap;
+}
