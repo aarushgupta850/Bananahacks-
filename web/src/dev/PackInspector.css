@@ -1,0 +1,159 @@
+/* Pack inspector (developer page). Uses the shared tokens, including the per-tier colors. */
+.inspector-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+.inspector-page h1 {
+  font-size: var(--text-xl);
+}
+
+.inspector {
+  display: grid;
+  grid-template-columns: minmax(0, 768px) minmax(260px, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .inspector {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The target image with the plan drawn on top, both scaled together. */
+.inspector-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.inspector-canvas img,
+.inspector-canvas svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.inspector-canvas img {
+  opacity: 0.35; /* faded, so the colored plan strokes stand out */
+}
+
+.part rect {
+  fill: none;
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+}
+
+.part text {
+  fill: var(--ink-muted);
+  font: 600 16px var(--font-ui);
+}
+
+.plan-stroke polyline {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.plan-stroke.tier-construction polyline {
+  stroke-dasharray: 10 8;
+}
+
+.badge circle {
+  fill: var(--surface);
+  stroke-width: 2.5;
+}
+
+.badge text {
+  fill: var(--ink);
+  font: 700 14px var(--font-ui);
+  text-anchor: middle;
+}
+
+/* Tier colors: stroke lines, key-point dots, badge rings and legend swatches. */
+.tier-construction { --tier: var(--tier-construction); }
+.tier-outline { --tier: var(--tier-outline); }
+.tier-structure { --tier: var(--tier-structure); }
+.tier-detail { --tier: var(--tier-detail); }
+
+.plan-stroke polyline,
+.badge circle {
+  stroke: var(--tier);
+}
+
+.plan-stroke circle {
+  fill: var(--tier);
+}
+
+.inspector-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.inspector-side h2 {
+  font-size: var(--text-lg);
+}
+
+.inspector-side h3 {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-md);
+}
+
+.inspector-muted {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.inspector-counts {
+  margin-top: var(--space-2);
+  font-weight: 600;
+}
+
+.inspector-legend,
+.inspector-parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: inline-block;
+  width: 24px;
+  border-top: 4px solid var(--tier);
+}
+
+.swatch.tier-construction {
+  border-top-style: dashed;
+}
+
+.inspector-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.inspector-error {
+  padding: var(--space-4);
+  border-left: 4px solid var(--warning);
+  background: var(--surface);
+  white-space: pre-wrap;
+}

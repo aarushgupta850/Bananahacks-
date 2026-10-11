@@ -1,0 +1,159 @@
+/* Layout for the placeholder screens. Jeff replaces these as he designs each screen. */
+
+/* ---------- subject picker ---------- */
+
+.subject-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subject-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.subject-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.subject-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.subject-card:disabled {
+  cursor: progress;
+}
+
+.subject-card img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.subject-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.subject-status {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---------- reference ---------- */
+
+.reference-image {
+  width: min(100%, 560px);
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* ---------- test and retest: reference beside the canvas, stacked on narrow screens ---------- */
+
+.solo-layout {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(0, 2fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.solo-reference {
+  margin: 0;
+}
+
+.solo-reference img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.solo-reference figcaption {
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 700px) {
+  .solo-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .solo-reference {
+    max-width: 200px;
+  }
+}
+
+/* ---------- teach ---------- */
+
+.teach-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 7.5rem; /* room for a 3-line tip, so the canvas doesn't jump between steps */
+}
+
+.teach-step h2 {
+  font-size: var(--text-lg);
+}
+
+.teach-warning {
+  color: var(--ink);
+  border-left: 4px solid var(--warning);
+  padding-left: var(--space-3);
+}
+
+/* ---------- "How this lesson was made" ---------- */
+
+.pipeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.pipeline-stages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-5) 0 0;
+  padding-left: var(--space-5);
+}
+
+.pipeline-stages h3 {
+  font-size: var(--text-md);
+}
+
+.pipeline-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.pipeline-images img {
+  width: 120px;
+  height: auto;
+  border-radius: var(--radius-sm);
+}

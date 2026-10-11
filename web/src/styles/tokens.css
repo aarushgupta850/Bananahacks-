@@ -1,0 +1,51 @@
+/* Design tokens. Every color, size and timing in the app comes from here (see web/CLAUDE.md). */
+:root {
+  /* Colors */
+  --paper: #faf7f2;
+  --ink: #1c1b19;
+  --ink-muted: #5f5b54;      /* secondary text; still 6:1 contrast on paper */
+  --line: #e4ded3;           /* borders and dividers */
+  --surface: #ffffff;        /* cards and the drawing canvas */
+  --accent: #3b6cff;
+  --accent-ink: #ffffff;     /* text on the accent color */
+  --success: #2e9e6a;
+  --warning: #f27a5e;
+  --ghost-opacity: 0.3;      /* ghost lines are the accent at 30% */
+
+  /* One color per stroke tier (pack inspector, lesson legend). Always paired with a text label. */
+  --tier-construction: var(--accent);
+  --tier-outline: var(--ink);
+  --tier-structure: var(--success);
+  --tier-detail: var(--warning);
+
+  /* Type */
+  --font-heading: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 2rem;
+  --text-2xl: 2.75rem;
+
+  /* Space */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Shape and motion */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgb(28 27 25 / 6%), 0 4px 16px rgb(28 27 25 / 6%);
+  --focus-ring: 0 0 0 3px var(--paper), 0 0 0 5px var(--accent);
+  --transition: 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition: 0ms;
+  }
+}
