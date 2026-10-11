@@ -187,7 +187,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
     if photo is not None:
         safety.check_picture(photo)  # before any drawing is made from it
         def generate(seed):
-            return gen.from_photo(photo, words, difficulty, n=LIVE_CANDIDATES, seed=seed)
+            return gen.from_photo_fast(photo, words, difficulty, n=LIVE_CANDIDATES, seed=seed)
     else:
         def generate(seed):
             return gen.from_prompt(words, difficulty, n=LIVE_CANDIDATES, seed=seed)
