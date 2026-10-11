@@ -5,7 +5,8 @@
       "title": "Fox",
       "thumb": "fox-medium/thumb.png",
       "packs": {
-        "medium": "fox-medium"
+        "medium": "fox-medium",
+        "simple": "fox-simple"
       }
     },
     {
@@ -13,7 +14,8 @@
       "title": "Cat",
       "thumb": "cat-medium/thumb.png",
       "packs": {
-        "medium": "cat-medium"
+        "medium": "cat-medium",
+        "simple": "cat-simple"
       }
     },
     {
@@ -29,7 +31,8 @@
       "title": "Mug",
       "thumb": "mug-medium/thumb.png",
       "packs": {
-        "medium": "mug-medium"
+        "medium": "mug-medium",
+        "simple": "mug-simple"
       }
     },
     {

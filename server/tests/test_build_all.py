@@ -62,3 +62,9 @@ def test_main_points_hugging_face_at_the_local_cache_and_stays_offline(subjects,
     import os
     assert os.environ["HF_HUB_OFFLINE"] == "1"
     assert tried == ["a cat"]
+
+
+def test_difficulty_builds_the_same_subjects_at_another_level(subjects):
+    build_fn, tried = fake_build()
+    assert build_all.main(["--only", "cat", "--difficulty", "simple"], build_fn, subjects) == 0
+    assert (subjects / "cat-simple" / "pack.json").is_file()
