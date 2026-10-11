@@ -17,6 +17,7 @@ import { useCountdown } from './useCountdown'
 const LESSON_SECONDS = 120
 const SHOW_ME_MS = 3000
 const TOAST_MS = 4000
+const CHEER_MS = 1600
 // The meter eases toward each new accuracy instead of jumping, so one bad stroke doesn't look like a crash.
 // 0.4 = each stroke moves the meter 40% of the way to its accuracy.
 const METER_EASING = 0.4
@@ -49,11 +50,13 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const [meter, setMeter] = useState<number | null>(null) // eased accuracy, 0-1; null before the first match
   const [showMe, setShowMe] = useState<Ghost[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [cheer, setCheer] = useState(0) // bumped when a step is finished, to flash "Step done"
 
   // The recording starts with the ghosts shown before the first stroke, so the replay opens the same way.
   const recording = useRef<TeachRecording>({ events: [{ t: 0, type: 'ghosts', ghosts: result.ghosts }] })
   const startedAt = useRef(0)
   const timers = useRef<number[]>([])
+  const cheers = useRef(0) // how many "Step done" flashes so far (each one's id)
   useEffect(() => {
     startedAt.current = performance.now()
     const pending = timers.current
@@ -71,6 +74,12 @@ export default function Teach({ onBack, onNext }: NavProps) {
     const t = sinceStart(startedAt.current)
     recording.current.events.push({ t, type: 'stroke', stroke }, { t, type: 'ghosts', ghosts: next.ghosts })
     setStrokes((previous) => [...previous, stroke])
+    // A quick "Step done" when this stroke finished a step (not on the last one: the panel above says so).
+    if (!next.done && next.completedStepIds.length > result.completedStepIds.length) {
+      const id = ++cheers.current
+      setCheer(id)
+      later(CHEER_MS, () => setCheer((current) => (current === id ? 0 : current)))
+    }
     setResult(next)
     setShowMe(null)
     const accuracy = next.accuracy
@@ -110,6 +119,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const stepIndex = lesson.steps.findIndex((s) => s.id === result.currentStepId)
   const step = stepIndex >= 0 ? lesson.steps[stepIndex] : undefined
   const ghosts = showMe ?? result.ghosts
+  // Steps the teacher had to drop (nothing to draw) never show up as completed, so a finished lesson is shown full.
+  const stepsDone = result.done ? lesson.steps.length : result.completedStepIds.length
 
   return (
     <PlaceholderScreen
@@ -122,7 +133,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
     >
       <div className="teach-layout">
         <div className="canvas-column">
-          <div className="teach-step" aria-live="polite">
+          <div className={result.done ? 'teach-step is-done' : 'teach-step'} aria-live="polite">
             {step ? (
               <>
                 <span className="step-count">Step {stepIndex + 1} of {lesson.steps.length}</span>
@@ -131,16 +142,22 @@ export default function Teach({ onBack, onNext }: NavProps) {
               </>
             ) : (
               <>
-                <span className="step-count">All {lesson.steps.length} steps done</span>
+                <span className="step-count"><span aria-hidden="true">✓ </span>All {lesson.steps.length} steps done</span>
                 <h2>Lesson complete</h2>
-                <p>Nice work. Now try it on your own in the retest.</p>
+                <p>Nice work. Press <strong>Go to retest</strong> to try it on your own.</p>
               </>
             )}
+          </div>
+          {/* How far through the lesson the user is, so a long lesson never feels endless. */}
+          <div className="step-progress" role="progressbar" aria-label="Lesson progress"
+            aria-valuemin={0} aria-valuemax={lesson.steps.length} aria-valuenow={stepsDone}>
+            <div className="step-progress-fill" style={{ width: `${(stepsDone / Math.max(1, lesson.steps.length)) * 100}%` }} />
           </div>
           <div className="canvas-stack">
             <DrawingCanvas strokes={strokes} onStroke={handleStroke} penSize={penSize} label="Lesson canvas. Draw over the ghost lines." />
             <GhostLayer ghosts={ghosts} />
-            {toast && <p className="teach-toast" role="status"><span aria-hidden="true">⚠ </span>{toast}</p>}
+            {cheer !== 0 && !result.done && <p key={cheer} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>Step done</p>}
+            {toast && !result.done && <p className="teach-toast" role="status"><span aria-hidden="true">⚠ </span>{toast}</p>}
           </div>
           {/* Undo and clear only tidy the ink here: the teacher has already checked those strokes. */}
           <CanvasToolbar
@@ -153,7 +170,10 @@ export default function Teach({ onBack, onNext }: NavProps) {
         </div>
 
         <aside className="teach-panel" aria-label="Lesson controls">
-          <CountdownRing remaining={remaining} total={LESSON_SECONDS} />
+          <div className="panel-timer">
+            <CountdownRing remaining={remaining} total={LESSON_SECONDS} />
+            <span className="panel-label">{result.done ? 'Lesson finished' : 'Lesson time left'}</span>
+          </div>
 
           <div className="panel-block">
             <span className="panel-label">Help level now</span>
@@ -169,7 +189,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
             <span className="meter-text">
               {result.accuracy !== null
                 ? `Last stroke: ${Math.round(result.accuracy * 100)}% match`
-                : meter === null ? 'Draw a stroke to see how close it is' : 'Last stroke matched no guide'}
+                : meter === null ? 'Draw a stroke to see how close it is' : 'That stroke was far from the guide. Try tracing the blue line, or press Show me.'}
             </span>
           </div>
 

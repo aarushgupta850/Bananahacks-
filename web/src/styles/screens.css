@@ -669,12 +669,55 @@
 }
 
 .mode-switch {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* a tidy 2 x 2 grid instead of a row that wraps unevenly */
+  gap: 2px;
 }
 
-.mode-switch button {
-  flex: 1 1 auto;
+/* The ring with a visible name next to it, so the number is never a mystery. */
+.panel-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.step-progress {
+  height: 6px;
+  margin-bottom: var(--space-3);
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.step-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 400ms ease-out;
+}
+
+.teach-step.is-done .step-count {
+  color: var(--success);
+}
+
+.teach-step.is-done ~ .step-progress .step-progress-fill {
+  background: var(--success);
+}
+
+/* "Step done": a short green chip at the top of the canvas. Never blocks drawing. */
+.teach-cheer {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  padding: var(--space-1) var(--space-4);
+  border-radius: 999px;
+  background: var(--success);
+  color: var(--ink); /* dark text on the green keeps contrast above 4.5:1 */
+  font-size: var(--text-sm);
+  font-weight: 700;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: card-in 200ms ease-out;
 }
 
 .mode-hint {
@@ -844,7 +887,7 @@
 .change-badge.is-up {
   border-color: var(--success);
   background: var(--success);
-  color: #fff;
+  color: var(--ink); /* dark text on the green keeps contrast above 4.5:1 */
 }
 
 .change-word {
