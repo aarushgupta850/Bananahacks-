@@ -17,7 +17,7 @@ Endpoints:
 
 Safety (see pipeline/safety.py): prompts are 80 characters or less, letters, numbers, spaces and simple
 punctuation, checked against a blocklist that also catches disguised words, and always wrapped in the line-art
-prompt. Photos are 5 MB or less, JPEG or PNG only, and both the photo and the chosen drawing are checked for
+prompt. Photos are 15 MB or less, JPEG, PNG or WebP, and both the photo and the chosen drawing are checked for
 nudity and weapons with OWLv2. Requests are logged, but photos are never stored.
 Any allowed prompt or photo gets a lesson: if no drawing fits the stroke limit, the cleanest one is simplified.
 """
@@ -52,7 +52,8 @@ ALLOWED_ORIGINS = [
 ]
 MAX_PROMPT_CHARS = 80  # the same as the input box in SubjectPicker.tsx
 PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, spaces and simple punctuation
-MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_IMAGE_BYTES = 15 * 1024 * 1024  # phone photos are often 3 to 10 MB
+MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: the line-art detector works at 1024 anyway
 TIMEOUT_S = 23  # the web app (web/src/lib/live.ts) gives up after 25 s, so answer before that
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
 
@@ -122,19 +123,27 @@ def check_prompt(prompt: str) -> str:
 
 
 def decode_image(data: str) -> bytes:
-    """The photo's bytes, or InputError. Accepts plain base64 or a data: URL. JPEG or PNG, 5 MB or less."""
+    """The photo's bytes, or InputError. Accepts plain base64 or a data: URL. JPEG, PNG or WebP, 15 MB or less."""
+    limit_mb = MAX_IMAGE_BYTES // (1024 * 1024)
     if data.startswith("data:"):
         data = data.split(",", 1)[-1]
     if len(data) > MAX_IMAGE_BYTES * 4 // 3 + 4:  # base64 is 4/3 the size: check before decoding
-        raise InputError("The photo must be 5 MB or less.")
+        raise InputError(f"The photo must be {limit_mb} MB or less.")
     try:
         raw = base64.b64decode(data, validate=True)
     except (binascii.Error, ValueError):
         raise InputError("The photo couldn't be read.") from None
     if len(raw) > MAX_IMAGE_BYTES:
-        raise InputError("The photo must be 5 MB or less.")
-    if not (raw.startswith(b"\xff\xd8\xff") or raw.startswith(b"\x89PNG\r\n\x1a\n")):
-        raise InputError("The photo must be a JPEG or PNG.")
+        raise InputError(f"The photo must be {limit_mb} MB or less.")
+    is_webp = raw[:4] == b"RIFF" and raw[8:12] == b"WEBP"
+    if not (raw.startswith(b"\xff\xd8\xff") or raw.startswith(b"\x89PNG\r\n\x1a\n") or is_webp):
+        raise InputError("The photo must be a JPEG, PNG or WebP (on an iPhone, use Most Compatible photos).")
+    try:
+        from PIL import Image
+
+        Image.open(io.BytesIO(raw)).verify()  # a truncated or broken file fails here, not deep in the pipeline
+    except Exception:  # noqa: BLE001 - any decoding problem means the same thing to the user
+        raise InputError("The photo couldn't be read.") from None
     return raw
 
 
@@ -185,6 +194,10 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
     slug = re.sub(r"[^a-z0-9-]", "", subject_slug(words)) or "drawing"
     photo = Image.open(io.BytesIO(image)) if image else None
     if photo is not None:
+        from PIL import ImageOps
+
+        photo = ImageOps.exif_transpose(photo).convert("RGB")  # phone photos the right way up
+        photo.thumbnail((MAX_PHOTO_SIDE, MAX_PHOTO_SIDE))  # a 12-megapixel photo slows every step down
         safety.check_picture(photo)  # before any drawing is made from it
         def generate(seed):
             return gen.from_photo_fast(photo, words, difficulty, n=LIVE_CANDIDATES, seed=seed)

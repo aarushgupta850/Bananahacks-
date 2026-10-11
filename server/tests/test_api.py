@@ -76,7 +76,7 @@ def test_images_must_be_small_jpeg_or_png(monkeypatch):
     assert api.decode_image(png_base64())[:4] == b"\x89PNG"
     assert api.decode_image("data:image/png;base64," + png_base64())[:4] == b"\x89PNG"  # data: URLs work too
     with pytest.raises(api.InputError):
-        api.decode_image(base64.b64encode(b"GIF89a....").decode())  # not JPEG or PNG
+        api.decode_image(base64.b64encode(b"GIF89a....").decode())  # not JPEG, PNG or WebP
     with pytest.raises(api.InputError):
         api.decode_image("not base64!!")
     monkeypatch.setattr(api, "MAX_IMAGE_BYTES", 10)
@@ -222,3 +222,12 @@ def test_drop_covered_removes_drawn_strokes_and_construction_and_empty_steps():
     out = api.drop_covered(pack, ink)
     assert [s["id"] for s in out["strokes"]] == ["new"]
     assert [(s["id"], s["strokeIds"]) for s in out["steps"]] == [("s2", ["new"])]
+
+
+def test_webp_photos_are_accepted_and_broken_files_refused():
+    buffer = io.BytesIO()
+    Image.new("RGB", (8, 8), "white").save(buffer, "WEBP")
+    assert api.decode_image(base64.b64encode(buffer.getvalue()).decode())[:4] == b"RIFF"
+    truncated = base64.b64decode(png_base64())[:20]  # a PNG header with nothing after it
+    with pytest.raises(api.InputError, match="couldn't be read"):
+        api.decode_image(base64.b64encode(truncated).decode())
