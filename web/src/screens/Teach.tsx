@@ -15,7 +15,7 @@ import { usePack, useSession, type TeachRecording } from '../session'
 import CountdownRing from './CountdownRing'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
 import { skipStep } from './skipStep'
-import { guideMovement, IDENTITY, traceStrokes, type Similarity } from './trace'
+import { guideMovement, IDENTITY, lineLength, revealFor, traceReveal, type Similarity } from './trace'
 import { useCountdown } from './useCountdown'
 
 const LESSON_SECONDS = 120
@@ -26,7 +26,7 @@ const CHEER_MS = 1600
 // Check-in) with a nudge toward "Skip step". The engine itself moves on after a few more.
 const STUCK_AFTER = 3
 // How faint the trace of the real drawing is at each help level: it fades with the help, and Check-in has none.
-const TRACE_OPACITY: Record<HelpLevel, number> = { guided: 0.22, hints: 0.12, checkin: 0 }
+const TRACE_OPACITY: Record<HelpLevel, number> = { guided: 0.35, hints: 0.22, checkin: 0 }
 
 // "Happy accidents" (only with ?happy=1 in the URL, and only when the live server is online): a stroke that
 // scores below 0.35 is sent to image AI, which redraws the target around the user's lines. The lesson then
@@ -50,6 +50,9 @@ const MODES: { id: Mode; label: string; hint: string }[] = [
   { id: 'hints', label: 'Hints', hint: 'Key points only' },
   { id: 'checkin', label: 'Check-in', hint: 'No guides unless you ask' },
 ]
+
+// The total length of the drawing's real lines, which the trace reveals bit by bit.
+const drawingLength = (pack: Pack) => pack.strokes.filter((s) => s.tier !== 'construction').reduce((sum, s) => sum + lineLength(s.points), 0)
 
 // Milliseconds since the lesson started, for the recording.
 const sinceStart = (start: number) => Math.round(performance.now() - start)
@@ -79,6 +82,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const triesHere = useRef(0)
   const skipNoise = useRef(new Set<number>()) // help-level changes (indices in teacher.history()) made by skips
   const happyCount = useRef(0)
+  // How much of the real drawing's trace is revealed (pixels of line). Every stroke adds to it; undo and
+  // clear never take it back.
+  const [revealed, setRevealed] = useState(0)
   const [toastKind, setToastKind] = useState<'warning' | 'happy'>('warning')
   // Happy accidents: is the live server up, is a redraw on its way, and the old guides fading out after a swap.
   const [liveOnline, setLiveOnline] = useState(false)
@@ -116,6 +122,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
     const t = sinceStart(startedAt.current)
     recording.current.events.push({ t, type: 'stroke', stroke }, { t, type: 'ghosts', ghosts: next.ghosts })
     setStrokes((previous) => [...previous, stroke])
+    reveal([stroke])
     // A quick "Step done" when this stroke finished a step (not on the last one: the panel above says so).
     if (!next.done && next.completedStepIds.length > result.completedStepIds.length) flash('Step done')
     setResult(next)
@@ -130,6 +137,13 @@ export default function Teach({ onBack, onNext }: NavProps) {
     if (HAPPY && liveOnline && !redrawing && accuracy !== null && accuracy < HAPPY_BELOW && !next.done) {
       happyAccident([...assisted, ...strokes, stroke])
     }
+  }
+
+  // Each stroke reveals more of the trace: as much line as it drew, at least 1/12 of the drawing.
+  function reveal(drawn: UserStroke[]) {
+    const total = drawingLength(lesson.pack)
+    const more = drawn.reduce((sum, st) => sum + revealFor(lineLength(st.points.map(([x, y]): [number, number] => [x, y])), total), 0)
+    setRevealed((r) => r + more)
   }
 
   function flash(text: string) {
@@ -147,6 +161,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
     drawn.forEach((stroke) => recording.current.events.push({ t, type: 'stroke', stroke }))
     recording.current.events.push({ t, type: 'ghosts', ghosts: next.ghosts })
     setAssisted((previous) => [...previous, ...drawn])
+    reveal(drawn)
     setResult(next)
     setShowMe(null)
     setStuck(false)
@@ -241,7 +256,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
     () => (result.done ? null : guideMovement(lesson.teacher.showMe(), plan)) ?? IDENTITY,
     [lesson, result, plan],
   )
-  const traced = result.done ? [] : traceStrokes(lesson.pack.strokes, lesson.steps, stepIndex)
+  // Once the lesson is done the whole drawing shows, faint, as the finished picture.
+  const traced = traceReveal(lesson.pack.strokes, lesson.steps, result.done ? lesson.steps.length : stepIndex, result.done ? Infinity : revealed)
   // Steps the teacher had to drop (nothing to draw) never show up as completed, so a finished lesson is shown full.
   const stepsDone = result.done ? lesson.steps.length : result.completedStepIds.length
 
@@ -279,7 +295,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
           <div className="canvas-stack">
             {/* Under everything: a faint trace of the real drawing, revealed part by part as the lesson goes on. */}
             <svg className="trace-layer" viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`} aria-hidden="true"
-              style={{ opacity: TRACE_OPACITY[result.helpLevel] }}>
+              style={{ opacity: TRACE_OPACITY[result.done ? 'guided' : result.helpLevel] }}>
               <g transform={`matrix(${movement.a} ${movement.b} ${-movement.b} ${movement.a} ${movement.tx} ${movement.ty})`}>
                 {traced.map((t) => <polyline key={t.id} points={toSvgPoints(t.points)} vectorEffect="non-scaling-stroke" />)}
               </g>
