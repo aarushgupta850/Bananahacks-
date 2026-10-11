@@ -1,0 +1,8 @@
+[
+  {"id": "head", "label": "Head", "box": [228, 150, 297, 215]},
+  {"id": "body", "label": "Body", "box": [155, 295, 345, 425]},
+  {"id": "ears", "label": "Ears", "box": [236, 28, 274, 148]},
+  {"id": "eyes", "label": "Eyes", "box": [262, 192, 198, 98]},
+  {"id": "legs", "label": "Legs", "box": [255, 440, 245, 282]},
+  {"id": "tail", "label": "Tail", "box": [490, 485, 160, 202]}
+]

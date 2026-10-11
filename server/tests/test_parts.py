@@ -74,3 +74,16 @@ def test_side_view_animals_name_their_legs_front_and_back():
     # A face isn't a side view: its pairs stay left and right.
     assert {p["id"] for p in run([("eye", 0.3, (200, 200, 260, 240)), ("eye", 0.3, (400, 200, 460, 240))],
                                  ["eye"], slug="face")} == {"eye_left", "eye_right"}
+
+
+def test_override_files_are_valid_parts_inside_the_canvas():
+    from pipeline.schema import Part
+
+    for path in sorted(parts_module.OVERRIDES_DIR.glob("*.parts.json")):
+        parts = parts_module.load_override(path.name.removesuffix(".parts.json"))
+        assert parts, path.name
+        assert len({p["id"] for p in parts}) == len(parts), f"{path.name}: duplicate part ids"
+        for part in parts:
+            Part.model_validate(part)
+            x, y, w, h = part["box"]
+            assert w > 0 and h > 0 and x >= 0 and y >= 0 and x + w <= 768 and y + h <= 768, (path.name, part)
