@@ -1,15 +1,12 @@
 // Screen 4: the 2 or 3 things the test found to work on, each with a small picture, plus one strength.
-// It moves on by itself after 5 seconds (or on tap), because the lesson is where the work happens.
+// It stays until the user presses "Start the lesson", so there's time to read every card.
 // Every message and number here comes from the engine (findWeaknesses and the test analysis).
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { engine } from '../engine'
 import type { PartMetric, Weakness } from '../engine/types'
 import { usePack, useSession } from '../session'
 import PartCompare from './PartCompare'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
-import { useCountdown } from './useCountdown'
-
-const AUTO_ADVANCE_SECONDS = 5
 
 const KIND_NAMES: Record<Weakness['kind'], string> = {
   size: 'Size', position: 'Position', shape: 'Shape', missing: 'Missing', line: 'Line quality',
@@ -25,12 +22,10 @@ export default function WeakSpots({ onBack, onNext }: NavProps) {
   // One thing they already do well: the first part the engine marked good.
   const strength: PartMetric | undefined = analysis?.parts.find((p) => p.good && !p.missing)
 
-  const [paused, setPaused] = useState(false) // hovering or focusing the cards stops the auto-advance
-  const next = useCallback(() => {
+  function next() {
     update({ weaknesses })
     onNext()
-  }, [update, weaknesses, onNext])
-  const remaining = useCountdown(AUTO_ADVANCE_SECONDS, next, !paused)
+  }
 
   const partBox = (partId: string | null) => pack.parts.find((p) => p.id === partId)?.box ?? null
   const userBox = (partId: string | null) => analysis?.parts.find((p) => p.partId === partId)?.userBox ?? null
@@ -41,13 +36,9 @@ export default function WeakSpots({ onBack, onNext }: NavProps) {
       lead="Your lesson starts with these."
       onBack={onBack}
       onNext={next}
-      nextLabel={paused ? 'Start the lesson' : `Start the lesson (${remaining})`}
+      nextLabel="Start the lesson"
     >
-      <div
-        className="weak-grid"
-        onPointerEnter={() => setPaused(true)}
-        onFocus={() => setPaused(true)}
-      >
+      <div className="weak-grid">
         {weaknesses.length === 0 && (
           <article className="weak-card is-good">
             <span className="card-tag">Nice</span>
