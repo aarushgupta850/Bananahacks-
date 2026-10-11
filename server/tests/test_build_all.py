@@ -1,19 +1,19 @@
 """Tests for build_all.py, with fake drawings instead of the GPU models."""
 
-import shutil
+import json
 
 import pytest
 
 import build_all
 from build_pack import build
-from test_build_pack import DEMO_INDEX, FAKE_PARTS, blank, cat_drawing
+from test_build_pack import DEMO_ONLY_INDEX, FAKE_PARTS, blank, cat_drawing
 
 
 @pytest.fixture
 def subjects(tmp_path):
     folder = tmp_path / "subjects"
     folder.mkdir()
-    shutil.copy(DEMO_INDEX, folder / "index.json")
+    (folder / "index.json").write_text(json.dumps(DEMO_ONLY_INDEX))
     return folder
 
 
