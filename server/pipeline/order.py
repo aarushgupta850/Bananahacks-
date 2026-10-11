@@ -36,7 +36,9 @@ SAMPLE_PX = 4  # strokes are sampled every few pixels when measuring them
 CORNER_DEG = 45  # a turn sharper than this is a corner (a key point)
 MAX_KEY_POINTS = 8
 MAX_STEP_STROKES = 4
-CONSTRUCTION_PARTS = ["head", "body"]  # parts that get a construction shape, in drawing order
+# Parts that get a construction shape, in drawing order. "top" and "bottom" are the neutral halves that
+# parts.halves() gives subjects without part names (live prompts).
+CONSTRUCTION_PARTS = ["head", "body", "top", "bottom"]
 CONSTRUCTION_BY_SUBJECT = {"house": ["wall"], "sneaker": []}  # subjects without a head and body
 BOXY_SUBJECTS = {"mug", "house", "sneaker"}  # their construction shape is a rectangle, not an ellipse
 MAX_SIZE_TIP_SHARE = 0.7  # a part taller than this share of the drawing gets no size tip ("100%" is no help)

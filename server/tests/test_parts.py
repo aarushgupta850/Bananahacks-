@@ -87,3 +87,12 @@ def test_override_files_are_valid_parts_inside_the_canvas():
             Part.model_validate(part)
             x, y, w, h = part["box"]
             assert w > 0 and h > 0 and x >= 0 and y >= 0 and x + w <= 768 and y + h <= 768, (path.name, part)
+
+
+
+def test_subjects_without_part_names_get_top_and_bottom_halves():
+    from pipeline.parts import halves
+
+    top, bottom = halves((100.0, 200.0, 500.0, 600.0))
+    assert top == {"id": "top", "label": "Top", "box": [100, 200, 400, 200]}
+    assert bottom == {"id": "bottom", "label": "Bottom", "box": [100, 400, 400, 200]}
