@@ -22,12 +22,35 @@ check-in or auto mode) → Retest (solo, 45 s) → Report (measured before and a
 - Each subject's line art, strokes and lesson steps are built ahead of time by a Python GPU pipeline in
   [`/server`](server), then saved in [`web/public/subjects`](web/public/subjects).
   The "How this lesson was made" panel shows that pipeline for each subject.
-- An optional live server (`server/api.py`) can generate new subjects. The app works fully without it.
+- The site has 8 subjects at medium (fox, cat, face, mug, sneaker, house, bird, fish), plus simple levels for
+  fox, cat and mug. Where OWLv2 put a part in the wrong place, we placed it by hand
+  (see [server/PACK_QA.md](server/PACK_QA.md)).
+- An optional live server (`server/api.py`) can make new lessons. The app works fully without it.
 
 **The AI pipeline that builds each lesson** (`/server`): SDXL-Lightning draws four line-art drafts, the
 cleanest is thinned to 1 px lines and traced into strokes, OWLv2 finds and labels the parts, and the strokes
-are ordered the way an artist draws (construction shapes, outlines, structure, details). Photos are first
-redrawn cleanly with a line-art detector and the MistoLine ControlNet.
+are ordered the way an artist draws (construction shapes, outlines, structure, details). The drawing you copy
+is the chosen AI drawing itself, cleaned (page to white, ink to black). The guides and measurements use the
+strokes traced from that same image. Packs built offline from a photo (`build_pack.py --photo`) are first
+redrawn with a line-art detector and the MistoLine ControlNet.
+
+**Live lessons** (optional; setup in [server/LIVE.md](server/LIVE.md)): when our GPU server is online,
+"Make your own" on the subject picker builds a lesson from anything you type, or from a photo. It takes about
+15 to 20 seconds on an RTX 4060 Ti: about 15 s for a prompt, 18 to 20 s for a photo.
+
+- **Photos:** the browser turns the photo into a JPEG of at most 1536 px, so WebP and iPhone HEIC photos (in
+  Safari) work. The server runs a line-art detector on it, then SDXL-Lightning img2img (strength 0.6) redraws
+  the line art cleanly, on the same weights as the text path. On an 8 GB card the UNet and the ControlNet
+  don't fit together, so the live path uses img2img instead of MistoLine.
+- **Every allowed prompt or photo gets a lesson.** If no AI draft fits the 60-stroke limit, the cleanest one is
+  simplified to its 60 longest lines.
+- **Safety:** prompts are checked against a blocklist that also catches disguised words (leetspeak like
+  "n4k3d", "p.o.r.n", explicit words inside other words), and the prompt is always wrapped in the line-art
+  prompt. Uploaded photos and the chosen drawing are checked for nudity and weapons with OWLv2. Photos are
+  never stored.
+- **Happy accidents** (try it with `?happy=1`): when a stroke goes badly wrong during the lesson, the server
+  redraws the target around what you drew (img2img on your canvas), drops the lines you already drew, and the
+  lesson continues with "Nice, we've worked that into your drawing."
 
 **The in-browser engine** (`web/src/engine/real`, plain TypeScript):
 
@@ -81,8 +104,10 @@ The full rules are in [CLAUDE.md](CLAUDE.md), [web/CLAUDE.md](web/CLAUDE.md) and
   own part of the project to plan, write and test code, and we directed and reviewed what it wrote. We also
   used it to review the drawing engine and to click through the app in a headless browser before merging.
 - **Image AI models** are part of the product itself: the pack pipeline in [`/server`](server) uses
-  SDXL with SDXL-Lightning to draw the line art, MistoLine and a line-art detector for photos, and OWLv2 to
-  find each drawing's parts. They are listed with their licenses in [CREDITS.md](CREDITS.md).
+  SDXL with SDXL-Lightning to draw the line art (and, with img2img, to redraw live photos), a line-art
+  detector for photos, the MistoLine ControlNet for photo packs built offline, and OWLv2 to find each
+  drawing's parts and to check pictures for nudity and weapons. They are listed with their licenses in
+  [CREDITS.md](CREDITS.md).
 
 ## Credits
 
