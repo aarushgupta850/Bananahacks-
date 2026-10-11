@@ -127,13 +127,24 @@ def load_override(pack_id: str | None) -> list[dict] | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
+def owl():
+    """(processor, model) for OWLv2, loaded once. Also used by pipeline/safety.py."""
+    if "owl" not in _cache:
+        from transformers import Owlv2ForObjectDetection, Owlv2Processor
+
+        _cache["owl"] = (
+            Owlv2Processor.from_pretrained(models.OWL_REPO),
+            Owlv2ForObjectDetection.from_pretrained(models.OWL_REPO).to("cuda").eval(),
+        )
+    return _cache["owl"]
+
+
 def detect_parts(image: Image.Image, subject: str, pack_id: str | None = None) -> list[dict]:
     """The parts of a 768 x 768 drawing of `subject`. Uses the override file for pack_id if there is one."""
     override = load_override(pack_id)
     if override is not None:
         return override
     import torch
-    from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
     from pipeline.trace import ink_mask
 
@@ -143,12 +154,7 @@ def detect_parts(image: Image.Image, subject: str, pack_id: str | None = None) -
     ys, xs = np.nonzero(ink)
     drawing_box = (float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max()))
 
-    if "owl" not in _cache:
-        _cache["owl"] = (
-            Owlv2Processor.from_pretrained(models.OWL_REPO),
-            Owlv2ForObjectDetection.from_pretrained(models.OWL_REPO).to("cuda").eval(),
-        )
-    processor, model = _cache["owl"]
+    processor, model = owl()
     slug = subject_slug(subject)
     labels = PART_LABELS.get(slug, DEFAULT_LABELS)
     queries = [f"{slug} {label}" for label in labels]

@@ -6,7 +6,7 @@ Run from the repo root, with server/.venv active (needs the GPU). The /build-pac
 
 What it does:
 1. Generates 4 candidate drawings (from the prompt, or redrawn from the photo's lines).
-2. Traces each into strokes, and keeps the candidate with the fewest strokes inside the 6-60 gate
+2. Traces each into strokes, and keeps the cleanest candidate (quality score) inside the 6-60 stroke gate
    (colored or blank drawings are never kept). If none fits, it tries 4 new seeds once, then stops
    with a clear message.
 3. Finds the parts (OWLv2) and builds the lesson plan (tiers, order, steps).
@@ -80,14 +80,32 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def choose(candidates: list[Candidate]) -> int | None:
-    """Index of the candidate with the fewest strokes inside the gate (ties: the cleaner score), or None."""
+    """Index of the cleanest candidate (lowest quality score) inside the stroke gate, or None. Ties go to fewer
+    strokes. (Fewest strokes first, as before, kept drawings with dashed or broken lines over cleaner ones.)"""
     usable = [
         i for i, c in enumerate(candidates)
         if MIN_STROKES <= len(c.strokes) <= MAX_STROKES and c.score < REJECTED_SCORE
     ]
     if not usable:
         return None
-    return min(usable, key=lambda i: (len(candidates[i].strokes), candidates[i].score))
+    return min(usable, key=lambda i: (candidates[i].score, len(candidates[i].strokes)))
+
+
+def choose_anyway(candidates: list[Candidate]) -> int | None:
+    """When no candidate fits the gate: the cleanest one with enough lines, colored or not (it gets retraced in
+    black anyway), or None if every candidate is blank."""
+    usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= MIN_STROKES]
+    return min(usable, key=lambda i: candidates[i].score) if usable else None
+
+
+def simplify(strokes: list, limit: int = MAX_STROKES) -> list:
+    """The `limit` longest strokes, in their original order: a busy drawing keeps its big lines and loses the
+    smallest details, so it fits a lesson."""
+    def length(stroke) -> float:
+        return sum(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]))
+
+    keep = set(sorted(range(len(strokes)), key=lambda i: length(strokes[i]), reverse=True)[:limit])
+    return [s for i, s in enumerate(strokes) if i in keep]
 
 
 # ---------------------------------------------------------------- images
@@ -175,7 +193,7 @@ def pipeline_stages(
         {"id": "candidates", "label": f"{n_candidates} AI drafts", "images": candidate_paths,
          "text": f"SDXL-Lightning drew {n_candidates} line-art drafts, 4 steps each."},
         {"id": "chosen", "label": "Chosen drawing", "image": candidate_paths[chosen],
-         "text": f"The draft with the fewest strokes inside {MIN_STROKES}-{MAX_STROKES}: {n_strokes} strokes."},
+         "text": f"The cleanest draft, traced into {n_strokes} strokes (a lesson keeps {MIN_STROKES}-{MAX_STROKES})."},
         {"id": "skeleton", "label": "Traced lines", "image": "pipeline/skeleton.webp",
          "text": f"Thinned to 1 px lines, then traced into {n_strokes} strokes."},
         {"id": "parts", "label": "Parts found", "image": "pipeline/parts.webp",
@@ -232,9 +250,12 @@ def update_index(index_path: Path, subject: str, title: str, difficulty: str, pa
 def make_pack(
     *, pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
+    always: bool = False, check_drawing=None,
 ) -> tuple[dict, dict[str, bytes]]:
     """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
-    by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits.
+    by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits, unless
+    `always` (the live server): then the cleanest drawing is used and simplified to the stroke limit.
+    `check_drawing(image)`, if given, may raise to refuse the chosen drawing (the live server's safety check).
 
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
     prompt_text = line_art_prompt(subject_words, difficulty=difficulty)
@@ -251,6 +272,10 @@ def make_pack(
         if chosen is not None:
             break
     else:
+        chosen = choose_anyway(candidates) if always else None
+        if chosen is not None:
+            log(f"  no candidate fit {MIN_STROKES}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
+    if chosen is None:
         counts = "; ".join(", ".join(str(len(c.strokes)) for c in t) for t in tries)
         raise NoCleanCandidate(
             f"No candidate had {MIN_STROKES}-{MAX_STROKES} strokes and a clean score (stroke counts: {counts}). "
@@ -258,6 +283,10 @@ def make_pack(
         )
 
     best = candidates[chosen]
+    if check_drawing is not None:
+        check_drawing(best.image)
+    if len(best.strokes) > MAX_STROKES:
+        best = Candidate(best.image, simplify(best.strokes), best.score)
     parts = detect(best.image)
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
