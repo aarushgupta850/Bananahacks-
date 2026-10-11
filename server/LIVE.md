@@ -13,9 +13,13 @@ powershell -ExecutionPolicy Bypass -File server\run_live.ps1
 It loads the models, builds one test pack (about 30 s), then listens on http://localhost:8000.
 Check it: open http://localhost:8000/health and look for `"ok": true` and `"busy": false`.
 
-It keeps both image pipelines (text and photo) loaded. The photo one is built on the text one's weights, so this
-costs only the ControlNet, about 2.5 GB of RAM. To go back to one pipeline at a time, set
-`$env:GHOSTLINES_KEEP_BOTH_PIPELINES = "0"` in run_live.ps1.
+Photos and Happy accidents use img2img on the text pipeline's own weights, so they load nothing extra and run
+about as fast as a text prompt (about 18-20 s versus 15 s). The MistoLine ControlNet is only used for photo packs
+built offline with `build_pack.py --photo`: on an 8 GB card the UNet and the ControlNet don't fit together, so
+every ControlNet step swaps them and takes about 8 s.
+
+**Keep both windows open.** Run run_live.ps1 and cloudflared in your own PowerShell windows, not as background
+jobs of an assistant session (those stop after 2 hours). Closing either window takes "Make your own" offline.
 
 Keep the PC awake and plugged in while people use it (Windows sleep settings), and close games or other
 apps that use the GPU.
@@ -44,7 +48,8 @@ apps that use the GPU.
 - Every allowed prompt or photo gets a lesson. If no drawing fits the 60-stroke limit, the cleanest one is
   simplified to its 60 longest lines.
 - Prompts: 80 characters or less (letters, numbers, spaces, simple punctuation), checked against a blocklist that
-  also catches disguised words ("n4k3d", "p.o.r.n"), and always wrapped in the line-art prompt. Photos: JPEG or
-  PNG, 5 MB or less, never stored. The photo and the chosen drawing are checked for nudity and weapons with
+  also catches disguised words ("n4k3d", "p.o.r.n"), and always wrapped in the line-art prompt. Photos: the browser
+  sends a JPEG of at most 1536 px (so iPhone HEIC and WebP work); the server takes JPEG, PNG or WebP up to 15 MB
+  and never stores them. The photo and the chosen drawing are checked for nudity and weapons with
   OWLv2, and refused with a friendly message if found (see server/pipeline/safety.py).
 - Only the live site and the local dev server may call it (CORS).
