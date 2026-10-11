@@ -52,3 +52,13 @@ def test_one_failed_subject_does_not_stop_the_others(subjects, capsys):
 def test_unknown_subjects_are_refused():
     with pytest.raises(SystemExit):
         build_all.main(["--only", "dragon"])
+
+
+def test_main_points_hugging_face_at_the_local_cache_and_stays_offline(subjects, monkeypatch):
+    # The first real run downloaded 7 GB into the default cache because HF_HOME was never set.
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    build_fn, tried = fake_build()
+    build_all.main(["--only", "cat", "--seed", "7"], build_fn, subjects)
+    import os
+    assert os.environ["HF_HUB_OFFLINE"] == "1"
+    assert tried == ["a cat"]

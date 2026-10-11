@@ -3,6 +3,7 @@
 Run from the repo root, with server/.venv active (needs the GPU):
     python server/build_all.py                      # every pack in PACKS
     python server/build_all.py --only cat,house     # just these subjects
+    python server/build_all.py --only fish --seed 10   # other seeds, when a drawing came out wrong
 
 Each pack is built exactly as build_pack.py builds it (4 candidates, a retry with new seeds, the 6-60 stroke
 gate). If no candidate passes, the subject's next wording is tried: the house needs a simpler one than
@@ -22,6 +23,7 @@ SERVER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVER_DIR))  # so `build_pack` and `pipeline` import when run as a script
 
 from build_pack import SUBJECTS_DIR, build, parse_args  # noqa: E402
+from pipeline import models  # noqa: E402
 
 # (subject id, difficulty, wordings to try in order). The first wording that gives a clean drawing wins.
 PACKS = [
@@ -30,7 +32,9 @@ PACKS = [
     ("face", "medium", ["a face"]),
     ("mug", "medium", ["a mug"]),
     ("sneaker", "medium", ["a sneaker"]),
-    ("house", "medium", ["a simple house", "a small house with one door and one window", "a house"]),
+    # "a house" gives porches, bushes and window panes (81 to 205 strokes for every earlier wording), so these
+    # ask for the icon shape itself.
+    ("house", "medium", ["a house icon, a square with a triangle roof and a door", "a tiny cottage icon", "a doghouse"]),
     ("bird", "medium", ["a bird"]),
     ("fish", "medium", ["a fish"]),
 ]
@@ -50,12 +54,12 @@ def summarize(folder: Path, wording: str, seconds: float) -> dict:
 
 
 def build_one(subject: str, difficulty: str, wordings: list[str], build_fn=build,
-              subjects_dir: Path = SUBJECTS_DIR) -> dict:
+              subjects_dir: Path = SUBJECTS_DIR, seed: int = 0) -> dict:
     """Builds one pack, trying each wording until one passes the gate. `build_fn` is faked in tests."""
     for wording in wordings:
         print(f"\n== {subject}-{difficulty}: \"{wording}\"")
         start = time.perf_counter()
-        args = parse_args(["--subject", subject, "--difficulty", difficulty, "--prompt", wording])
+        args = parse_args(["--subject", subject, "--difficulty", difficulty, "--prompt", wording, "--seed", str(seed)])
         try:
             folder = build_fn(args, subjects_dir=subjects_dir)
         except SystemExit as error:  # build() stops this way when no candidate passes the gate
@@ -80,13 +84,17 @@ def table(results: list[dict]) -> str:
 def main(argv: list[str] | None = None, build_fn=build, subjects_dir: Path = SUBJECTS_DIR) -> int:
     parser = argparse.ArgumentParser(description="Build every ready-made subject pack.")
     parser.add_argument("--only", help="comma-separated subject ids, e.g. 'cat,house'")
+    parser.add_argument("--seed", type=int, default=0, help="first seed for every pack (default 0)")
     args = parser.parse_args(argv)
+    # Before any Hugging Face library loads: use the model cache from .env (HF_HOME) and stay offline.
+    # build_pack.py does this in its own main(), which this script doesn't go through.
+    models.setup_hf_env()
     wanted = {s.strip() for s in args.only.split(",")} if args.only else None
     packs = [p for p in PACKS if wanted is None or p[0] in wanted]
     if wanted and len(packs) != len(wanted):
         known = ", ".join(p[0] for p in PACKS)
         parser.error(f"unknown subject in --only (known: {known})")
-    results = [build_one(subject, difficulty, wordings, build_fn, subjects_dir)
+    results = [build_one(subject, difficulty, wordings, build_fn, subjects_dir, args.seed)
                for subject, difficulty, wordings in packs]
     print("\n" + table(results))
     failed = [r["pack"] for r in results if r["wording"] is None]
