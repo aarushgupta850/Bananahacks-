@@ -30,6 +30,7 @@ import re
 import secrets
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI
@@ -169,11 +170,23 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
 BUILD = build_live_pack
 
 
+# A line drawing that ships with the site, used as a stand-in photo to warm up the photo path.
+WARM_UP_PHOTO = Path(__file__).resolve().parent.parent / "web" / "public" / "subjects" / "mug-medium" / "target.png"
+
+
 def warm_up() -> None:
-    """Loads every model and builds one throwaway pack, so the first real request is fast."""
+    """Loads every model and builds throwaway packs, so the first real request is fast. With both pipelines
+    kept (see pipeline.generate.keep_both_pipelines) it warms the photo path too."""
     start = time.perf_counter()
     BUILD("a cat", None, "medium")
-    log.info("warm-up done in %.1f s", time.perf_counter() - start)
+    log.info("warm-up (text) done in %.1f s", time.perf_counter() - start)
+    if os.environ.get("GHOSTLINES_KEEP_BOTH_PIPELINES") == "1" and WARM_UP_PHOTO.exists():
+        start = time.perf_counter()
+        try:
+            BUILD("a mug", WARM_UP_PHOTO.read_bytes(), "medium")
+        except Exception as error:  # noqa: BLE001 - a warm-up drawing that fails the gate is fine
+            log.info("warm-up (photo) built no pack (%s); the models are loaded anyway", error)
+        log.info("warm-up (photo) done in %.1f s", time.perf_counter() - start)
 
 
 @asynccontextmanager

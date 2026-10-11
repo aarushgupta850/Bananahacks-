@@ -149,3 +149,13 @@ def test_pack_images_become_data_urls():
     assert out["pipeline"][1]["images"][0].startswith("data:image/webp;base64,")
     assert out["pipeline"][2]["image"] == out["pipeline"][1]["images"][0]  # chosen still matches its candidate
     assert pack["target"] == "target.png"  # the original is not changed
+
+
+def test_warm_up_also_warms_the_photo_path_when_both_pipelines_stay(monkeypatch, fake_build):
+    monkeypatch.setenv("GHOSTLINES_KEEP_BOTH_PIPELINES", "1")
+    api.warm_up()
+    assert fake_build == [("a cat", False, "medium"), ("a mug", True, "medium")]
+    monkeypatch.delenv("GHOSTLINES_KEEP_BOTH_PIPELINES")
+    fake_build.clear()
+    api.warm_up()
+    assert fake_build == [("a cat", False, "medium")]
