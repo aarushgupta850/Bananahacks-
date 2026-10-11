@@ -4,9 +4,13 @@
 export const config = {
   // ---------- stroke matching (match.ts) ----------
   resamplePoints: 64,       // points per stroke when comparing shapes
+  guidePoints: 64,          // points per guide when finding which stretch of it a stroke traced
+  minStrokeLength: 3,       // px: a stroke shorter than this is a tap, not a line, and is ignored
   accuracyScale: 0.12,      // a Frechet distance of 12% of the diagonal scores 0 accuracy
   matchMaxChamfer: 0.2,     // a stroke farther than this (mean distance, of the diagonal) matches no guide
-  doneThreshold: 0.5,       // a guide counts as drawn at this accuracy or better
+  doneThreshold: 0.5,       // a stroke at this accuracy or better counts toward drawing its guide
+  doneCoverage: 0.8,        // a guide is drawn once strokes like that have covered 80% of it (in one stroke or several)
+  minAdaptLength: 20,       // px: shorter traced stretches (dots, ticks) don't move the guides
 
   // ---------- teacher (teacher.ts) ----------
   adaptMaxRotationDeg: 10,  // guides may turn at most this much to follow the user
@@ -21,6 +25,8 @@ export const config = {
   // ---------- alignment and measurement (align.ts, analyze.ts) ----------
   alignIterations: 30,      // ICP rounds
   alignMaxRotationDeg: 5,   // the whole drawing may turn at most 5 degrees (a tilted head stays a mistake)
+  alignScaleRange: [0.4, 2.5] as [number, number], // the fit may scale the drawing by 0.4x to 2.5x, never collapse it
+  alignPreferAsDrawn: 0.7,  // the stretched first guess must fit 30% better than "as drawn" to win
   alignPointsPerStroke: 32, // points per stroke during alignment
   partMaxDistance: 0.15,    // strokes farther than 15% of the diagonal from every part are ignored
   goodLimit: 0.1,           // a part is "good" when every error is within 10%

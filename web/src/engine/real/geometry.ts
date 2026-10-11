@@ -131,8 +131,11 @@ export function symmetricChamfer(a: Point[], b: Point[]): number {
 }
 
 // Procrustes: the scale, rotation and shift that best move the `from` points onto the `to` points
-// (least squares). The rotation is clamped to +-maxRotationDeg so a fit can never spin the drawing around.
-export function procrustes(pairs: { from: Point; to: Point }[], maxRotationDeg: number): Transform {
+// (least squares). The rotation is clamped to +-maxRotationDeg so a fit can never spin the drawing around,
+// and the scale to `scaleRange` (by default only kept above 0.05, so a fit can never collapse to a point).
+export function procrustes(
+  pairs: { from: Point; to: Point }[], maxRotationDeg: number, scaleRange: [number, number] = [0.05, Infinity],
+): Transform {
   if (pairs.length === 0) return { ...IDENTITY }
   const cf = centroid(pairs.map((p) => p.from))
   const ct = centroid(pairs.map((p) => p.to))
@@ -160,7 +163,7 @@ export function procrustes(pairs: { from: Point; to: Point }[], maxRotationDeg: 
     const uy = from[1] - cf[1]
     projected += (cos * ux - sin * uy) * (to[0] - ct[0]) + (sin * ux + cos * uy) * (to[1] - ct[1])
   }
-  const scale = norm > 0 ? Math.max(0.05, projected / norm) : 1
+  const scale = norm > 0 ? clamp(projected / norm, scaleRange[0], scaleRange[1]) : 1
   // The shift moves the transformed `from` centroid onto the `to` centroid.
   const tx = ct[0] - scale * (cos * cf[0] - sin * cf[1])
   const ty = ct[1] - scale * (sin * cf[0] + cos * cf[1])
@@ -188,4 +191,115 @@ export function invertTransform(t: Transform): Transform {
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
   return { scale, rotation, tx: -scale * (cos * t.tx - sin * t.ty), ty: -scale * (sin * t.tx + cos * t.ty) }
+}
+
+// A line whose two ends meet (a construction ellipse, a closed outline): it can be traced from any point.
+export function isClosed(points: Point[]): boolean {
+  if (points.length < 3) return false
+  return dist(points[0], points[points.length - 1]) <= Math.max(10, 0.05 * length(points))
+}
+
+// Discrete Frechet distance from ALL of line a to the best-matching STRETCH of line b: the walk along a goes
+// from its start to its end, but the walk along b may start and stop anywhere. `from`..`to` are the indices
+// of b where that stretch starts and ends. This lets a stroke that traces only part of a long guide still
+// score well, and says which part of the guide it covered.
+export function partialFrechet(a: Point[], b: Point[]): { distance: number; from: number; to: number } {
+  if (a.length === 0 || b.length === 0) return { distance: Infinity, from: 0, to: 0 }
+  const m = b.length
+  let previous = new Float64Array(m)
+  let current = new Float64Array(m)
+  let previousStart = new Int32Array(m) // where on b the best walk ending at (i, j) started
+  let currentStart = new Int32Array(m)
+  for (let i = 0; i < a.length; i++) {
+    for (let j = 0; j < m; j++) {
+      const d = dist(a[i], b[j])
+      if (i === 0) {
+        // The walk may start anywhere on b, so (0, j) never needs to come from (0, j - 1).
+        current[j] = d
+        currentStart[j] = j
+        continue
+      }
+      // Best of the three ways into (i, j): from (i-1, j), (i-1, j-1) or (i, j-1).
+      let best = previous[j]
+      let start = previousStart[j]
+      if (j > 0 && previous[j - 1] < best) {
+        best = previous[j - 1]
+        start = previousStart[j - 1]
+      }
+      if (j > 0 && current[j - 1] < best) {
+        best = current[j - 1]
+        start = currentStart[j - 1]
+      }
+      current[j] = Math.max(best, d)
+      currentStart[j] = start
+    }
+    ;[previous, current] = [current, previous]
+    ;[previousStart, currentStart] = [currentStart, previousStart]
+  }
+  // The walk may stop anywhere on b too: take the best end.
+  let to = 0
+  for (let j = 1; j < m; j++) if (previous[j] < previous[to]) to = j
+  return { distance: previous[to], from: previousStart[to], to }
+}
+
+// Fast nearest-point lookups in a fixed cloud of points. The cloud is sorted into square cells, and a lookup
+// searches outward ring by ring from the query's cell, stopping once no unsearched cell can be closer.
+// Alignment makes thousands of lookups per drawing, which is far too slow when each checks every point.
+export class PointGrid {
+  private readonly cells = new Map<number, Point[]>()
+  private readonly minX: number
+  private readonly minY: number
+  private readonly cols: number
+  private readonly rows: number
+  private readonly cellSize: number
+
+  constructor(points: Point[], cellSize = 16) {
+    this.cellSize = cellSize
+    const [x, y, w, h] = bbox(points)
+    this.minX = x
+    this.minY = y
+    this.cols = Math.floor(w / cellSize) + 1
+    this.rows = Math.floor(h / cellSize) + 1
+    for (const p of points) {
+      const key = this.cellOf(p[0], this.minX, this.cols) + this.cellOf(p[1], this.minY, this.rows) * this.cols
+      const cell = this.cells.get(key)
+      if (cell) cell.push(p)
+      else this.cells.set(key, [p])
+    }
+  }
+
+  private cellOf(value: number, min: number, count: number): number {
+    return clamp(Math.floor((value - min) / this.cellSize), 0, count - 1)
+  }
+
+  // The closest point of the cloud to p (null for an empty cloud).
+  nearest(p: Point): Point | null {
+    if (this.cells.size === 0) return null
+    // The query's cell, which may lie outside the grid (e.g. a stroke drawn off to the side).
+    const qx = Math.floor((p[0] - this.minX) / this.cellSize)
+    const qy = Math.floor((p[1] - this.minY) / this.cellSize)
+    const maxRing = Math.max(Math.abs(qx), Math.abs(qx - this.cols), Math.abs(qy), Math.abs(qy - this.rows)) + 1
+    let best: Point | null = null
+    let bestDistance = Infinity
+    for (let ring = 0; ring <= maxRing; ring++) {
+      for (let cy = qy - ring; cy <= qy + ring; cy++) {
+        if (cy < 0 || cy >= this.rows) continue
+        // Only the cells on the ring's border are new: full rows at the top and bottom, two cells otherwise.
+        const step = cy === qy - ring || cy === qy + ring ? 1 : 2 * ring
+        for (let cx = qx - ring; cx <= qx + ring; cx += Math.max(step, 1)) {
+          if (cx < 0 || cx >= this.cols) continue
+          for (const q of this.cells.get(cx + cy * this.cols) ?? []) {
+            const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+            if (d < bestDistance) {
+              bestDistance = d
+              best = q
+            }
+          }
+        }
+      }
+      // Every cell further out is at least `ring` whole cells away from the query's cell.
+      if (best && bestDistance <= (ring * this.cellSize) ** 2) break
+    }
+    return best
+  }
 }

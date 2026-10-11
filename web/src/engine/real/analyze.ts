@@ -6,6 +6,7 @@ import { config } from './config'
 import {
   applyTransform, bbox, boxCenter, clamp, diagonal, meanNearest, resample, symmetricChamfer,
 } from './geometry'
+import { isTap } from './match'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -35,6 +36,31 @@ function angleDifference(a: number, b: number): number {
   while (d > 90) d -= 180
   while (d <= -90) d += 180
   return d
+}
+
+// The plan points of the visible strokes that belong to no part (partId null, as in most pipeline packs).
+// User strokes that copy these lines must not be counted into a neighbouring part.
+function unlabeledPoints(pack: Pack): Point[] {
+  const partIds = new Set(pack.parts.map((p) => p.id))
+  return pack.strokes
+    .filter((s) => s.tier !== 'construction' && (s.partId === null || !partIds.has(s.partId)))
+    .flatMap((s) => resample(s.points, config.alignPointsPerStroke))
+}
+
+// A user's box for a part, redrawn relative to the part's box in the pack. The screens draw pack.parts[].box
+// as "target" and userBox as "yours", but the engine measures the user's strokes against the box around the
+// part's plan strokes, which is smaller (detection boxes have a margin). This moves and scales the user's box
+// the same way, so the two boxes on screen differ exactly as the measured errors say: a perfect copy shows
+// the boxes on top of each other.
+function inPartBoxFrame(userBox: Box, strokesBox: Box, partBox: Box): Box {
+  const sx = partBox[2] / Math.max(strokesBox[2], 8) // 8 px floor, as for the width/height ratio
+  const sy = partBox[3] / Math.max(strokesBox[3], 8)
+  return [
+    partBox[0] + (userBox[0] - strokesBox[0]) * sx,
+    partBox[1] + (userBox[1] - strokesBox[1]) * sy,
+    userBox[2] * sx,
+    userBox[3] * sy,
+  ]
 }
 
 // The plan points of each part: its visible strokes, else its construction shapes, else its box outline.
@@ -94,7 +120,7 @@ function missingPart(partId: string, label: string): PartMetric {
 }
 
 export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
-  const drawn = strokes.filter((s) => s.points.length >= 2)
+  const drawn = strokes.filter((s) => s.points.length >= 2 && !isTap(s.points.map(([x, y]): Point => [x, y])))
   const usedFallback = pack.parts.length === 0
   if (drawn.length === 0) {
     return {
@@ -115,16 +141,17 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
   const targetBox = bbox(target)
   const targetDiagonal = diagonal(targetBox) || pack.size
   const userAll = aligned.flatMap((s) => resample(s, config.alignPointsPerStroke))
-  const userDiagonal = diagonal(bbox(userAll)) || targetDiagonal
   const height = targetBox[3] || 1
 
-  // 2. Give each stroke to the part whose plan lines it sits closest to. Strokes far from every part are ignored.
+  // 2. Give each stroke to the part whose plan lines it sits closest to. Strokes far from every part are
+  // ignored, and so are strokes closest to plan lines that belong to no part.
   const partSets = partPointSets(pack)
+  const unlabeled = unlabeledPoints(pack)
   const assigned = new Map<string, Point[]>()
   for (const stroke of aligned) {
     const points = resample(stroke, config.alignPointsPerStroke)
     let bestPart: string | null = null
-    let bestDistance = Infinity
+    let bestDistance = unlabeled.length > 0 ? meanNearest(points, unlabeled) : Infinity
     for (const [partId, partPoints] of partSets) {
       const d = meanNearest(points, partPoints)
       if (d < bestDistance) {
@@ -137,15 +164,15 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
     }
   }
 
-  // 3. Measure each part: size relative to the whole drawing, position, width/height ratio and tilt.
+  // 3. Measure each part: size, position, width/height ratio and tilt, all in target space. The alignment has
+  // already taken out the drawing's overall size and position, so what is left is the part's own error.
   const parts = pack.parts.map((part): PartMetric => {
     const userPoints = assigned.get(part.id)
     if (!userPoints || userPoints.length === 0) return missingPart(part.id, part.label)
     const planPoints = partSets.get(part.id) ?? []
     const tBox = bbox(planPoints)
     const uBox = bbox(userPoints)
-    // Sizes are compared as a share of each drawing, so the whole drawing's scale never counts against the user.
-    const sizeError = (diagonal(uBox) / userDiagonal) / (Math.max(diagonal(tBox), 1) / targetDiagonal) - 1
+    const sizeError = diagonal(uBox) / Math.max(diagonal(tBox), 1) - 1
     const [ux, uy] = boxCenter(uBox)
     const [tx, ty] = boxCenter(tBox)
     const offset = { dx: (ux - tx) / height, dy: (uy - ty) / height }
@@ -166,7 +193,7 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
       aspectError: round2(aspectError),
       tiltDeg: Math.round(tiltDeg),
       good,
-      userBox: [Math.round(uBox[0]), Math.round(uBox[1]), Math.round(uBox[2]), Math.round(uBox[3])],
+      userBox: inPartBoxFrame(uBox, tBox, part.box).map(Math.round) as Box,
     }
   })
 
