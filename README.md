@@ -9,6 +9,8 @@ with before and after scores measured from your strokes.
 
 Live: **https://aarushgupta850.github.io/Bananahacks-/**
 
+![The Ghost Lines subject picker: eight AI-generated subjects, with Simple and Medium levels](docs/screenshot.png)
+
 Built at Banana Hacks 2026 (theme: image AI).
 
 ## How it works
@@ -21,6 +23,22 @@ check-in or auto mode) → Retest (solo, 45 s) → Report (measured before and a
   [`/server`](server), then saved in [`web/public/subjects`](web/public/subjects).
   The "How this lesson was made" panel shows that pipeline for each subject.
 - An optional live server (`server/api.py`) can generate new subjects. The app works fully without it.
+
+**The AI pipeline that builds each lesson** (`/server`): SDXL-Lightning draws four line-art drafts, the
+cleanest is thinned to 1 px lines and traced into strokes, OWLv2 finds and labels the parts, and the strokes
+are ordered the way an artist draws (construction shapes, outlines, structure, details). Photos are first
+redrawn cleanly with a line-art detector and the MistoLine ControlNet.
+
+**The in-browser engine** (`web/src/engine/real`, plain TypeScript):
+
+- **Stroke matching:** checks each stroke against its guide with Fréchet and Chamfer distances.
+- **Adaptive guides:** moves the guides to where you're drawing with a rotation-limited Procrustes fit, and fades
+  the help (Guided → Hints → Check-in) as your accuracy rises.
+- **Measuring improvement:** aligns your whole drawing with the target (ICP), so size and position don't count
+  against you, then measures each part's size, position, shape and tilt. Every score and percentage on screen
+  comes from these measurements.
+
+More: [project description](docs/DESCRIPTION.md), [write-up](docs/WRITEUP.md) and [demo video plan](docs/VIDEO.md).
 
 ## Run it
 
