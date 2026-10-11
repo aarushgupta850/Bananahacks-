@@ -90,15 +90,30 @@ def test_choose_takes_the_fewest_strokes_inside_the_gate_and_skips_rejected():
 
 
 def test_update_index_merges_without_touching_other_subjects(subjects):
-    index = update_index(subjects / "index.json", "fox", "Fox", "simple", "fox-simple")
     index_path = subjects / "index.json"
+    index = update_index(index_path, "cat", "Cat", "medium", "cat-medium")
+    index_path.write_text(json.dumps(index))
+    index = update_index(index_path, "fox", "Fox", "simple", "fox-simple")
     index_path.write_text(json.dumps(index))
     index = update_index(index_path, "fox", "Fox", "medium", "fox-medium")
-    titles = [s["title"] for s in index["subjects"]]
-    assert titles == ["Fox (demo)", "Fox"]  # the demo entry is untouched
-    fox = index["subjects"][1]
+    # One entry per subject (the app keys subject cards by it); the real fox replaces the demo fox.
+    assert [s["subject"] for s in index["subjects"]] == ["fox", "cat"]
+    fox = index["subjects"][0]
+    assert fox["title"] == "Fox"
     assert fox["packs"] == {"simple": "fox-simple", "medium": "fox-medium"}
     assert fox["thumb"] == "fox-medium/thumb.png"  # the medium pack's thumbnail wins
+    assert index["subjects"][1]["packs"] == {"medium": "cat-medium"}  # the other subject is untouched
+
+
+def test_render_target_smooths_curves_but_keeps_the_ends():
+    from build_pack import smooth
+
+    line = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0)]
+    out = smooth(line)
+    assert out[0] == line[0] and out[-1] == line[-1]
+    assert len(out) > len(line)
+    loop = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 0.0)]
+    assert smooth(loop)[0] == smooth(loop)[-1]  # a closed stroke stays closed
 
 
 # ---------------------------------------------------------------- the whole build

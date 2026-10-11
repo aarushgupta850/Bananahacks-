@@ -71,7 +71,7 @@ def test_steps_group_up_to_four_strokes_with_the_same_tier_and_part():
         assert tiers == {step["tier"]}
     detail_steps = [s for s in steps if s["tier"] == "detail"]
     assert [len(s["strokeIds"]) for s in detail_steps] == [4, 2]
-    assert all(s["label"] == "Add the body" for s in detail_steps)
+    assert [s["label"] for s in detail_steps] == ["Add the body", "Add the body (continued)"]
     # Every stroke appears in exactly one step, in order.
     ids = [i for s in steps for i in s["strokeIds"]]
     assert ids == [s["id"] for s in plan["strokes"]]

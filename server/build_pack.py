@@ -89,15 +89,29 @@ def choose(candidates: list[Candidate]) -> int | None:
 # ---------------------------------------------------------------- images
 
 
+def smooth(points: list, rounds: int = 2) -> list:
+    """Chaikin's corner cutting: each round replaces every corner with two points a quarter of the way
+    along its segments, so the simplified polylines render as smooth curves. The ends stay put."""
+    for _ in range(rounds):
+        if len(points) < 3:
+            return points
+        closed = points[0] == points[-1]
+        out = [] if closed else [points[0]]
+        for (x0, y0), (x1, y1) in zip(points, points[1:]):
+            out += [(0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1), (0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1)]
+        points = out + [out[0]] if closed else out + [points[-1]]
+    return points
+
+
 def render_target(strokes: list) -> Image.Image:
     """The drawing the user copies: the traced strokes as clean black lines on white. Drawn from the strokes
-    themselves, so what the user sees is exactly what their drawing is measured against. Drawn at 2x and
-    scaled down for smooth edges."""
+    themselves, so what the user sees is exactly what their drawing is measured against. Smoothed, and drawn
+    at 2x then scaled down, for clean curves and edges."""
     scale = 2
     canvas = Image.new("L", (SIZE * scale, SIZE * scale), 255)
     draw = ImageDraw.Draw(canvas)
     for stroke in strokes:
-        points = [(x * scale, y * scale) for x, y in stroke]
+        points = [(x * scale, y * scale) for x, y in smooth([tuple(p) for p in stroke])]
         if len(points) > 1:
             draw.line(points, fill=0, width=5 * scale, joint="curve")
             for x, y in (points[0], points[-1]):  # round line ends
@@ -185,13 +199,16 @@ def assemble_pack(
 
 
 def update_index(index_path: Path, subject: str, title: str, difficulty: str, pack_id: str) -> dict:
-    """Adds this pack to index.json, keeping every other subject and difficulty. The subject's thumbnail is
-    its medium pack's, if it has one."""
+    """Adds this pack to index.json, keeping every other subject and difficulty. There is one entry per
+    subject (the app keys its subject cards by it), and a hand-made demo pack ("demo-...") gives way to the
+    real one. The subject's thumbnail is its medium pack's, if it has one."""
     index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else {"subjects": []}
-    entry = next((e for e in index["subjects"] if e["subject"] == subject and e["title"] == title), None)
+    entry = next((e for e in index["subjects"] if e["subject"] == subject), None)
     if entry is None:
         entry = {"subject": subject, "title": title, "thumb": f"{pack_id}/thumb.png", "packs": {}}
         index["subjects"].append(entry)
+    entry["packs"] = {d: pid for d, pid in entry["packs"].items() if not pid.startswith("demo-")}
+    entry["title"] = title
     entry["packs"][difficulty] = pack_id
     entry["thumb"] = f"{entry['packs'].get('medium', pack_id)}/thumb.png"
     schema.SubjectIndex.model_validate(index)
@@ -228,11 +245,10 @@ def build(args: argparse.Namespace, generate=None, detect=None, subjects_dir: Pa
     tries = []
     for seed in (args.seed, args.seed + RETRY_SEED_OFFSET):
         candidates = []
-        for image in generate(seed):
+        for i, image in enumerate(generate(seed)):  # generate(seed) uses seeds seed, seed + 1, ...
             strokes = trace(image)
             candidates.append(Candidate(image, strokes, line_metrics(image)["score"]))
-            print(f"  seed {seed}, candidate {len(candidates) - 1}: {len(strokes)} strokes, "
-                  f"score {candidates[-1].score:.1f}")
+            print(f"  candidate {i} (seed {seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}")
         tries.append(candidates)
         chosen = choose(candidates)
         if chosen is not None:

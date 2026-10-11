@@ -284,6 +284,8 @@ def build_plan(strokes: list[list[Point]], parts: list[dict], subject: str | Non
         else:
             part = by_id.get(stroke["partId"])
             label = step_label(stroke["tier"], part)
+            if last and last["tier"] == stroke["tier"] and last["_part"] == stroke["partId"]:
+                label += " (continued)"  # the same part, split because a step holds at most 4 strokes
             tip = step_tip(stroke["tier"], part, y1 - y0, first_for_part=part is not None
                            and part["id"] not in parts_with_a_tip)
             if part:
