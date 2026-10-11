@@ -88,6 +88,29 @@ def load_lightning(with_controlnet: bool = False):
     return pipe
 
 
+def photo_pipeline_from(text_pipe):
+    """The photo pipeline (SDXL-Lightning + the MistoLine ControlNet) built on the text pipeline's own weights:
+    only the ControlNet (about 2.5 GB) is new, so both can stay loaded on a PC without RAM to spare.
+    Call use_pipeline() on whichever of the two runs next."""
+    import torch
+    from diffusers import ControlNetModel, StableDiffusionXLControlNetPipeline
+
+    controlnet = ControlNetModel.from_pretrained(CONTROLNET_REPO, dtype=torch.float16, variant="fp16")
+    # from_pipe would cast everything to float32 unless told otherwise.
+    return StableDiffusionXLControlNetPipeline.from_pipe(text_pipe, controlnet=controlnet, dtype=torch.float16)
+
+
+def use_pipeline(pipe) -> None:
+    """Gets a pipeline ready to run. The text and photo pipelines share modules, and CPU offloading hangs its
+    hooks on the modules themselves, so they are re-attached for whichever pipeline runs next (fast: no
+    weights are loaded)."""
+    _, vram_gb = gpu_info()
+    if vram_gb <= OFFLOAD_VRAM_GB:
+        pipe.enable_model_cpu_offload()
+    else:
+        pipe.to("cuda")
+
+
 def free_gpu() -> None:
     """Releases GPU memory after the caller has dropped its references (e.g. `del pipe`)."""
     import torch

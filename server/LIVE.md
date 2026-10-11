@@ -13,9 +13,9 @@ powershell -ExecutionPolicy Bypass -File server\run_live.ps1
 It loads the models, builds one test pack (about 30 s), then listens on http://localhost:8000.
 Check it: open http://localhost:8000/health and look for `"ok": true` and `"busy": false`.
 
-It keeps both image pipelines (text and photo) loaded, which needs about 17 GB of free system RAM. On a PC
-with less than 32 GB, set `$env:GHOSTLINES_KEEP_BOTH_PIPELINES = "0"` in run_live.ps1: everything still works,
-but the first photo request after a text request (or the other way round) reloads a model and may time out.
+It keeps both image pipelines (text and photo) loaded. The photo one is built on the text one's weights, so this
+costs only the ControlNet, about 2.5 GB of RAM. To go back to one pipeline at a time, set
+`$env:GHOSTLINES_KEEP_BOTH_PIPELINES = "0"` in run_live.ps1.
 
 Keep the PC awake and plugged in while people use it (Windows sleep settings), and close games or other
 apps that use the GPU.
