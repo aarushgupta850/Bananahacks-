@@ -18,36 +18,45 @@ from pipeline.prompts import line_art_prompt
 GEN_SIZE = 1024  # SDXL's native size
 TARGET_SIZE = 768  # all app coordinates are in 768 x 768 space
 CONTROLNET_SCALE = 0.8  # how strictly a photo redraw follows the photo's lines (1.0 = strictly)
+# The live server's photo path and Happy accidents use img2img instead of the ControlNet: on an 8 GB card the
+# UNet and the ControlNet don't fit together, so each ControlNet step swapped them over PCIe (about 8 s a step,
+# far past the 23 s limit). img2img reuses the text pipeline and runs as fast as a text prompt.
+IMG2IMG_STRENGTH = 0.75  # how much the redraw may change the starting picture (1 = ignore it entirely)
 
 _cache: dict[str, object] = {}  # "text" or "photo" -> pipeline, "detector" -> LineartDetector
 
 
 def keep_both_pipelines() -> bool:
-    """The live server sets GHOSTLINES_KEEP_BOTH_PIPELINES=1 (run_live.ps1). Then the photo pipeline is built on
-    the text pipeline's weights (only the ControlNet is extra), so both stay loaded and a photo request can follow
-    a text request without a 20+ s reload that would blow the 23 s answer limit."""
+    """The live server sets GHOSTLINES_KEEP_BOTH_PIPELINES=1 (run_live.ps1). Then the photo (ControlNet)
+    pipeline is built on the text pipeline's weights instead of replacing it."""
     return os.environ.get("GHOSTLINES_KEEP_BOTH_PIPELINES") == "1"
 
 
 def _pipeline(kind: str):
-    """The SDXL-Lightning pipeline for "text" or "photo" (with the ControlNet), loaded on first use."""
-    if keep_both_pipelines():
-        if "text" not in _cache:
-            _cache["text"] = models.load_lightning()  # comes ready to run
-            _cache["active"] = "text"
-        if kind == "photo" and "photo" not in _cache:
-            _cache["photo"] = models.photo_pipeline_from(_cache["text"])
-        if _cache.get("active") != kind:
-            models.use_pipeline(_cache[kind])
+    """The SDXL-Lightning pipeline for "text", "photo" (with the ControlNet) or "img2img", loaded on first use.
+    "img2img" is built on the text pipeline's weights (nothing new to load), and so is "photo" when both are
+    kept (keep_both_pipelines). Pipelines that share weights share CPU-offload hooks, so the hooks are
+    re-attached whenever a different pipeline runs next."""
+    if kind == "img2img":
+        base = _pipeline("text")
+        if "img2img" not in _cache:
+            _cache["img2img"] = models.img2img_pipeline_from(base)
+    elif kind not in _cache:
+        if not keep_both_pipelines():
+            other = "photo" if kind == "text" else "text"
+            if other in _cache:  # make room: only one SDXL pipeline at a time
+                del _cache[other]
+                if other == "text":
+                    _cache.pop("img2img", None)  # it shares the text pipeline's weights
+                models.free_gpu()
+        if kind == "photo" and keep_both_pipelines():
+            _cache["photo"] = models.photo_pipeline_from(_pipeline("text"))
+        else:
+            _cache[kind] = models.load_lightning(with_controlnet=(kind == "photo"))  # comes ready to run
             _cache["active"] = kind
-        return _cache[kind]
-
-    if kind not in _cache:
-        other = "photo" if kind == "text" else "text"
-        if other in _cache:  # make room: only one SDXL pipeline at a time
-            del _cache[other]
-            models.free_gpu()
-        _cache[kind] = models.load_lightning(with_controlnet=(kind == "photo"))
+    if _cache.get("active") != kind:
+        models.use_pipeline(_cache[kind])
+        _cache["active"] = kind
     return _cache[kind]
 
 
@@ -120,13 +129,33 @@ def drawing_lines(drawing: Image.Image) -> Image.Image:
     return pad_to_square(lines, (0, 0, 0)).resize((GEN_SIZE, GEN_SIZE))
 
 
+def _img2img(pipe, prompt: str, seed: int, start: Image.Image) -> Image.Image:
+    import torch
+
+    image = pipe(
+        prompt,
+        image=start.convert("RGB").resize((GEN_SIZE, GEN_SIZE)),
+        strength=IMG2IMG_STRENGTH,  # with 4 Lightning steps, 0.75 runs the last 3
+        num_inference_steps=4,
+        guidance_scale=0.0,
+        generator=torch.Generator("cpu").manual_seed(seed),
+    ).images[0]
+    return image.resize((TARGET_SIZE, TARGET_SIZE), Image.LANCZOS)
+
+
+def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:
+    """The live server's photo path: the photo's line art (black on white) redrawn with img2img. Follows the
+    photo's shapes a little more loosely than from_photo's ControlNet, but fits in the live time limit."""
+    start = ImageOps.invert(photo_lines(photo).convert("L"))  # the detector gives white lines on black
+    pipe = _pipeline("img2img")
+    prompt = line_art_prompt(subject, difficulty=difficulty)
+    return [_img2img(pipe, prompt, seed + i, start) for i in range(n)]
+
+
 def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:
     """n clean drawings of `subject` that follow the lines the user has drawn so far (Happy accidents: a mistake
-    becomes part of the new target). Same ControlNet as the photo path."""
-    control = drawing_lines(drawing)
-    pipe = _pipeline("photo")
+    becomes part of the new target). img2img from the user's canvas, flattened onto white."""
+    start = ImageOps.invert(drawing_lines(drawing).convert("L"))  # back to black lines on white
+    pipe = _pipeline("img2img")
     prompt = line_art_prompt(subject, difficulty=difficulty)
-    return [
-        _generate(pipe, prompt, seed + i, image=control, controlnet_conditioning_scale=CONTROLNET_SCALE)
-        for i in range(n)
-    ]
+    return [_img2img(pipe, prompt, seed + i, start) for i in range(n)]

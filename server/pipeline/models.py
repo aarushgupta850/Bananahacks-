@@ -100,6 +100,14 @@ def photo_pipeline_from(text_pipe):
     return StableDiffusionXLControlNetPipeline.from_pipe(text_pipe, controlnet=controlnet, dtype=torch.float16)
 
 
+def img2img_pipeline_from(text_pipe):
+    """SDXL-Lightning img2img on the text pipeline's own weights: nothing new is loaded."""
+    import torch
+    from diffusers import StableDiffusionXLImg2ImgPipeline
+
+    return StableDiffusionXLImg2ImgPipeline.from_pipe(text_pipe, dtype=torch.float16)  # keep float16
+
+
 def use_pipeline(pipe) -> None:
     """Gets a pipeline ready to run. The text and photo pipelines share modules, and CPU offloading hangs its
     hooks on the modules themselves, so they are re-attached for whichever pipeline runs next (fast: no
