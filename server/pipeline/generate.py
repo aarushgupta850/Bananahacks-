@@ -7,6 +7,7 @@ in an 8 GB card's memory budget alongside each other, and a pack only ever uses 
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -21,8 +22,26 @@ CONTROLNET_SCALE = 0.8  # how strictly a photo redraw follows the photo's lines 
 _cache: dict[str, object] = {}  # "text" or "photo" -> pipeline, "detector" -> LineartDetector
 
 
+def keep_both_pipelines() -> bool:
+    """The live server sets GHOSTLINES_KEEP_BOTH_PIPELINES=1 (run_live.ps1). Then the photo pipeline is built on
+    the text pipeline's weights (only the ControlNet is extra), so both stay loaded and a photo request can follow
+    a text request without a 20+ s reload that would blow the 23 s answer limit."""
+    return os.environ.get("GHOSTLINES_KEEP_BOTH_PIPELINES") == "1"
+
+
 def _pipeline(kind: str):
     """The SDXL-Lightning pipeline for "text" or "photo" (with the ControlNet), loaded on first use."""
+    if keep_both_pipelines():
+        if "text" not in _cache:
+            _cache["text"] = models.load_lightning()  # comes ready to run
+            _cache["active"] = "text"
+        if kind == "photo" and "photo" not in _cache:
+            _cache["photo"] = models.photo_pipeline_from(_cache["text"])
+        if _cache.get("active") != kind:
+            models.use_pipeline(_cache[kind])
+            _cache["active"] = kind
+        return _cache[kind]
+
     if kind not in _cache:
         other = "photo" if kind == "text" else "text"
         if other in _cache:  # make room: only one SDXL pipeline at a time
