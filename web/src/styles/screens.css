@@ -990,40 +990,274 @@
 
 /* ---------- "How this lesson was made" ---------- */
 
+dialog.pipeline-panel {
+  width: min(1180px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100vh - 2 * var(--space-4));
+  padding: var(--space-5) 0;
+  overflow-y: auto;
+}
+
 .pipeline-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-2);
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
 }
 
-.pipeline-stages {
+.pipeline-intro {
+  max-width: 62ch;
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+}
+
+/* A horizontal strip of stage cards that snaps one card into the middle. */
+.pipeline-strip {
   display: flex;
-  flex-direction: column;
   gap: var(--space-4);
   margin: var(--space-5) 0 0;
-  padding-left: var(--space-5);
+  padding: var(--space-2) var(--space-5) var(--space-4);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 var(--space-5);
+  list-style: none;
 }
 
-.pipeline-stages h3 {
-  font-size: var(--text-md);
+.pipeline-stage {
+  display: flex;
+  flex: 0 0 min(400px, 82vw);
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  opacity: 0.7;
+  scroll-snap-align: center;
+  transition: opacity var(--transition), border-color var(--transition), box-shadow var(--transition);
 }
 
-.pipeline-images {
+.pipeline-stage.is-active {
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow);
+  cursor: default;
+  opacity: 1;
+}
+
+.pipeline-stage h3 {
+  font-size: var(--text-lg);
+}
+
+.stage-number {
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.stage-prompt {
+  margin: 0;
+  padding: var(--space-4);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+}
+
+.stage-text {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.stage-text code {
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
+.stage-text-label {
+  font-weight: 600;
+}
+
+.stage-visual {
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.stage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.stage-image {
+  position: relative;
+  margin: 0;
+}
+
+.stage-image img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+/* The chosen draft: a thick accent frame AND a "Chosen" label, never color alone. */
+.stage-image.is-chosen img {
+  border: 3px solid var(--accent);
+}
+
+.chosen-badge {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* The live lesson: strokes draw themselves in order (stroke-dashoffset on pathLength = 1). */
+.lesson-animation {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.lesson-animation-target {
+  opacity: 0.12;
+}
+
+.lesson-stroke {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: lesson-draw 320ms ease-out forwards;
+  animation-delay: var(--delay);
+}
+
+.lesson-badge {
+  opacity: 0;
+  animation: lesson-fade 200ms ease-out forwards;
+  animation-delay: var(--delay);
+}
+
+.lesson-badge circle {
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.lesson-badge text {
+  fill: #fff;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.lesson-stroke.tier-construction { stroke: var(--tier-construction); stroke-width: 4; }
+.lesson-stroke.tier-outline { stroke: var(--tier-outline); }
+.lesson-stroke.tier-structure { stroke: var(--tier-structure); }
+.lesson-stroke.tier-detail { stroke: var(--tier-detail); stroke-width: 4; }
+.lesson-badge.tier-construction circle { fill: var(--tier-construction); }
+.lesson-badge.tier-outline circle { fill: var(--tier-outline); }
+.lesson-badge.tier-structure circle { fill: var(--tier-structure); }
+.lesson-badge.tier-detail circle { fill: var(--tier-detail); }
+
+@keyframes lesson-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes lesson-fade {
+  to { opacity: 1; }
+}
+
+/* Reduced motion: the finished lesson, all at once. */
+@media (prefers-reduced-motion: reduce) {
+  .lesson-stroke {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+
+  .lesson-badge {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+.tier-legend {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.tier-legend li {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-2);
-  margin-top: var(--space-2);
 }
 
-.pipeline-images img {
-  width: 120px;
-  height: auto;
-  border-radius: var(--radius-sm);
+.tier-swatch {
+  width: 18px;
+  height: 6px;
+  border-radius: 3px;
 }
 
-/* Four modes fit on one row in the lesson panel. */
-.mode-switch button {
-  padding: 0 var(--space-2);
+.tier-swatch.tier-construction { background: var(--tier-construction); }
+.tier-swatch.tier-outline { background: var(--tier-outline); }
+.tier-swatch.tier-structure { background: var(--tier-structure); }
+.tier-swatch.tier-detail { background: var(--tier-detail); }
+
+.pipeline-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
 }
+
+.pipeline-dots {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pipeline-dots .dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 2px solid var(--ink-muted);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* The current dot is filled AND bigger, not only a different color. */
+.pipeline-dots .dot.is-active {
+  width: 28px;
+  border-color: var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.pipeline-dots .dot:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
