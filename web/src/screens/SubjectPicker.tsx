@@ -117,7 +117,9 @@ export default function SubjectPicker({ onNext }: { onNext: () => void }) {
                 >
                   <span className="subject-thumb">
                     {/* Decorative: the button is named by its aria-label. */}
-                    <img src={resolveIndexAsset(subject.thumb)} alt="" width={256} height={256} loading="lazy" />
+                    {/* The chosen difficulty's own picture, so switching Simple/Medium visibly changes the drawing. */}
+                    <img key={chosen} src={resolveIndexAsset(chosen && subject.packs[chosen] ? `${subject.packs[chosen]}/thumb.png` : subject.thumb)}
+                      alt="" width={256} height={256} loading="lazy" />
                     {/* The hand-made demo fox isn't AI-generated, so it doesn't get the badge (honesty for judges). */}
                     {!isDemo(subject) && <span className="ai-badge">AI-generated</span>}
                   </span>
