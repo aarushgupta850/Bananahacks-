@@ -48,6 +48,7 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
 
   return (
     <PlaceholderScreen
+      compact
       title={TEXT[round].title}
       lead={TEXT[round].lead}
       onBack={round === 'test' ? onBack : undefined}

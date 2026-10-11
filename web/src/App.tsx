@@ -1,8 +1,10 @@
 // The root of the app. There is no router: the flow is a list of screens and Next/Back move along it.
 // What the user does along the way is kept in the session context (session.ts), which every screen can read.
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import CanvasDemo from './canvas/CanvasDemo'
 import PackInspector from './dev/PackInspector'
+import AppHeader, { type Stage } from './screens/AppHeader'
+import ErrorBoundary from './screens/ErrorBoundary'
 import Reference from './screens/Reference'
 import Report from './screens/Report'
 import Retest from './screens/Retest'
@@ -18,6 +20,11 @@ type Screen = 'subjects' | 'reference' | 'test' | 'weakSpots' | 'teach' | 'retes
 
 // The screens in order. Next moves one step forward, Back one step back.
 const FLOW: Screen[] = ['subjects', 'reference', 'test', 'weakSpots', 'teach', 'retest', 'report']
+
+// Which stage of the progress bar each screen belongs to (weak spots count as the start of the lesson).
+const STAGE_OF: Record<Screen, Stage | null> = {
+  subjects: null, reference: null, test: 'test', weakSpots: 'lesson', teach: 'lesson', retest: 'retest', report: 'report',
+}
 
 export default function App() {
   // Developer pages are picked by the URL and skip the normal flow (no hooks above this line).
@@ -51,16 +58,30 @@ function Flow() {
   // Every screen after the picker needs a pack, so without one the picker is shown.
   const current: Screen = session.pack ? screen : 'subjects'
 
+  // The logo goes back to the subject picker. Mid-run that throws drawings away, so it asks first.
+  const goHome = () => {
+    if (STAGE_OF[current] === null || window.confirm('Leave this lesson and start over? Your drawings will be lost.')) restart()
+  }
+
+  // Each new screen starts at the top of the page (the report is long; the next screen shouldn't open halfway).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [current])
+
   return (
     <SessionContext.Provider value={context}>
-      <main>
-        {current === 'subjects' && <SubjectPicker onNext={next} />}
-        {current === 'reference' && <Reference onBack={back} onNext={next} />}
-        {current === 'test' && <Test onBack={back} onNext={next} />}
-        {current === 'weakSpots' && <WeakSpots onBack={back} onNext={next} />}
-        {current === 'teach' && <Teach onBack={back} onNext={next} />}
-        {current === 'retest' && <Retest onBack={back} onNext={next} />}
-        {current === 'report' && <Report onBack={back} onStartPack={startPack} />}
+      <AppHeader stage={STAGE_OF[current]} onHome={goHome} />
+      {/* key={current} remounts the wrapper on every screen change, which replays its fade-in. */}
+      <main key={current} className="screen-enter">
+        <ErrorBoundary onReset={restart}>
+          {current === 'subjects' && <SubjectPicker onNext={next} />}
+          {current === 'reference' && <Reference onBack={back} onNext={next} />}
+          {current === 'test' && <Test onBack={back} onNext={next} />}
+          {current === 'weakSpots' && <WeakSpots onBack={back} onNext={next} />}
+          {current === 'teach' && <Teach onBack={back} onNext={next} />}
+          {current === 'retest' && <Retest onBack={back} onNext={next} />}
+          {current === 'report' && <Report onBack={back} onStartPack={startPack} />}
+        </ErrorBoundary>
       </main>
     </SessionContext.Provider>
   )

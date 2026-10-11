@@ -1,5 +1,39 @@
 /* Layout for every screen of the flow. Values come from tokens.css. */
 
+/* ---------- drawing screens fit the window ---------- */
+/* The canvas is as big as the window allows: up to 640 px, but never so tall that the Done button falls
+   below the fold on a 1366 x 768 laptop (350 px is the header, title, toolbar and buttons around it).
+   It never shrinks below 320 px; on phones the width limits it first. */
+.solo-layout,
+.teach-layout {
+  --canvas-max: min(640px, max(320px, calc(100svh - 350px)));
+}
+
+.solo-layout .canvas-stack,
+.solo-layout .canvas-toolbar,
+.teach-layout .canvas-stack,
+.teach-layout .canvas-toolbar {
+  max-width: var(--canvas-max);
+}
+
+.teach-layout {
+  --canvas-max: min(640px, max(320px, calc(100svh - 410px)));
+}
+
+/* Drawing screens: a smaller title, so more of the window goes to the canvas. */
+.screen.is-compact {
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+}
+
+.screen.is-compact h1 {
+  font-size: var(--text-xl);
+}
+
+.screen.is-compact .screen-lead {
+  font-size: var(--text-md);
+}
+
 /* ---------- shared bits ---------- */
 
 .muted {
@@ -322,7 +356,7 @@
 
 .solo-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 280px) minmax(0, 640px);
+  grid-template-columns: minmax(180px, 280px) minmax(0, var(--canvas-max));
   gap: var(--space-6);
   align-items: start;
   justify-content: center;
@@ -518,7 +552,7 @@
 
 .teach-layout {
   display: grid;
-  grid-template-columns: minmax(0, 640px) minmax(220px, 280px);
+  grid-template-columns: minmax(0, var(--canvas-max)) minmax(220px, 280px);
   gap: var(--space-6);
   align-items: start;
   justify-content: center;
@@ -526,13 +560,18 @@
 
 .teach-step {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-height: 7.5rem; /* room for a 3-line tip, so the canvas doesn't jump between steps */
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  min-height: 4.5rem; /* room for a 2-line tip, so the canvas doesn't jump between steps */
 }
 
 .teach-step h2 {
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
+}
+
+.teach-step p {
+  flex-basis: 100%;
 }
 
 .step-count {
@@ -561,7 +600,7 @@
 .teach-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -629,33 +668,13 @@
   font-size: var(--text-sm);
 }
 
-.mode-option {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: border-color var(--transition), background-color var(--transition);
+.mode-switch {
+  display: flex;
+  flex-wrap: wrap;
 }
 
-.mode-option.is-active {
-  border: 2px solid var(--accent);
-  background: rgb(59 108 255 / 6%);
-}
-
-.mode-option:focus-within {
-  box-shadow: var(--focus-ring);
-}
-
-.mode-option input {
-  grid-row: span 2;
-  accent-color: var(--accent);
-}
-
-.mode-name {
-  font-weight: 700;
+.mode-switch button {
+  flex: 1 1 auto;
 }
 
 .mode-hint {
@@ -674,11 +693,6 @@
     align-items: flex-start;
   }
 
-  .mode-picker {
-    flex-basis: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
 }
 
 /* ---------- report card ---------- */
@@ -1007,4 +1021,9 @@
   width: 120px;
   height: auto;
   border-radius: var(--radius-sm);
+}
+
+/* Four modes fit on one row in the lesson panel. */
+.mode-switch button {
+  padding: 0 var(--space-2);
 }

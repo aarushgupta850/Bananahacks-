@@ -113,6 +113,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
 
   return (
     <PlaceholderScreen
+      compact
       title="Lesson"
       lead="Follow the ghost lines. They adapt to every stroke and fade as you get it right."
       onBack={onBack}
@@ -172,16 +173,18 @@ export default function Teach({ onBack, onNext }: NavProps) {
             </span>
           </div>
 
-          <fieldset className="panel-block mode-picker">
-            <legend className="panel-label">Mode</legend>
-            {MODES.map((m) => (
-              <label key={m.id} className={mode === m.id ? 'mode-option is-active' : 'mode-option'}>
-                <input type="radio" name="teach-mode" value={m.id} checked={mode === m.id} onChange={() => changeMode(m.id)} />
-                <span className="mode-name">{m.label}</span>
-                <span className="mode-hint">{m.hint}</span>
-              </label>
-            ))}
-          </fieldset>
+          <div className="panel-block">
+            <span className="panel-label" id="mode-label">Mode</span>
+            <div className="segmented mode-switch" role="radiogroup" aria-labelledby="mode-label">
+              {MODES.map((m) => (
+                <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} title={m.hint}
+                  className={mode === m.id ? 'is-active' : ''} onClick={() => changeMode(m.id)}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <span className="mode-hint">{MODES.find((m) => m.id === mode)?.hint}</span>
+          </div>
 
           <button type="button" className="btn" onClick={revealStep} disabled={result.done}>
             Show me
