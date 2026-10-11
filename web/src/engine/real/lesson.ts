@@ -97,9 +97,11 @@ export function buildLesson(pack: Pack, weaknesses: Weakness[]): Step[] {
 export function score(analysis: Analysis): Score {
   const shape = clamp(analysis.shapeSimilarity, 0, 1)
   const line = clamp(analysis.lineConfidence, 0, 1)
+  // Errors within config.proportionTolerance cost nothing: hand drawings are never exact.
+  const over = (error: number) => Math.max(0, Math.abs(error) - config.proportionTolerance)
   const perPart = analysis.parts.map((m) => (m.missing
     ? 0
-    : Math.max(0, 1 - Math.abs(m.sizeError) - Math.abs(m.offset.dx) - Math.abs(m.offset.dy))))
+    : Math.max(0, 1 - over(m.sizeError) - over(m.offset.dx) - over(m.offset.dy))))
   const mean = perPart.reduce((sum, p) => sum + p, 0) / Math.max(perPart.length, 1)
   const proportion = perPart.length === 0
     ? shape
