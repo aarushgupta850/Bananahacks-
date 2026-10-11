@@ -7,6 +7,7 @@ in an 8 GB card's memory budget alongside each other, and a pack only ever uses 
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -21,11 +22,18 @@ CONTROLNET_SCALE = 0.8  # how strictly a photo redraw follows the photo's lines 
 _cache: dict[str, object] = {}  # "text" or "photo" -> pipeline, "detector" -> LineartDetector
 
 
+def keep_both_pipelines() -> bool:
+    """The live server sets GHOSTLINES_KEEP_BOTH_PIPELINES=1 (run_live.ps1) on a PC with enough RAM: each
+    pipeline's weights wait in system RAM (CPU offload), so keeping both costs RAM, not VRAM, and lets a photo
+    request follow a text request without a 20+ s reload that would blow the 23 s answer limit."""
+    return os.environ.get("GHOSTLINES_KEEP_BOTH_PIPELINES") == "1"
+
+
 def _pipeline(kind: str):
     """The SDXL-Lightning pipeline for "text" or "photo" (with the ControlNet), loaded on first use."""
     if kind not in _cache:
         other = "photo" if kind == "text" else "text"
-        if other in _cache:  # make room: only one SDXL pipeline at a time
+        if other in _cache and not keep_both_pipelines():  # make room: only one SDXL pipeline at a time
             del _cache[other]
             models.free_gpu()
         _cache[kind] = models.load_lightning(with_controlnet=(kind == "photo"))
