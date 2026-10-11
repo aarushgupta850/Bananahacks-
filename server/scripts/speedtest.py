@@ -49,17 +49,9 @@ STAGES = ["text", "photo", "parts"]
 GEN_SIZE = 1024  # SDXL's native size
 TARGET_SIZE = 768  # all app coordinates are in 768 x 768 space
 CONTROLNET_SCALE = 0.8  # how strictly the drawing follows the photo's lines (1.0 = strictly)
-# Parts to look for per subject, the same lists the A2b part detector will use.
-PART_LABELS = {
-    "fox": ["head", "body", "ear", "eye", "tail", "leg"],
-    "cat": ["head", "body", "ear", "eye", "tail", "leg"],
-    "face": ["head", "eye", "nose", "mouth", "ear", "hair"],
-    "mug": ["body", "handle", "rim"],
-    "sneaker": ["sole", "toe", "laces", "heel"],
-    "house": ["roof", "wall", "door", "window", "chimney"],
-    "bird": ["head", "body", "wing", "tail", "beak", "leg"],
-    "fish": ["body", "tail", "fin", "eye", "mouth"],
-}
+# Parts to look for per subject: the same lists the pack builder uses.
+from pipeline.parts import PART_LABELS  # noqa: E402
+
 OWL_THRESHOLD = 0.1  # OWLv2 scores are low in general; 0.1 is the usual starting point
 OWL_THRESHOLD_LOW = 0.05  # also drawn (in orange), to see whether a lower threshold would help
 REJECTED_SCORE = 1000  # quality.py adds 1000 for a blank page or a colored drawing
