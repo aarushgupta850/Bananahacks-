@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanStroke, Point, Step } from '../../engine/types'
-import { fitSimilarity, guideMovement, traceStrokes } from '../trace'
+import { fitSimilarity, guideMovement, lineLength, revealFor, revealOrder, traceReveal } from '../trace'
 
 const move = (p: Point, scale: number, angle: number, dx: number, dy: number): Point =>
   [scale * (Math.cos(angle) * p[0] - Math.sin(angle) * p[1]) + dx, scale * (Math.sin(angle) * p[0] + Math.cos(angle) * p[1]) + dy]
@@ -32,23 +32,36 @@ describe('fitSimilarity', () => {
   })
 })
 
-describe('traceStrokes', () => {
+describe('traceReveal', () => {
+  // Five real lines of 100 px each (one construction shape, never traced).
   const s = (id: string, partId: string | null, tier: PlanStroke['tier'] = 'outline'): PlanStroke =>
-    ({ id, partId, tier, points: [[0, 0], [10, 10]], keyPoints: [] })
-  const strokes = [s('c1', 'head', 'construction'), s('h1', 'head'), s('h2', 'head', 'detail'), s('b1', 'body'), s('x', null)]
+    ({ id, partId, tier, points: [[0, 0], [100, 0]], keyPoints: [] })
+  const strokes = [s('c1', 'head', 'construction'), s('h1', 'head'), s('h2', 'head', 'detail'), s('b1', 'body'), s('x', null), s('y', null)]
   const steps: Step[] = [
     { id: '1', label: '', tip: '', tier: 'construction', strokeIds: ['c1'] },
     { id: '2', label: '', tip: '', tier: 'outline', strokeIds: ['b1'] },
     { id: '3', label: '', tip: '', tier: 'detail', strokeIds: ['x'] },
   ]
-  const ids = (i: number) => traceStrokes(strokes, steps, i).map((t) => t.id)
+  const shown = (current: number, budget: number) =>
+    traceReveal(strokes, steps, current, budget).map((t) => `${t.id}:${Math.round(lineLength(t.points))}`)
 
-  it('on a construction step, traces the real lines of that part only', () => {
-    expect(ids(0)).toEqual(['h1', 'h2'])
+  it('orders lines the way the lesson reaches them, never construction shapes', () => {
+    expect(revealOrder(strokes, steps).map((o) => o.stroke.id)).toEqual(['h1', 'h2', 'b1', 'x', 'y'])
   })
 
-  it('reveals more as the lesson goes on, and never construction shapes', () => {
-    expect(ids(1)).toEqual(['h1', 'h2', 'b1'])
-    expect(ids(2)).toEqual(['h1', 'h2', 'b1', 'x'])
+  it('grows bit by bit with the budget, cutting a line part-way', () => {
+    expect(shown(0, 0)).toEqual([])
+    expect(shown(0, 150)).toEqual(['h1:100', 'h2:50'])
+    expect(shown(0, 320)).toEqual(['h1:100', 'h2:100', 'b1:100', 'x:20'])
+  })
+
+  it('always shows finished steps in full', () => {
+    expect(shown(2, 0)).toEqual(['h1:100', 'h2:100', 'b1:100'])
+  })
+
+  it('reveals everything after REVEAL_STEPS short strokes', () => {
+    const total = 500
+    const budget = Array.from({ length: 12 }, () => revealFor(3, total)).reduce((a, b) => a + b, 0)
+    expect(shown(0, budget)).toEqual(['h1:100', 'h2:100', 'b1:100', 'x:100', 'y:100'])
   })
 })
