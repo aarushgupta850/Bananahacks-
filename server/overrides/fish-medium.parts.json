@@ -1,0 +1,9 @@
+[
+  {"id": "body", "label": "Body", "box": [170, 215, 470, 325]},
+  {"id": "tail", "label": "Tail", "box": [55, 280, 125, 215]},
+  {"id": "fin_top", "label": "Top fin", "box": [300, 160, 250, 85]},
+  {"id": "fin_side", "label": "Side fin", "box": [335, 340, 145, 105]},
+  {"id": "fin_bottom", "label": "Bottom fins", "box": [285, 495, 200, 95]},
+  {"id": "eye", "label": "Eye", "box": [555, 330, 55, 45]},
+  {"id": "mouth", "label": "Mouth", "box": [620, 355, 60, 45]}
+]
