@@ -1316,50 +1316,61 @@ dialog.pipeline-panel {
 .time-picker {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 0;
+  border: none;
 }
 
 .time-picker legend {
-  padding: 0 var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: 0;
   font-weight: 700;
 }
 
+/* The same look as the difficulty buttons: one rounded strip, the chosen part filled dark and bold. */
 .time-options {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-self: flex-start;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
 }
 
-/* Each choice is a pill around a real radio input. The chosen one gets a thick accent ring AND bold text,
-   and its radio dot stays visible, so it is never shown by color alone. */
 .time-option {
+  position: relative; /* holds the hidden radio */
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  min-height: 44px; /* touch target */
-  padding: 0 var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--paper);
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
   cursor: pointer;
-  transition: border-color var(--transition), background-color var(--transition);
+  transition: background-color var(--transition), color var(--transition);
 }
 
+.time-option:hover {
+  color: var(--ink);
+}
+
+/* The real radio stays in the page for keyboards and screen readers, just not drawn. */
 .time-option input {
-  width: 18px;
-  height: 18px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
   margin: 0;
-  accent-color: var(--accent);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .time-option.is-active {
-  border: 2px solid var(--accent);
-  background: rgb(59 108 255 / 8%);
+  background: var(--ink);
+  color: var(--paper);
   font-weight: 700;
 }
 
@@ -1376,20 +1387,20 @@ dialog.pipeline-panel {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-2);
   font-size: var(--text-sm);
-  font-weight: 600;
 }
 
 .time-custom input {
-  width: 7rem;
-  min-height: 44px;
+  width: 5.5rem;
+  min-height: 40px;
   padding: 0 var(--space-3);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
   color: var(--ink);
   font: inherit;
+  font-weight: 600;
 }
 
 .time-custom input:focus-visible {
@@ -1402,6 +1413,7 @@ dialog.pipeline-panel {
 }
 
 .time-hint {
+  margin: 0;
   color: var(--ink-muted);
   font-size: var(--text-sm);
   font-weight: 400;
@@ -1419,4 +1431,62 @@ dialog.pipeline-panel {
 /* "Timed: 1 min" / "Untimed" sits right after the subject title; the app name stays on the far right. */
 .report-timing {
   margin-right: auto;
+}
+
+/* ---------- happy accidents (Teach, ?happy=1) ---------- */
+
+/* A wrapper around the guides, the size of the canvas; drawing goes straight through it. */
+.ghost-swap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* After a redraw the old guides fade out while the new ones fade in. */
+.ghost-swap.is-out {
+  animation: ghost-swap-out 400ms ease-out forwards;
+}
+
+.ghost-swap.is-in {
+  animation: ghost-swap-in 400ms ease-out;
+}
+
+@keyframes ghost-swap-out {
+  to { opacity: 0; }
+}
+
+@keyframes ghost-swap-in {
+  from { opacity: 0; }
+}
+
+.teach-toast.is-happy {
+  border-left-color: var(--success);
+}
+
+/* "Working your line into the drawing…": a quiet chip while image AI redraws. Never blocks drawing. */
+.teach-redrawing {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  pointer-events: none;
+}
+
+/* Phones: two tidy rows of three instead of a row that wraps unevenly. */
+@media (max-width: 480px) {
+  .time-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    align-self: stretch;
+  }
+
+  .time-option {
+    justify-content: center;
+  }
 }
