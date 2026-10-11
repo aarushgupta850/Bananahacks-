@@ -19,8 +19,12 @@ export function toTargetPoint(clientX: number, clientY: number, rect: Rect): Poi
 
 // perfect-freehand turns the centre line of a stroke into the outline of a smooth, pressure-sensitive ink shape.
 // Sizes are in target space, so a stroke looks the same at any canvas size.
+// Three pen sizes the user can pick, as the ink width in target space.
+export const PEN_SIZES = { fine: 5, medium: 8, bold: 14 } as const
+export type PenSize = keyof typeof PEN_SIZES
+
 const INK = {
-  size: 8,
+  size: PEN_SIZES.medium,
   thinning: 0.5,         // how much pressure changes the width
   smoothing: 0.5,
   streamline: 0.5,
@@ -28,10 +32,11 @@ const INK = {
 }
 
 // An SVG path for a stroke. `last` is true once the stroke is finished, which rounds off its end.
-export function strokeToPath(points: TimedPoint[], last = true): string {
+// `size` is the ink width in target space (one of PEN_SIZES).
+export function strokeToPath(points: TimedPoint[], last = true, size: number = INK.size): string {
   if (points.length === 0) return ''
   // getStroke wants [x, y, pressure]; the 4th value (time) is dropped.
-  const outline = getStroke(points.map(([x, y, pressure]) => [x, y, pressure]), { ...INK, last })
+  const outline = getStroke(points.map(([x, y, pressure]) => [x, y, pressure]), { ...INK, size, last })
   return outlineToPath(outline)
 }
 
@@ -49,4 +54,13 @@ function outlineToPath(outline: number[][]): string {
     path += `${fixed(average(p[0], q[0]))},${fixed(average(p[1], q[1]))} `
   }
   return path + 'Z'
+}
+
+// A polyline's points as an SVG "points" attribute: "x,y x,y ...".
+export const toSvgPoints = (points: Point[]) => points.map(([x, y]) => `${x},${y}`).join(' ')
+
+// Should this pointer be ignored? Once a pen has touched the canvas, touches are almost always the
+// hand resting on the screen (palm), so they are ignored until the page reloads.
+export function isPalm(pointerType: string, penSeen: boolean): boolean {
+  return penSeen && pointerType === 'touch'
 }

@@ -1,6 +1,7 @@
 // The root of the app. There is no router: the flow is a list of screens and Next/Back move along it.
 // What the user does along the way is kept in the session context (session.ts), which every screen can read.
 import { useCallback, useMemo, useState } from 'react'
+import CanvasDemo from './canvas/CanvasDemo'
 import PackInspector from './dev/PackInspector'
 import Reference from './screens/Reference'
 import Report from './screens/Report'
@@ -21,6 +22,7 @@ export default function App() {
   // Developer pages are picked by the URL and skip the normal flow (no hooks above this line).
   const params = new URLSearchParams(window.location.search)
   if (params.get('debug') === 'pack') return <PackInspector id={params.get('id')} />
+  if (params.get('debug') === 'canvas') return <CanvasDemo />
   return <Flow />
 }
 
