@@ -1,6 +1,6 @@
 // Measures a solo drawing (the test or the retest) against the target, part by part.
 // Every number the report shows starts here.
-import type { Analysis, Box, Pack, PartMetric, Point, TimedPoint, UserStroke } from '../types'
+import type { Analysis, Box, Pack, Part, PartMetric, Point, TimedPoint, UserStroke } from '../types'
 import { align, targetPoints } from './align'
 import { config } from './config'
 import {
@@ -113,6 +113,67 @@ function lineConfidence(strokes: Point[][]): number {
   return clamp((smooth + (1 - overstrokes / strokes.length)) / 2, 0, 1)
 }
 
+// Small parts that sit inside a bigger one (the eyes inside the head): the parent whose box holds most of the
+// child's box, if there is one.
+function parentOf(child: Part, parts: Part[]): Part | null {
+  const [cx, cy, cw, ch] = child.box
+  let best: Part | null = null
+  for (const p of parts) {
+    if (p.id === child.id) continue
+    const [px, py, pw, ph] = p.box
+    const overlap = Math.max(0, Math.min(cx + cw, px + pw) - Math.max(cx, px)) * Math.max(0, Math.min(cy + ch, py + ph) - Math.max(cy, py))
+    const holdsIt = overlap >= 0.8 * cw * ch && pw * ph > 1.5 * cw * ch
+    if (holdsIt && (!best || pw * ph < best.box[2] * best.box[3])) best = p
+  }
+  return best
+}
+
+// Step 2b. A small stroke (an eye, a nose) is placed by where it sits INSIDE the part the user drew around it,
+// not on the whole page. A learner who draws the head bigger and lower than the target also draws the eyes lower,
+// so on the page they land on the target's nose lines and were counted as head ("Forgot the eyes"). Here each
+// parent part (the head) gets its own frame: the box of the user's big strokes for it, stretched onto the box of
+// its plan lines. A small stroke given to the parent (or to nothing) whose center, seen in that frame, falls in a
+// child part's box (the eyes) goes to that child.
+function placeSmallStrokesInsideTheirParent(
+  pack: Pack, partSets: Map<string, Point[]>, byStroke: { points: Point[]; part: string | null }[], targetDiagonal: number,
+): Map<string, (p: Point) => Point> {
+  const frames = new Map<string, (p: Point) => Point>() // child part id -> its parent's frame (user -> target)
+  const smallLimit = config.smallStrokeShare * targetDiagonal
+  const isSmall = (points: Point[]) => diagonal(bbox(points)) < smallLimit
+  const children = new Map<string, Part[]>() // parent id -> its child parts
+  for (const child of pack.parts) {
+    const parent = parentOf(child, pack.parts)
+    if (parent) children.set(parent.id, [...(children.get(parent.id) ?? []), child])
+  }
+  for (const [parentId, kids] of children) {
+    // Both sides of the frame use only the parent's big lines, so a perfect copy gets an exact (identity) frame.
+    const big = byStroke.filter((s) => s.part === parentId && !isSmall(s.points)).flatMap((s) => s.points)
+    const bigPlan = pack.strokes
+      .filter((s) => s.partId === parentId && s.tier !== 'construction')
+      .map((s) => resample(s.points, config.alignPointsPerStroke))
+      .filter((points) => !isSmall(points))
+      .flat()
+    const plan = bigPlan.length > 0 ? bigPlan : partSets.get(parentId) ?? []
+    if (big.length === 0 || plan.length === 0) continue
+    const [ux, uy, uw, uh] = bbox(big)
+    const [tx, ty, tw, th] = bbox(plan)
+    if (uw < 1 || uh < 1) continue
+    const toTarget = ([x, y]: Point): Point => [tx + ((x - ux) * tw) / uw, ty + ((y - uy) * th) / uh]
+    for (const kid of kids) frames.set(kid.id, toTarget)
+    // Only strokes inside the user's drawn parent (with a small margin) are candidates.
+    const margin = 0.1 * Math.max(uw, uh)
+    for (const stroke of byStroke) {
+      if (!isSmall(stroke.points) || (stroke.part !== parentId && stroke.part !== null)) continue
+      const [cx, cy] = boxCenter(bbox(stroke.points))
+      if (cx < ux - margin || cx > ux + uw + margin || cy < uy - margin || cy > uy + uh + margin) continue
+      const [mx, my] = toTarget([cx, cy])
+      const kid = kids.find(({ box: [x, y, w, h] }) => mx >= x && mx <= x + w && my >= y && my <= y + h)
+      if (kid) stroke.part = kid.id
+    }
+  }
+  return frames
+}
+
 function missingPart(partId: string, label: string): PartMetric {
   return {
     partId, label, missing: true, sizeError: 0, offset: { dx: 0, dy: 0 }, aspectError: 0, tiltDeg: 0, good: false, userBox: null,
@@ -147,8 +208,7 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
   // ignored, and so are strokes closest to plan lines that belong to no part.
   const partSets = partPointSets(pack)
   const unlabeled = unlabeledPoints(pack)
-  const assigned = new Map<string, Point[]>()
-  for (const stroke of aligned) {
+  const byStroke = aligned.map((stroke) => {
     const points = resample(stroke, config.alignPointsPerStroke)
     let bestPart: string | null = null
     let bestDistance = unlabeled.length > 0 ? meanNearest(points, unlabeled) : Infinity
@@ -159,27 +219,39 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
         bestPart = partId
       }
     }
-    if (bestPart && bestDistance <= config.partMaxDistance * targetDiagonal) {
-      assigned.set(bestPart, [...(assigned.get(bestPart) ?? []), ...points])
-    }
+    return { points, part: bestPart && bestDistance <= config.partMaxDistance * targetDiagonal ? bestPart : null }
+  })
+  const parentFrames = placeSmallStrokesInsideTheirParent(pack, partSets, byStroke, targetDiagonal)
+  const assigned = new Map<string, Point[]>()
+  for (const { points, part } of byStroke) {
+    if (part) assigned.set(part, [...(assigned.get(part) ?? []), ...points])
   }
 
   // 3. Measure each part: size, position, width/height ratio and tilt, all in target space. The alignment has
   // already taken out the drawing's overall size and position, so what is left is the part's own error.
   const parts = pack.parts.map((part): PartMetric => {
-    const userPoints = assigned.get(part.id)
-    if (!userPoints || userPoints.length === 0) return missingPart(part.id, part.label)
+    const drawnPoints = assigned.get(part.id)
+    if (!drawnPoints || drawnPoints.length === 0) return missingPart(part.id, part.label)
+    // A part inside another (the eyes in the head) is measured in its parent's frame, so a head drawn too big
+    // doesn't also make the eyes "too big".
+    const frame = parentFrames.get(part.id)
+    const userPoints = frame ? drawnPoints.map(frame) : drawnPoints
     const planPoints = partSets.get(part.id) ?? []
-    const tBox = bbox(planPoints)
+    // When the plan lines cover only a little of the part's box (a pack whose left eye was traced into the cheek
+    // line has one eye stroke for "eyes"), the part's size can't be judged: only its position is, against the box.
+    const [bx0, by0, bw, bh] = part.box
+    const covered = bbox(planPoints)[2] * bbox(planPoints)[3] >= config.minPlanCoverage * bw * bh
+    const sizeKnown = !frame || covered
+    const tBox = sizeKnown ? bbox(planPoints) : part.box
     const uBox = bbox(userPoints)
-    const sizeError = diagonal(uBox) / Math.max(diagonal(tBox), 1) - 1
+    const sizeError = sizeKnown ? diagonal(uBox) / Math.max(diagonal(tBox), 1) - 1 : 0
     const [ux, uy] = boxCenter(uBox)
     const [tx, ty] = boxCenter(tBox)
     const offset = { dx: (ux - tx) / height, dy: (uy - ty) / height }
     const ratio = (b: Box) => Math.max(b[2], 8) / Math.max(b[3], 8) // 8 px floor: a flat line has no ratio
-    const aspectError = ratio(uBox) / ratio(tBox) - 1
+    const aspectError = sizeKnown ? ratio(uBox) / ratio(tBox) - 1 : 0
     const targetAxis = principalAxis(planPoints)
-    const tiltDeg = targetAxis.elongation < config.roundPartRatio
+    const tiltDeg = !sizeKnown || targetAxis.elongation < config.roundPartRatio
       ? 0 // a round part (a head circle) has no reliable tilt
       : angleDifference(principalAxis(userPoints).angleDeg, targetAxis.angleDeg)
     const good = Math.max(Math.abs(sizeError), Math.abs(offset.dx), Math.abs(offset.dy), Math.abs(aspectError)) <= config.goodLimit
@@ -193,7 +265,8 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
       aspectError: round2(aspectError),
       tiltDeg: Math.round(tiltDeg),
       good,
-      userBox: inPartBoxFrame(uBox, tBox, part.box).map(Math.round) as Box,
+      // Position-only parts show the target box moved by the measured offset (their size wasn't judged).
+      userBox: (sizeKnown ? inPartBoxFrame(uBox, tBox, part.box) : [bx0 + ux - tx, by0 + uy - ty, bw, bh]).map(Math.round) as Box,
     }
   })
 
