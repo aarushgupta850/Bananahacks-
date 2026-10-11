@@ -39,8 +39,10 @@ function icp(user: Point[], target: PointGrid, start: Transform): { transform: T
     if (settled) break
   }
   const final = pairsFor(transform)
-  const error = final.reduce((sum, p) => sum + Math.hypot(p.moved[0] - p.to[0], p.moved[1] - p.to[1]), 0) / Math.max(final.length, 1)
-  return { transform, error }
+  const mean = final.reduce((sum, p) => sum + Math.hypot(p.moved[0] - p.to[0], p.moved[1] - p.to[1]), 0) / Math.max(final.length, 1)
+  // The error in the user's own units (divided by the scale): otherwise shrinking a drawing would look like a
+  // better fit just because every distance shrinks with it.
+  return { transform, error: mean / transform.scale }
 }
 
 // Two first guesses, because ICP only finds the nearest good fit to where it starts:

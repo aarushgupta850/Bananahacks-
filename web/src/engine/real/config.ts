@@ -32,7 +32,7 @@ export const config = {
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
   roundPartRatio: 1.3,      // parts whose long side is < 1.3x their short side have no reliable tilt
-  shapeScale: 0.08,         // mean distance of 8% of the diagonal scores 0 shape similarity
+  shapeScale: 0.16,         // mean distance of 16% of the diagonal scores 0 shape similarity (M2: 0.08 was too harsh)
   overstrokeDistance: 4,    // px: a stroke lying within 4 px of an earlier one is a re-stroke
   overstrokeShare: 0.7,     // ...when at least 70% of its points do
   smoothTurnRad: 0.5,       // a median turn of 0.5 rad per sample means a fully shaky line
@@ -40,6 +40,8 @@ export const config = {
   // ---------- weaknesses, score, coaching (lesson.ts) ----------
   maxWeaknesses: 3,
   lineWeakBelow: 0.7,       // line confidence under this is reported as a weakness
+  proportionTolerance: 0.2, // size and position errors up to 20% cost nothing in the proportion score (M2)
+  proportionWorstShare: 0,  // 0 = proportion is the mean over parts; 0.5 = half mean, half the worst part
   weightProportion: 40,     // total = 40 * proportion + 35 * shape + 25 * line
   weightShape: 35,
   weightLine: 25,
