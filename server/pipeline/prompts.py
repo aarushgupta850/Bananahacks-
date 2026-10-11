@@ -37,6 +37,13 @@ VARIANTS = {
         "very few lines, no details, no shading, no solid black areas, no text, no logo, "
         "isolated on plain white background"
     ),
+    # "icon_clean" asking for single, clean lines: its drawings often had doubled, sketchy outlines (the cat's back
+    # and tail), which make a confusing target and a longer lesson. Chosen for live generation on Oct 11.
+    "icon_single": (
+        "minimalist line icon of {subject}, bold uniform black outline only, single clean continuous lines, "
+        "no sketch lines, no double lines, flat, very few lines, no details, no shading, no solid black areas, "
+        "no text, no logo, isolated on plain white background"
+    ),
     # "icon_clean" plus "black and white, no frame". Tried in the third speed test and rejected: it removed
     # color but made drawings more detailed, and frames stayed. Kept here so the comparison can be rerun.
     "icon_mono": (
@@ -47,7 +54,7 @@ VARIANTS = {
 }
 
 # The variant the pipeline uses. Set from the speed test results (see server/SPEEDTEST.md).
-CHOSEN = "icon_clean"
+CHOSEN = "icon_single"  # the shipped packs were built with "icon_clean"
 
 # Extra words per difficulty, placed right after the subject. Must match Difficulty in types.ts.
 DIFFICULTY_HINTS = {
