@@ -1,53 +1,59 @@
-// A small picture comparing where a part should be (the target's box, dashed) with where the user drew it
-// (their box, solid). Both boxes are also labeled in text ("target", "yours"), so color is never the only signal.
-// Coordinates are in 768 target space; the view zooms to the two boxes with some margin.
-import type { Box } from '../engine/types'
+// A small zoomed-in picture of one part: the target drawing faint in gray for context, the part itself
+// in thick accent lines, and the user's own drawing (aligned by the engine) in thin ink on top.
+// A legend under it names each kind of line, so color is never the only signal.
+// Coordinates are in 768 target space; the view zooms to the part (and where the user drew it) with room around.
+import { toSvgPoints } from '../canvas/geometry'
+import type { Box, Pack, Point, UserStroke } from '../engine/types'
 
 interface PartCompareProps {
-  target: Box | null      // the pack's box for the part
-  user: Box | null        // the user's box from the engine's analysis (null when the part is missing)
-  label: string           // e.g. "head"
+  pack: Pack
+  partId: string
+  user: Box | null        // where the user drew the part, from the engine's analysis (null when missing)
+  yours: UserStroke[]     // the user's strokes, aligned to the target by the engine
+  label: string           // e.g. "door"
 }
 
-const MARGIN = 40
-
-// The smallest square around every box given, plus a margin, as an SVG viewBox.
-function viewAround(boxes: Box[]): string {
-  if (boxes.length === 0) return '0 0 768 768'
+// The smallest square around every box given, with room around it, as [x, y, side].
+function viewAround(boxes: Box[]): [number, number, number] {
+  if (boxes.length === 0) return [0, 0, 768]
   const left = Math.min(...boxes.map((b) => b[0]))
   const top = Math.min(...boxes.map((b) => b[1]))
   const right = Math.max(...boxes.map((b) => b[0] + b[2]))
   const bottom = Math.max(...boxes.map((b) => b[1] + b[3]))
-  const side = Math.max(right - left, bottom - top) + 2 * MARGIN
-  const cx = (left + right) / 2
-  const cy = (top + bottom) / 2
-  return `${cx - side / 2} ${cy - side / 2} ${side} ${side}`
+  const size = Math.max(right - left, bottom - top)
+  // Show about a part's width of the drawing around it, so you can see where it sits (at least 80 px).
+  const side = size + 2 * Math.max(80, 0.5 * size)
+  return [(left + right) / 2 - side / 2, (top + bottom) / 2 - side / 2, side]
 }
 
-export default function PartCompare({ target, user, label }: PartCompareProps) {
-  const boxes = [target, user].filter((b): b is Box => b !== null)
-  const view = viewAround(boxes)
-  const side = Number(view.split(' ')[2])
-  const fontSize = side / 11 // labels stay the same size on screen however far the view zooms
+const line = (points: Point[], className: string, key: string | number) => (
+  <polyline key={key} className={className} points={toSvgPoints(points)} vectorEffect="non-scaling-stroke" />
+)
+
+export default function PartCompare({ pack, partId, user, yours, label }: PartCompareProps) {
+  const target = pack.parts.find((p) => p.id === partId)?.box ?? null
+  const drawn = pack.strokes.filter((s) => s.tier !== 'construction')
+  const partLines = drawn.filter((s) => s.partId === partId)
+  const [x, y, side] = viewAround([target, user].filter((b): b is Box => b !== null))
+  const missing = user === null
+
   return (
-    <svg className="part-compare" viewBox={view} role="img" aria-label={describe(target, user, label)}>
-      {target && (
-        <g className="compare-target">
-          <rect x={target[0]} y={target[1]} width={target[2]} height={target[3]} vectorEffect="non-scaling-stroke" />
-          <text x={target[0] + 6} y={target[1] + target[3] - 8} fontSize={fontSize}>target</text>
-        </g>
-      )}
-      {user && (
-        <g className="compare-user">
-          <rect x={user[0]} y={user[1]} width={user[2]} height={user[3]} vectorEffect="non-scaling-stroke" />
-          <text x={user[0] + 8} y={user[1] + fontSize * 1.15} fontSize={fontSize}>yours</text>
-        </g>
-      )}
-    </svg>
+    <figure className="part-compare-figure">
+      <svg className="part-compare" viewBox={`${x} ${y} ${side} ${side}`} role="img"
+        aria-label={missing ? `Where the ${label} goes. It is missing from your drawing.` : `Your ${label} compared with the target's ${label}`}>
+        {/* The whole target, faint, for context. */}
+        {drawn.filter((s) => s.partId !== partId).map((s) => line(s.points, 'compare-context', s.id))}
+        {/* The part to look at. A part without its own lines falls back to its box, dashed. */}
+        {partLines.length > 0
+          ? partLines.map((s) => line(s.points, 'compare-part', s.id))
+          : target && <rect className="compare-part-box" x={target[0]} y={target[1]} width={target[2]} height={target[3]} vectorEffect="non-scaling-stroke" />}
+        {/* What the user drew. */}
+        {yours.map((s, i) => line(s.points.map(([px, py]): Point => [px, py]), 'compare-yours', i))}
+      </svg>
+      <figcaption className="compare-legend">
+        <span><i className="legend-part" aria-hidden="true" />{missing ? `The ${label} you missed` : `The ${label}`}</span>
+        <span><i className="legend-yours" aria-hidden="true" />Your drawing</span>
+      </figcaption>
+    </figure>
   )
-}
-
-function describe(target: Box | null, user: Box | null, label: string): string {
-  if (target && !user) return `Where the ${label} should be. It is missing from your drawing.`
-  return `Your ${label} compared with the target's ${label}`
 }
