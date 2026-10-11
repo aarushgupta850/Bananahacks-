@@ -72,10 +72,35 @@ def test_steps_group_up_to_four_strokes_with_the_same_tier_and_part():
     detail_steps = [s for s in steps if s["tier"] == "detail"]
     assert [len(s["strokeIds"]) for s in detail_steps] == [4, 2]
     assert all(s["label"] == "Add the body" for s in detail_steps)
-    assert "about" in detail_steps[0]["tip"] and "% of the drawing height" in detail_steps[0]["tip"]
     # Every stroke appears in exactly one step, in order.
     ids = [i for s in steps for i in s["strokeIds"]]
     assert ids == [s["id"] for s in plan["strokes"]]
+
+
+def test_a_tier_finishes_one_part_before_the_next():
+    tail = {"id": "tail", "label": "Tail", "box": [520, 300, 200, 150]}
+    strokes = [circle(384, 200, 100), circle(384, 490, 150), [(530, 400), (700, 320)], [(530, 420), (700, 340)]]
+    plan = build_plan(strokes, [HEAD, BODY, tail])
+    order = [s["partId"] for s in plan["strokes"] if s["tier"] != "construction"]
+    # Each part's strokes are together: head and body first, then the tail.
+    assert order == sorted(order, key=["head", "body", "tail"].index)
+
+
+def test_size_tips_only_on_a_parts_first_step_and_only_when_useful():
+    plan = build_plan(fox_like(), [HEAD, BODY, EYE])
+    head_steps = [s for s in plan["steps"] if s["label"].endswith("the head")]
+    assert "% of the drawing height" in head_steps[0]["tip"]  # head box: 200 of the drawing's 440
+    assert all("%" not in s["tip"] for s in head_steps[1:])  # said once is enough
+    body_steps = [s for s in plan["steps"] if s["label"].endswith("the body")]
+    assert all("%" not in s["tip"] for s in body_steps)  # the body is most of the drawing: no "86%" tip
+
+
+def test_boxy_subjects_get_a_rectangle_to_block_in():
+    mug_body = {"id": "body", "label": "Body", "box": [200, 150, 300, 450]}
+    plan = build_plan([circle(350, 375, 150)], [mug_body], subject="mug")
+    block = plan["strokes"][0]
+    assert block["id"] == "c-body" and block["points"] == [[200, 150], [500, 150], [500, 600], [200, 600], [200, 150]]
+    assert len(build_plan([circle(350, 375, 150)], [mug_body], subject="cat")["strokes"][0]["points"]) == 49
 
 
 def test_step_labels_without_parts_are_generic():

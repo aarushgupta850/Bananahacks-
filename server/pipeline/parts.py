@@ -36,6 +36,7 @@ PART_LABELS = {
 }
 DEFAULT_LABELS = ["head", "body"]
 PAIRED = {"ear", "eye", "leg", "wing", "fin", "window"}  # these keep up to 2 boxes
+SIDE_VIEW = {"fox", "cat", "bird"}  # drawn from the side, so a pair of legs is front and back, not left and right
 WHOLE_OBJECT = {"body", "wall"}  # these may cover most of the drawing (and a face's head)
 THRESHOLD = 0.08  # the speed test's fox scored about 0.1 on its head and eyes; cats and mugs 0.15 to 0.7
 NMS_IOU = 0.3  # a box overlapping a better one of the same label by more than this is a duplicate
@@ -99,7 +100,23 @@ def select_parts(
                 part_id, text = label, label.capitalize()
             x0, y0, x1, y1 = box
             parts.append({"id": part_id, "label": text, "box": [round(x0), round(y0), round(x1 - x0), round(y1 - y0)]})
+    if slug in SIDE_VIEW:
+        name_legs_front_and_back(parts)
     return parts
+
+
+def name_legs_front_and_back(parts: list[dict]) -> None:
+    """For an animal seen from the side, the leg on the head's side is the front leg."""
+    by_id = {p["id"]: p for p in parts}
+    head, left, right = by_id.get("head"), by_id.get("leg_left"), by_id.get("leg_right")
+    if not (head and left and right):
+        return
+    head_x = head["box"][0] + head["box"][2] / 2
+    left_x = left["box"][0] + left["box"][2] / 2
+    right_x = right["box"][0] + right["box"][2] / 2
+    front, back = (left, right) if abs(head_x - left_x) < abs(head_x - right_x) else (right, left)
+    front.update(id="leg_front", label="Front leg")
+    back.update(id="leg_back", label="Back leg")
 
 
 def load_override(pack_id: str | None) -> list[dict] | None:

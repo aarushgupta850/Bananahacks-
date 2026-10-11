@@ -63,3 +63,14 @@ def test_override_file_wins(tmp_path, monkeypatch):
     assert load_override("fox-medium") == fixed
     assert load_override("cat-medium") is None
     assert load_override(None) is None
+
+
+def test_side_view_animals_name_their_legs_front_and_back():
+    entries = [("head", 0.4, (500, 120, 640, 260)), ("leg", 0.3, (200, 450, 260, 640)), ("leg", 0.3, (520, 450, 580, 640))]
+    found = run(entries, ["head", "leg"], slug="cat")
+    ids = {p["id"]: p for p in found}
+    assert ids["leg_front"]["box"][0] == 520  # nearer the head, which is on the right
+    assert ids["leg_back"]["label"] == "Back leg"
+    # A face isn't a side view: its pairs stay left and right.
+    assert {p["id"] for p in run([("eye", 0.3, (200, 200, 260, 240)), ("eye", 0.3, (400, 200, 460, 240))],
+                                 ["eye"], slug="face")} == {"eye_left", "eye_right"}

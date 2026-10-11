@@ -246,7 +246,7 @@ def build(args: argparse.Namespace, generate=None, detect=None, subjects_dir: Pa
 
     best = candidates[chosen]
     parts = detect(best.image)
-    plan = build_plan(best.strokes, parts)
+    plan = build_plan(best.strokes, parts, subject=args.subject)
     # Check everything before writing anything.
     pack = assemble_pack(pack_id, args.subject, title, args.difficulty, source_kind, args.prompt,
                          prompt_text, chosen, len(best.strokes), parts, plan)

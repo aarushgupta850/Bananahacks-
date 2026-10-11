@@ -4,13 +4,16 @@ No GPU needed. Input: strokes from trace.py ((x, y) points in 768 x 768 space) a
 Output: PlanStroke and Step dicts that match web/src/engine/types.ts.
 
 How it decides:
-- Construction: a light 48-point ellipse fitted to the head box and to the body box, drawn first.
+- Construction: a light 48-point ellipse fitted to the head box and to the body box, drawn first
+  (a rectangle for boxy objects like a mug or a house).
 - Outline: strokes that run mostly along the outer silhouette (the drawing filled in, then its edge).
 - Structure vs detail: other strokes longer than 8% of the drawing's diagonal are structure, shorter are detail.
 - Part: the part box holding most of the stroke's points (the smallest box if several do), else none.
-- Order: by tier (construction, outline, structure, detail), then from the center outward within a tier.
-- Steps: 1 to 4 consecutive strokes with the same tier and part, with a template label and a tip that
-  uses the part's real size.
+- Order: by tier (construction, outline, structure, detail). Within a tier, one part at a time (head and
+  body first, then bigger parts before smaller ones), and from the center outward within a part, so a
+  beginner finishes one part before moving to the next.
+- Steps: 1 to 4 consecutive strokes with the same tier and part, with a template label. The first step of a
+  part gets a tip with the part's real size; later steps get a tip for their tier.
 - Key points: a stroke's ends, its corners (turns over 45 degrees) and, on smooth curves, its most bent
   points. The "hints" help level shows only these.
 """
@@ -33,7 +36,16 @@ SAMPLE_PX = 4  # strokes are sampled every few pixels when measuring them
 CORNER_DEG = 45  # a turn sharper than this is a corner (a key point)
 MAX_KEY_POINTS = 8
 MAX_STEP_STROKES = 4
-CONSTRUCTION_PARTS = ["head", "body"]  # parts that get a construction ellipse, in drawing order
+CONSTRUCTION_PARTS = ["head", "body"]  # parts that get a construction shape, in drawing order
+CONSTRUCTION_BY_SUBJECT = {"house": ["wall"], "sneaker": []}  # subjects without a head and body
+BOXY_SUBJECTS = {"mug", "house", "sneaker"}  # their construction shape is a rectangle, not an ellipse
+MAX_SIZE_TIP_SHARE = 0.7  # a part taller than this share of the drawing gets no size tip ("100%" is no help)
+TIER_TIPS = {
+    "construction": "Draw light, loose shapes. They are only a guide.",
+    "outline": "Follow the outer edge in smooth, confident strokes.",
+    "structure": "Place the big inner lines before any small details.",
+    "detail": "Press lightly and match the angle of the guide.",
+}
 
 Point = tuple[float, float]
 
@@ -86,6 +98,12 @@ def ellipse_in_box(box: list[float]) -> list[Point]:
         for k in range(ELLIPSE_POINTS)
     ]
     return pts + pts[:1]
+
+
+def rectangle_in_box(box: list[float]) -> list[Point]:
+    """A closed rectangle along the box's edges, starting at the top left and going clockwise."""
+    x, y, w, h = box
+    return [(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)]
 
 
 # ---------------------------------------------------------------- outline detection
@@ -189,32 +207,29 @@ def key_points(points: list[Point]) -> list[Point]:
 # ---------------------------------------------------------------- steps
 
 
-def step_text(tier: str, part: dict | None, drawing_height: float) -> tuple[str, str]:
-    """(label, tip) for a step. Tips that name a part use its real size in the drawing."""
+def step_label(tier: str, part: dict | None) -> str:
     name = part["label"].lower() if part else None
     if tier == "construction":
-        label = f"Block in the {name}" if name else "Block in the big shapes"
-    elif tier == "outline":
-        label = f"Outline the {name}" if name else "Outline the shape"
-    elif tier == "structure":
-        label = f"Add the {name}" if name else "Add the inner lines"
-    else:
-        label = f"Add the {name}" if name else "Add the details"
-    if part and drawing_height > 0:
+        return f"Block in the {name}" if name else "Block in the big shapes"
+    if tier == "outline":
+        return f"Outline the {name}" if name else "Outline the shape"
+    if tier == "structure":
+        return f"Add the {name}" if name else "Add the inner lines"
+    return f"Add the {name}" if name else "Add the details"
+
+
+def step_tip(tier: str, part: dict | None, drawing_height: float, first_for_part: bool) -> str:
+    """The first step of a part says how big it is (from its real box), unless it fills most of the drawing.
+    Every other step gets the tip for its tier."""
+    if part and first_for_part and 0 < part["box"][3] <= MAX_SIZE_TIP_SHARE * drawing_height:
         percent = round(100 * part["box"][3] / drawing_height)
-        tip = f"Keep the {name} about {percent}% of the drawing height."
-    else:
-        tip = {
-            "construction": "Draw light, loose shapes. They are only a guide.",
-            "outline": "Follow the outer edge in smooth, confident strokes.",
-            "structure": "Place the big inner lines before any small details.",
-            "detail": "Finish with the small details; keep them light.",
-        }[tier]
-    return label, tip
+        return f"Keep the {part['label'].lower()} about {percent}% of the drawing height."
+    return TIER_TIPS[tier]
 
 
-def build_plan(strokes: list[list[Point]], parts: list[dict]) -> dict:
-    """The lesson plan: {"strokes": [PlanStroke], "steps": [Step]}, in drawing order."""
+def build_plan(strokes: list[list[Point]], parts: list[dict], subject: str | None = None) -> dict:
+    """The lesson plan: {"strokes": [PlanStroke], "steps": [Step]}, in drawing order.
+    `subject` (e.g. "fox", "mug") picks the construction shapes."""
     if not strokes:
         return {"strokes": [], "steps": []}
     x0, y0, x1, y1 = drawing_bounds(strokes)
@@ -222,14 +237,19 @@ def build_plan(strokes: list[list[Point]], parts: list[dict]) -> dict:
     center = ((x0 + x1) / 2, (y0 + y1) / 2)
     edge_distance = silhouette_edge_distance(strokes)
     by_id = {p["id"]: p for p in parts}
+    construction = CONSTRUCTION_BY_SUBJECT.get(subject or "", CONSTRUCTION_PARTS)
+    shape = rectangle_in_box if subject in BOXY_SUBJECTS else ellipse_in_box
+    # Parts in drawing order: the construction parts first, then bigger parts before smaller ones.
+    others = sorted((p for p in parts if p["id"] not in construction), key=lambda p: -p["box"][2] * p["box"][3])
+    part_rank = {pid: n for n, pid in enumerate([*construction, *(p["id"] for p in others)])}
 
-    planned = []  # (tier index, distance from center, PlanStroke)
-    for name in CONSTRUCTION_PARTS:
+    planned = []  # (tier index, part rank, distance from center, PlanStroke)
+    for name in construction:
         part = by_id.get(name)
         if part:
-            pts = ellipse_in_box(part["box"])
-            planned.append((0, 0.0, {"id": f"c-{name}", "points": pts, "tier": "construction", "partId": name,
-                                     "keyPoints": key_points(pts)}))
+            pts = shape(part["box"])
+            planned.append((0, part_rank[name], 0.0, {"id": f"c-{name}", "points": pts, "tier": "construction",
+                                                      "partId": name, "keyPoints": key_points(pts)}))
     for points in strokes:
         if len(points) < 2:
             continue
@@ -239,14 +259,16 @@ def build_plan(strokes: list[list[Point]], parts: list[dict]) -> dict:
             tier = "structure"
         else:
             tier = "detail"
-        planned.append((TIERS.index(tier), math.dist(centroid(points), center), {
-            "points": points, "tier": tier, "partId": part_of(points, parts), "keyPoints": key_points(points),
+        part_id = part_of(points, parts)
+        rank = part_rank.get(part_id, len(part_rank))  # strokes without a part come after the parts
+        planned.append((TIERS.index(tier), rank, math.dist(centroid(points), center), {
+            "points": points, "tier": tier, "partId": part_id, "keyPoints": key_points(points),
         }))
-    # Construction keeps its head-then-body order; everything else goes by tier, then center outward.
-    planned.sort(key=lambda t: (t[0], t[1] if t[0] else 0))
+    planned.sort(key=lambda t: t[:3])  # tier, then part, then center outward
 
     plan_strokes, steps = [], []
-    for n, (_, _, raw) in enumerate(planned, start=1):
+    parts_with_a_tip: set[str] = set()
+    for n, (_, _, _, raw) in enumerate(planned, start=1):
         stroke = {  # same field order as PlanStroke in types.ts
             "id": raw.get("id", f"s-{n}"),
             "points": [[round(x), round(y)] for x, y in raw["points"]],
@@ -260,7 +282,12 @@ def build_plan(strokes: list[list[Point]], parts: list[dict]) -> dict:
                 and len(last["strokeIds"]) < MAX_STEP_STROKES:
             last["strokeIds"].append(stroke["id"])
         else:
-            label, tip = step_text(stroke["tier"], by_id.get(stroke["partId"]), y1 - y0)
+            part = by_id.get(stroke["partId"])
+            label = step_label(stroke["tier"], part)
+            tip = step_tip(stroke["tier"], part, y1 - y0, first_for_part=part is not None
+                           and part["id"] not in parts_with_a_tip)
+            if part:
+                parts_with_a_tip.add(part["id"])
             steps.append({"id": f"step-{len(steps) + 1}", "label": label, "tip": tip, "tier": stroke["tier"],
                           "strokeIds": [stroke["id"]], "_part": stroke["partId"]})
     for step in steps:

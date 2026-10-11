@@ -296,15 +296,18 @@ def dots_without_strokes(ink: np.ndarray, strokes: list[Piece]) -> list[Piece]:
     labels, count = ndimage.label(ink, structure=np.ones((3, 3), dtype=int))
     covered = {int(labels[int(p[0]), int(p[1])]) for stroke in strokes for p in stroke.points}
     dots = []
-    for label in range(1, count + 1):
-        if label in covered:
+    # find_objects gives each blob's bounding box, so each check looks at a small crop, not the whole page.
+    for label, box in enumerate(ndimage.find_objects(labels), start=1):
+        if box is None or label in covered:
             continue
-        ys, xs = np.nonzero(labels == label)
-        height, width = int(np.ptp(ys)) + 1, int(np.ptp(xs)) + 1
-        if max(height, width) > 2 * min(height, width) or len(ys) < 0.5 * height * width:
+        blob = labels[box] == label
+        height, width = blob.shape
+        area = int(blob.sum())
+        if max(height, width) > 2 * min(height, width) or area < 0.5 * height * width:
             continue  # not round and solid enough to be a dot
-        cy, cx = float(ys.mean()), float(xs.mean())
-        radius = max(3.0, math.sqrt(len(ys) / math.pi) * 0.6)  # a bit inside the dot's own edge
+        ys, xs = np.nonzero(blob)
+        cy, cx = float(ys.mean()) + box[0].start, float(xs.mean()) + box[1].start
+        radius = max(3.0, math.sqrt(area / math.pi) * 0.6)  # a bit inside the dot's own edge
         circle = [
             (cy + radius * math.sin(2 * math.pi * k / DOT_POINTS), cx + radius * math.cos(2 * math.pi * k / DOT_POINTS))
             for k in range(DOT_POINTS)
@@ -314,34 +317,35 @@ def dots_without_strokes(ink: np.ndarray, strokes: list[Piece]) -> list[Piece]:
 
 
 def gray_features_without_strokes(gray: np.ndarray, strokes: list[Piece]) -> list[Piece]:
-    """Step 9b: small, compact gray shapes (lighter than ink, darker than the page) with no stroke within
-    a few pixels become strokes along their own outline. An eye drawn as a gray almond is one."""
+    """Step 9b: small, compact gray shapes (lighter than ink, darker than the page) whose edge no stroke
+    runs along become strokes along their own outline. An eye drawn as a gray almond is one."""
     if int(gray.max()) - int(gray.min()) < 30:
         return []
     mask = (gray > ink_level(gray)) & (gray <= GRAY_FEATURE_LEVEL)
     labels, count = ndimage.label(mask, structure=np.ones((3, 3), dtype=int))
+    if count == 0:
+        return []
+    areas = np.bincount(labels.ravel())  # every blob's area in one pass
     near_strokes = np.zeros(gray.shape, dtype=bool)
     for stroke in strokes:
         for y, x in stroke.points:
             near_strokes[int(y), int(x)] = True
-    near_strokes = ndimage.binary_dilation(near_strokes, iterations=4)
+    near_strokes = ndimage.binary_dilation(near_strokes, iterations=3)
     found = []
-    for label in range(1, count + 1):
-        blob = labels == label
-        area = int(blob.sum())
-        if not GRAY_FEATURE_AREA[0] <= area <= GRAY_FEATURE_AREA[1]:
-            continue
-        ys, xs = np.nonzero(blob)
-        height, width = int(np.ptp(ys)) + 1, int(np.ptp(xs)) + 1
-        if max(height, width) > 3 * min(height, width) or area < 0.45 * height * width:
+    for label, box in enumerate(ndimage.find_objects(labels), start=1):
+        if box is None or not GRAY_FEATURE_AREA[0] <= areas[label] <= GRAY_FEATURE_AREA[1]:
+            continue  # most blobs are tiny bits of anti-aliasing: skipped without looking closer
+        blob = labels[box] == label
+        height, width = blob.shape
+        if max(height, width) > 3 * min(height, width) or areas[label] < 0.45 * height * width:
             continue  # thin bands (the soft edges of lines) and scattered shading are not features
-        if (blob & near_strokes).any():
-            continue  # already drawn by a stroke
+        # Already drawn if strokes run along most of its edge (a stroke merely passing nearby doesn't count).
+        edge = blob & ~ndimage.binary_erosion(blob)
+        if (edge & near_strokes[box]).sum() >= 0.5 * edge.sum():
+            continue
         # The outline of the shape, from a one-pixel-padded crop so it closes even at the crop's edge.
-        y0, x0 = ys.min(), xs.min()
-        crop = np.pad(blob[y0 : y0 + height, x0 : x0 + width], 1)
-        contour = max(find_contours(crop.astype(float), 0.5), key=len)
-        points = [(float(y + y0 - 1), float(x + x0 - 1)) for y, x in contour]
-        found.append((area, Piece(points, None, None, closed=True)))
+        contour = max(find_contours(np.pad(blob, 1).astype(float), 0.5), key=len)
+        points = [(float(y + box[0].start - 1), float(x + box[1].start - 1)) for y, x in contour]
+        found.append((int(areas[label]), Piece(points, None, None, closed=True)))
     found.sort(key=lambda f: -f[0])  # the biggest features first, if there are too many
     return [piece for _, piece in found[:MAX_GRAY_FEATURES]]

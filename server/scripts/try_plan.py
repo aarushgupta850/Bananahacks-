@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     for name, image in drawings:
         strokes = trace(image)
         parts = detect_parts(image, args.subject)
-        plan = build_plan(strokes, parts)
+        plan = build_plan(strokes, parts, subject=subject_slug(args.subject))
         tiers = {t: sum(s["tier"] == t for s in plan["strokes"]) for t in TIER_COLORS}
         print(f"\n== {name}: {len(strokes)} traced strokes, {len(parts)} parts, "
               f"{len(plan['strokes'])} plan strokes, {len(plan['steps'])} steps ==")

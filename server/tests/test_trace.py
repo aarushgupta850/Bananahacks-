@@ -167,3 +167,25 @@ def test_a_gray_fill_that_already_has_an_outline_is_not_traced_twice():
     cv2.circle(canvas, (384, 384), 60, INK, 6)  # with a dark outline on its edge
     strokes = trace(pil(canvas))
     assert len(strokes) == 1
+
+
+def test_a_gray_eye_next_to_a_line_still_becomes_a_stroke():
+    canvas = page()
+    cv2.circle(canvas, (384, 384), 200, INK, 8)
+    cv2.ellipse(canvas, (320, 330), (22, 12), 0, 0, 360, (140, 140, 140), -1)  # a gray almond eye
+    cv2.line(canvas, (250, 352), (390, 352), INK, 6)  # a cheek line passing just under it
+    strokes = trace(pil(canvas))
+    assert any(is_closed(s) and abs(sum(p[0] for p in s) / len(s) - 320) < 5 for s in strokes[1:])
+
+
+def test_tracing_a_noisy_page_is_fast():
+    import time
+
+    rng = np.random.default_rng(0)
+    canvas = page()
+    cv2.circle(canvas, (384, 384), 200, INK, 8, cv2.LINE_AA)
+    noise = rng.integers(0, 2, size=(768, 768)) * rng.integers(100, 170, size=(768, 768))
+    canvas[noise > 0] = noise[noise > 0, None]  # thousands of tiny gray specks, like anti-aliasing
+    start = time.perf_counter()
+    trace(pil(canvas))
+    assert time.perf_counter() - start < 3.0
