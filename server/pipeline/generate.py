@@ -108,3 +108,25 @@ def from_photo(
         _generate(pipe, prompt, seed + i, image=control, controlnet_conditioning_scale=CONTROLNET_SCALE)
         for i in range(n)
     ]
+
+
+def drawing_lines(drawing: Image.Image) -> Image.Image:
+    """A user's canvas (dark lines on white or transparent) as ControlNet line art: white lines on black,
+    1024 x 1024. No detector needed: the canvas is already line art."""
+    rgba = drawing.convert("RGBA")
+    flat = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+    flat.alpha_composite(rgba)
+    lines = ImageOps.invert(flat.convert("L")).convert("RGB")
+    return pad_to_square(lines, (0, 0, 0)).resize((GEN_SIZE, GEN_SIZE))
+
+
+def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:
+    """n clean drawings of `subject` that follow the lines the user has drawn so far (Happy accidents: a mistake
+    becomes part of the new target). Same ControlNet as the photo path."""
+    control = drawing_lines(drawing)
+    pipe = _pipeline("photo")
+    prompt = line_art_prompt(subject, difficulty=difficulty)
+    return [
+        _generate(pipe, prompt, seed + i, image=control, controlnet_conditioning_scale=CONTROLNET_SCALE)
+        for i in range(n)
+    ]

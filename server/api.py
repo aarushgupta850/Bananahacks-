@@ -10,6 +10,8 @@ Run from the repo root (see server/LIVE.md):
 Endpoints:
 - GET /health -> {"ok": true, "gpu": "<name>", "busy": <bool>}
 - POST /generate {prompt?, imageBase64?, difficulty} -> a Pack whose images are data: URLs.
+- POST /regenerate {prompt, canvasBase64, difficulty} -> "Happy accidents" (behind ?happy=1 in the app): a new
+  Pack whose drawing is redrawn around what the user has drawn so far, without the lines they already drew.
   One job at a time (busy: 503). Answers within 23 s or gives up (504), because the web app stops
   waiting at 25 s. Bad input: 400, with a message. No clean drawing: 422.
 
@@ -71,6 +73,38 @@ class GenerateRequest(BaseModel):
     prompt: str | None = None
     imageBase64: str | None = None
     difficulty: Literal["simple", "medium", "detailed"] = "medium"
+
+
+class RegenerateRequest(BaseModel):
+    prompt: str                # the lesson's subject, e.g. "a fox"
+    canvasBase64: str          # PNG of the user's canvas so far, 768 x 768
+    difficulty: Literal["simple", "medium", "detailed"] = "medium"
+
+
+COVERED_PX = 10      # a plan stroke within this distance of the user's ink...
+COVERED_SHARE = 0.8  # ...for this share of its points is already drawn, so the new plan drops it
+
+
+def drop_covered(pack: dict, canvas_ink) -> dict:
+    """The pack without the strokes the user has already drawn (and without construction shapes: the user is
+    past that stage). canvas_ink is a 768 x 768 boolean array, True where the user drew. Empty steps go too."""
+    import numpy as np
+    from scipy import ndimage
+
+    from pipeline import schema
+
+    distance = ndimage.distance_transform_edt(~canvas_ink)  # px to the nearest user ink
+
+    def covered(points) -> bool:
+        near = [distance[min(max(int(y), 0), 767), min(max(int(x), 0), 767)] <= COVERED_PX for x, y in points]
+        return np.mean(near) >= COVERED_SHARE
+
+    keep = [s for s in pack["strokes"] if s["tier"] != "construction" and not covered(s["points"])]
+    kept_ids = {s["id"] for s in keep}
+    steps = [{**step, "strokeIds": [i for i in step["strokeIds"] if i in kept_ids]} for step in pack["steps"]]
+    out = {**pack, "strokes": keep, "steps": [st for st in steps if st["strokeIds"]]}
+    schema.Pack.model_validate(out)
+    return out
 
 
 def check_prompt(prompt: str) -> str:
@@ -168,8 +202,37 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
     return with_data_urls(pack, assets)
 
 
-# The function that builds a pack. Tests swap in a fake, so they need no GPU.
+def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
+    """Happy accidents: a new pack whose drawing follows the user's canvas so far. Needs the GPU."""
+    import numpy as np
+    from PIL import Image
+
+    from build_pack import make_pack
+    from pipeline import models
+
+    models.setup_hf_env()
+    from pipeline import generate as gen
+    from pipeline.parts import detect_parts, subject_slug
+
+    drawing = Image.open(io.BytesIO(canvas))
+    safety.check_picture(drawing.convert("RGB"))
+    ink = np.asarray(drawing.convert("RGBA").resize((768, 768)))
+    canvas_ink = (ink[..., 3] > 32) & (ink[..., :3].mean(axis=2) < 160)  # dark, opaque pixels
+
+    slug = re.sub(r"[^a-z0-9-]", "", subject_slug(prompt)) or "drawing"
+    pack, assets = make_pack(
+        pack_id=f"live-{slug}-{difficulty}", subject=slug, title=prompt[:1].upper() + prompt[1:], difficulty=difficulty,
+        source_kind="prompt", prompt=prompt, subject_words=prompt, seed=secrets.randbelow(100_000),
+        generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=LIVE_CANDIDATES, seed=seed),
+        detect=lambda image: detect_parts(image, prompt), retries=0, log=log.info, always=True,
+        check_drawing=safety.check_picture,
+    )
+    return with_data_urls(drop_covered(pack, canvas_ink), assets)
+
+
+# The functions that build packs. Tests swap in fakes, so they need no GPU.
 BUILD = build_live_pack
+REBUILD = rebuild_live_pack
 
 
 # A line drawing that ships with the site, used as a stand-in photo to warm up the photo path.
@@ -216,7 +279,6 @@ def health() -> dict:
 
 @app.post("/generate")
 async def generate(request: GenerateRequest):
-    start = time.perf_counter()
     kind = "photo" if request.imageBase64 else "prompt"
     try:
         if not request.prompt and not request.imageBase64:
@@ -226,8 +288,15 @@ async def generate(request: GenerateRequest):
     except InputError as error:
         log.info("generate %s rejected: %s", kind, error)
         return JSONResponse({"error": str(error)}, status_code=400)
+    return await run_job(f"generate {kind}", prompt, request.difficulty,
+                         lambda: BUILD(prompt, image, request.difficulty), len(image or b""))
+
+
+async def run_job(name: str, prompt: str | None, difficulty: str, job, image_bytes: int = 0):
+    """Runs one GPU job: 503 if one is already running, 504 after TIMEOUT_S, 400/422/500 on failures."""
+    start = time.perf_counter()
     if _lock.locked():
-        log.info("generate %s %r: busy", kind, prompt)
+        log.info("%s %r: busy", name, prompt)
         return JSONResponse({"error": "busy"}, status_code=503)
 
     from build_pack import NoCleanCandidate
@@ -235,7 +304,7 @@ async def generate(request: GenerateRequest):
     await _lock.acquire()
     # The build runs in a worker thread. The lock is released when the build really ends, even if we stop
     # waiting for it, so a timed-out build can't overlap the next one on the GPU.
-    task = asyncio.ensure_future(asyncio.to_thread(BUILD, prompt, image, request.difficulty))
+    task = asyncio.ensure_future(asyncio.to_thread(job))
 
     def finished(t: asyncio.Future) -> None:
         _lock.release()
@@ -246,17 +315,30 @@ async def generate(request: GenerateRequest):
     try:
         pack = await asyncio.wait_for(asyncio.shield(task), TIMEOUT_S)
     except asyncio.TimeoutError:
-        log.info("generate %s %r (%s): timed out after %d s", kind, prompt, request.difficulty, TIMEOUT_S)
+        log.info("%s %r (%s): timed out after %d s", name, prompt, difficulty, TIMEOUT_S)
         return JSONResponse({"error": "timeout"}, status_code=504)
     except safety.UnsafeContent as error:
-        log.info("generate %s %r: refused by the picture check (%s)", kind, prompt, error)
+        log.info("%s %r: refused by the picture check (%s)", name, prompt, error)
         return JSONResponse({"error": REFUSED}, status_code=400)
     except NoCleanCandidate as error:
-        log.info("generate %s %r: no clean drawing (%s)", kind, prompt, error)
+        log.info("%s %r: no clean drawing (%s)", name, prompt, error)
         return JSONResponse({"error": "Couldn't make a clean drawing of that. Try a simpler subject."}, status_code=422)
     except Exception:  # noqa: BLE001 - log it, tell the app it failed
-        log.exception("generate %s %r failed", kind, prompt)
+        log.exception("%s %r failed", name, prompt)
         return JSONResponse({"error": "failed"}, status_code=500)
-    log.info("generate %s %r (%s, %d image bytes): ok in %.1f s", kind, prompt, request.difficulty,
-             len(image or b""), time.perf_counter() - start)
+    log.info("%s %r (%s, %d image bytes): ok in %.1f s", name, prompt, difficulty, image_bytes,
+             time.perf_counter() - start)
     return pack
+
+
+@app.post("/regenerate")
+async def regenerate(request: RegenerateRequest):
+    """Happy accidents: redraws the lesson's target around what the user has drawn so far."""
+    try:
+        prompt = check_prompt(request.prompt)
+        canvas = decode_image(request.canvasBase64)
+    except InputError as error:
+        log.info("regenerate rejected: %s", error)
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return await run_job("regenerate", prompt, request.difficulty,
+                         lambda: REBUILD(prompt, canvas, request.difficulty), len(canvas))

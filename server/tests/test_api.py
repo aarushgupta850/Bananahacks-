@@ -5,11 +5,14 @@ import base64
 import io
 import json
 import time
+from pathlib import Path
 
 import pytest
 from PIL import Image
 
 import api
+
+DEMO_PACK_TEXT = (Path(__file__).resolve().parents[2] / 'web/public/subjects/demo-fox-medium/pack.json').read_text()
 from build_pack import NoCleanCandidate
 
 
@@ -178,3 +181,44 @@ def test_harmless_prompts_pass_the_word_filter(prompt):
     from pipeline.safety import blocked_prompt
 
     assert not blocked_prompt(prompt)
+
+
+# ---------------------------------------------------------------- Happy accidents (/regenerate)
+
+
+def test_regenerate_returns_the_new_pack(monkeypatch):
+    calls = []
+    monkeypatch.setattr(api, "REBUILD", lambda prompt, canvas, difficulty: calls.append((prompt, difficulty)) or FAKE_PACK)
+    response = run(api.regenerate(api.RegenerateRequest(prompt="a fox", canvasBase64=png_base64())))
+    assert status(response) == 200 and body(response) == FAKE_PACK
+    assert calls == [("a fox", "medium")]
+    assert not api._lock.locked()
+
+
+def test_regenerate_checks_its_input_like_generate():
+    assert status(run(api.regenerate(api.RegenerateRequest(prompt="a naked fox", canvasBase64=png_base64())))) == 400
+    assert status(run(api.regenerate(api.RegenerateRequest(prompt="a fox", canvasBase64="not base64!!")))) == 400
+
+
+def test_drop_covered_removes_drawn_strokes_and_construction_and_empty_steps():
+    import numpy as np
+
+    def stroke(sid, points, tier="outline"):
+        return {"id": sid, "points": points, "tier": tier, "partId": None, "keyPoints": [points[0]]}
+
+    pack = json.loads(DEMO_PACK_TEXT)
+    pack["strokes"] = [
+        stroke("c-head", [[100, 100], [200, 100]], "construction"),
+        stroke("drawn", [[100, 300], [400, 300]]),      # the user drew right on top of this one
+        stroke("new", [[100, 600], [400, 600]]),
+    ]
+    pack["parts"] = []
+    pack["steps"] = [
+        {"id": "s1", "label": "Block in", "tier": "construction", "strokeIds": ["c-head"], "tip": ""},
+        {"id": "s2", "label": "Outline", "tier": "outline", "strokeIds": ["drawn", "new"], "tip": ""},
+    ]
+    ink = np.zeros((768, 768), bool)
+    ink[296:304, 95:405] = True  # a user line along y = 300
+    out = api.drop_covered(pack, ink)
+    assert [s["id"] for s in out["strokes"]] == ["new"]
+    assert [(s["id"], s["strokeIds"]) for s in out["steps"]] == [("s2", ["new"])]
