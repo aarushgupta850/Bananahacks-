@@ -21,10 +21,14 @@ def test_one_pipeline_at_a_time_by_default(monkeypatch):
     assert loads == [False, True, False]  # so switching back reloads it
 
 
-def test_the_live_server_keeps_both_pipelines(monkeypatch):
+def test_the_live_server_keeps_both_pipelines_sharing_weights(monkeypatch):
     monkeypatch.setenv("GHOSTLINES_KEEP_BOTH_PIPELINES", "1")
     loads = fake_models(monkeypatch)
-    for kind in ["text", "photo", "text", "photo"]:
+    built, readied = [], []
+    monkeypatch.setattr(models, "photo_pipeline_from", lambda text: built.append(text) or "photo-pipe")
+    monkeypatch.setattr(models, "use_pipeline", lambda pipe: readied.append(pipe))
+    for kind in ["text", "photo", "photo", "text"]:
         generate._pipeline(kind)
-    assert set(generate._cache) == {"text", "photo"}
-    assert loads == [False, True]  # each loaded once, never reloaded
+    assert loads == [False]  # SDXL loaded once
+    assert built == [generate._cache["text"]]  # the photo pipeline is built on the text pipeline's weights
+    assert readied == ["photo-pipe", generate._cache["text"]]  # offloading re-attached only on a switch
