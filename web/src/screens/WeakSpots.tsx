@@ -27,7 +27,7 @@ export default function WeakSpots({ onBack, onNext }: NavProps) {
     onNext()
   }
 
-  const partBox = (partId: string | null) => pack.parts.find((p) => p.id === partId)?.box ?? null
+  const yours = analysis?.alignedStrokes ?? [] // the test drawing, lined up with the target by the engine
   const userBox = (partId: string | null) => analysis?.parts.find((p) => p.partId === partId)?.userBox ?? null
 
   return (
@@ -50,7 +50,7 @@ export default function WeakSpots({ onBack, onNext }: NavProps) {
           <article key={`${w.kind}-${w.partId ?? 'all'}-${i}`} className="weak-card">
             <span className="card-tag">{KIND_NAMES[w.kind]}</span>
             {w.partId !== null
-              ? <PartCompare target={partBox(w.partId)} user={userBox(w.partId)} label={labelOf(pack.parts, w.partId)} />
+              ? <PartCompare pack={pack} partId={w.partId} user={userBox(w.partId)} yours={yours} label={labelOf(pack.parts, w.partId)} />
               : <LineSample />}
             <p className="weak-message">{w.message}</p>
           </article>
@@ -58,7 +58,7 @@ export default function WeakSpots({ onBack, onNext }: NavProps) {
         {strength && (
           <article className="weak-card is-good">
             <span className="card-tag">✓ Already good</span>
-            <PartCompare target={partBox(strength.partId)} user={strength.userBox} label={strength.label.toLowerCase()} />
+            <PartCompare pack={pack} partId={strength.partId} user={strength.userBox} yours={yours} label={strength.label.toLowerCase()} />
             <p className="weak-message">{strength.label}: in proportion. Keep it up.</p>
           </article>
         )}
