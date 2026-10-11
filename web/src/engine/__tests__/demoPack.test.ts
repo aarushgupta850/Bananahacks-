@@ -1,11 +1,12 @@
 // Checks the hand-made demo pack (built by web/scripts/make-demo-pack.mjs) against the contract.
+// The canvas test page and these tests still use it, even after real packs replace it in index.json
+// (subjectIndex.test.ts checks whatever index.json lists).
 // The files are imported with Vite's ?raw suffix, which hands over the file text as a string.
 import { describe, expect, it } from 'vitest'
-import indexText from '../../../public/subjects/index.json?raw'
 import packText from '../../../public/subjects/demo-fox-medium/pack.json?raw'
 import targetSvg from '../../../public/subjects/demo-fox-medium/target.svg?raw'
 import thumbSvg from '../../../public/subjects/demo-fox-medium/thumb.svg?raw'
-import { parseIndex, parsePack } from '../../lib/packs'
+import { parsePack } from '../../lib/packs'
 import { createMockEngine } from '../mock'
 import type { Point } from '../types'
 import { strokeAt } from './fixtures'
@@ -71,13 +72,6 @@ describe('demo fox pack', () => {
     const drawn = pack.strokes.filter((s) => s.tier !== 'construction').map((s) => s.points)
     expect(polylines(targetSvg)).toEqual(drawn)
     expect(polylines(thumbSvg)).toEqual(drawn)
-  })
-
-  it('is listed in the subject index', () => {
-    const index = parseIndex(JSON.parse(indexText), 'subject index')
-    expect(index.subjects).toEqual([
-      { subject: 'fox', title: 'Fox (demo)', thumb: `${PACK_ID}/thumb.svg`, packs: { medium: PACK_ID } },
-    ])
   })
 
   it('runs a whole lesson on the mock engine', () => {
