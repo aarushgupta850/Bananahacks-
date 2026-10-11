@@ -14,3 +14,4 @@
 - Never show users a raw error. Show a friendly message and a way forward.
 - Accessibility: visible focus, aria-labels on icon buttons, alt text, never color alone to carry meaning.
 - Tests: vitest. Keep them fast and deterministic, because a failing test blocks the deploy.
+- Jeff's UI work (screens, canvas, report, pipeline panel) follows docs/JEFF_PLAYBOOK.md: specs, prompts J1a-J6, timeline.
