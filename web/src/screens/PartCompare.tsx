@@ -1,7 +1,7 @@
-// A small zoomed-in picture of one part: the target drawing faint in gray for context, the part itself
+// A small picture of one part: the target drawing faint in gray for context, the part itself
 // in thick accent lines, and the user's own drawing (aligned by the engine) in thin ink on top.
 // A legend under it names each kind of line, so color is never the only signal.
-// Coordinates are in 768 target space; the view zooms to the part (and where the user drew it) with room around.
+// Coordinates are in 768 target space; every card shows the whole drawing at the same framing.
 import { toSvgPoints } from '../canvas/geometry'
 import type { Box, Pack, Point, UserStroke } from '../engine/types'
 
@@ -13,16 +13,15 @@ interface PartCompareProps {
   label: string           // e.g. "door"
 }
 
-// The smallest square around every box given, with room around it, as [x, y, side].
-function viewAround(boxes: Box[]): [number, number, number] {
+// The smallest square around every box given, plus a margin, as [x, y, side].
+function viewAround(boxes: Box[], margin: number): [number, number, number] {
   if (boxes.length === 0) return [0, 0, 768]
   const left = Math.min(...boxes.map((b) => b[0]))
   const top = Math.min(...boxes.map((b) => b[1]))
   const right = Math.max(...boxes.map((b) => b[0] + b[2]))
   const bottom = Math.max(...boxes.map((b) => b[1] + b[3]))
   const size = Math.max(right - left, bottom - top)
-  // Show about a part's width of the drawing around it, so you can see where it sits (at least 80 px).
-  const side = size + 2 * Math.max(80, 0.5 * size)
+  const side = size + 2 * margin
   return [(left + right) / 2 - side / 2, (top + bottom) / 2 - side / 2, side]
 }
 
@@ -34,7 +33,16 @@ export default function PartCompare({ pack, partId, user, yours, label }: PartCo
   const target = pack.parts.find((p) => p.id === partId)?.box ?? null
   const drawn = pack.strokes.filter((s) => s.tier !== 'construction')
   const partLines = drawn.filter((s) => s.partId === partId)
-  const [x, y, side] = viewAround([target, user].filter((b): b is Box => b !== null))
+  // Every card shows the whole drawing the same way (the target's lines, plus wherever the user drew), so the
+  // cards line up and only the blue part changes from card to card.
+  const extent = (points: Point[]): Box | null => {
+    if (points.length === 0) return null
+    const xs = points.map((p) => p[0])
+    const ys = points.map((p) => p[1])
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)]
+  }
+  const whole = [extent(drawn.flatMap((s) => s.points)), extent(yours.flatMap((s) => s.points.map(([px, py]): Point => [px, py])))]
+  const [x, y, side] = viewAround(whole.filter((b): b is Box => b !== null), 24)
   const missing = user === null
 
   return (
