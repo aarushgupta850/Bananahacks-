@@ -73,10 +73,28 @@ export async function checkLive(): Promise<boolean> {
 // Asks the live server to build a pack from a prompt or a photo (base64). Takes up to 25 s.
 export async function generate(request: GenerateRequest): Promise<Pack> {
   if (!request.prompt && !request.imageBase64) throw new LiveError('rejected', 'generate needs a prompt or a photo')
+  return postForPack('/generate', request)
+}
+
+export interface RegenerateRequest {
+  prompt: string        // the lesson's subject, e.g. "a fox"
+  canvasBase64: string  // PNG of the user's canvas so far (768 x 768), without the "data:image/png;base64," prefix
+  difficulty: Difficulty
+}
+
+// "Happy accidents" (only behind ?happy=1): asks the live server to redraw the target around what the user has
+// drawn so far. Returns a new pack without the lines already drawn; start a new Teacher on it with
+// engine.createTeacher(pack, pack.steps, mode). Same errors and 25 s limit as generate.
+export async function regenerate(request: RegenerateRequest): Promise<Pack> {
+  return postForPack('/regenerate', request)
+}
+
+// POSTs JSON to the live server and returns the checked pack it answers with.
+async function postForPack(path: string, request: object): Promise<Pack> {
   const url = await getLiveUrl()
   if (!url) throw new LiveError('offline', 'No live server is configured in live.json')
 
-  const response = await fetchWithTimeout(`${url}/generate`, {
+  const response = await fetchWithTimeout(`${url}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),

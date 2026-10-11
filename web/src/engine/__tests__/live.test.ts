@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkLive, generate, getLiveUrl, LiveError } from '../../lib/live'
+import { checkLive, generate, getLiveUrl, LiveError, regenerate } from '../../lib/live'
 import { foxPack } from './fixtures'
 
 // Replaces the global fetch: live.json answers with `liveUrl`, every other URL goes to `server`.
@@ -89,5 +89,14 @@ describe('live server client', () => {
     const result = liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))
     await vi.advanceTimersByTimeAsync(25_000)
     expect((await result).kind).toBe('timeout')
+  })
+
+  it('sends Happy accidents requests to /regenerate and checks the pack', async () => {
+    const fetchMock = fakeFetch('http://gpu.example.test', () => Promise.resolve(Response.json(foxPack)))
+    const pack = await regenerate({ prompt: 'a fox', canvasBase64: 'AAAA', difficulty: 'medium' })
+    expect(pack.id).toBe(foxPack.id)
+    const [url, init] = fetchMock.mock.calls.at(-1)!
+    expect(url).toBe('http://gpu.example.test/regenerate')
+    expect(JSON.parse(String(init?.body))).toEqual({ prompt: 'a fox', canvasBase64: 'AAAA', difficulty: 'medium' })
   })
 })
