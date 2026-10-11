@@ -28,7 +28,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 SERVER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVER_DIR))  # so `pipeline` and `scripts` import when run as a script
@@ -47,6 +47,10 @@ MIN_STROKES, MAX_STROKES = 6, 60  # the quality gate (server/CLAUDE.md)
 REJECTED_SCORE = 1000  # quality.py adds 1000 for a colored or blank drawing
 MAX_IMAGE_BYTES = 300 * 1024  # pipeline images must be 300 KB or less
 SIZE = 768
+
+
+class NoCleanCandidate(Exception):
+    """No generated drawing fit the stroke gate with a clean score."""
 
 
 @dataclass
@@ -135,6 +139,12 @@ def parts_image(image: Image.Image, parts: list[dict]) -> Image.Image:
     return base
 
 
+def png_bytes(image: Image.Image) -> bytes:
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG", optimize=True)
+    return buffer.getvalue()
+
+
 def webp_bytes(image: Image.Image) -> bytes:
     """The image as webp, at the best quality that fits in MAX_IMAGE_BYTES."""
     for quality in (85, 75, 60, 45, 30):
@@ -149,10 +159,11 @@ def webp_bytes(image: Image.Image) -> bytes:
 
 
 def pipeline_stages(
-    source_kind: str, prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict
+    source_kind: str, prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict,
+    n_candidates: int = N_CANDIDATES,
 ) -> list[dict]:
     """The "How this lesson was made" stages, in the order the contract requires."""
-    candidate_paths = [f"pipeline/candidate-{i}.webp" for i in range(N_CANDIDATES)]
+    candidate_paths = [f"pipeline/candidate-{i}.webp" for i in range(n_candidates)]
     if source_kind == "photo":
         source = {"id": "source", "label": "Photo", "image": "pipeline/source.webp",
                   "text": f"The photo's lines guided the drawing. Prompt: {prompt_text}"}
@@ -161,8 +172,8 @@ def pipeline_stages(
     part_names = ", ".join(p["label"].lower() for p in parts)
     return [
         source,
-        {"id": "candidates", "label": "4 AI drafts", "images": candidate_paths,
-         "text": f"SDXL-Lightning drew {N_CANDIDATES} line-art drafts, 4 steps each."},
+        {"id": "candidates", "label": f"{n_candidates} AI drafts", "images": candidate_paths,
+         "text": f"SDXL-Lightning drew {n_candidates} line-art drafts, 4 steps each."},
         {"id": "chosen", "label": "Chosen drawing", "image": candidate_paths[chosen],
          "text": f"The draft with the fewest strokes inside {MIN_STROKES}-{MAX_STROKES}: {n_strokes} strokes."},
         {"id": "skeleton", "label": "Traced lines", "image": "pipeline/skeleton.webp",
@@ -177,7 +188,7 @@ def pipeline_stages(
 
 def assemble_pack(
     pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
-    prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict,
+    prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict, n_candidates: int = N_CANDIDATES,
 ) -> dict:
     """pack.json as a dict, checked against the schema (raises if it doesn't match types.ts)."""
     pack = {
@@ -192,7 +203,7 @@ def assemble_pack(
         "parts": parts,
         "strokes": plan["strokes"],
         "steps": plan["steps"],
-        "pipeline": pipeline_stages(source_kind, prompt_text, chosen, n_strokes, parts, plan),
+        "pipeline": pipeline_stages(source_kind, prompt_text, chosen, n_strokes, parts, plan, n_candidates),
     }
     schema.Pack.model_validate(pack)
     return pack
@@ -218,21 +229,69 @@ def update_index(index_path: Path, subject: str, title: str, difficulty: str, pa
 # ---------------------------------------------------------------- the build
 
 
+def make_pack(
+    *, pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
+    subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
+) -> tuple[dict, dict[str, bytes]]:
+    """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
+    by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits.
+
+    generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
+    prompt_text = line_art_prompt(subject_words, difficulty=difficulty)
+    tries = []
+    for attempt in range(retries + 1):
+        first_seed = seed + attempt * RETRY_SEED_OFFSET
+        candidates = []
+        for i, image in enumerate(generate(first_seed)):
+            strokes = trace(image)
+            candidates.append(Candidate(image, strokes, line_metrics(image)["score"]))
+            log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}")
+        tries.append(candidates)
+        chosen = choose(candidates)
+        if chosen is not None:
+            break
+    else:
+        counts = "; ".join(", ".join(str(len(c.strokes)) for c in t) for t in tries)
+        raise NoCleanCandidate(
+            f"No candidate had {MIN_STROKES}-{MAX_STROKES} strokes and a clean score (stroke counts: {counts}). "
+            "Try another --seed or a simpler --prompt."
+        )
+
+    best = candidates[chosen]
+    parts = detect(best.image)
+    plan = build_plan(best.strokes, parts, subject=subject)
+    pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
+                         len(best.strokes), parts, plan, n_candidates=len(candidates))
+    target = render_target(best.strokes)
+    assets = {
+        "target.png": png_bytes(target),
+        "thumb.png": png_bytes(target.resize((256, 256), Image.LANCZOS)),
+        **{f"pipeline/candidate-{i}.webp": webp_bytes(c.image) for i, c in enumerate(candidates)},
+        "pipeline/skeleton.webp": webp_bytes(skeleton_image(best.image)),
+        "pipeline/parts.webp": webp_bytes(parts_image(best.image, parts)),
+    }
+    if photo is not None:
+        from pipeline.generate import pad_to_square
+
+        upright = ImageOps.exif_transpose(photo).convert("RGB")  # phone photos the right way up
+        assets["pipeline/source.webp"] = webp_bytes(pad_to_square(upright, (255, 255, 255)).resize((SIZE, SIZE)))
+    return pack, assets
+
+
 def build(args: argparse.Namespace, generate=None, detect=None, subjects_dir: Path = SUBJECTS_DIR) -> Path:
     """Builds and writes one pack; returns its folder. `generate(seed)` and `detect(image)` can be swapped
     for fakes in tests; by default they use the GPU models."""
     pack_id = f"{args.subject}-{args.difficulty}"
     title = args.title or args.subject.replace("-", " ").capitalize()
-    source_kind = "photo" if args.photo else "prompt"
     subject_words = args.prompt if args.prompt else args.subject.replace("-", " ")
-    prompt_text = line_art_prompt(subject_words, difficulty=args.difficulty)
+    photo = Image.open(args.photo) if args.photo else None
 
     if generate is None:
         from pipeline import generate as gen
 
-        if args.photo:
+        if photo is not None:
             def generate(seed):
-                return gen.from_photo(args.photo, subject_words, args.difficulty, n=N_CANDIDATES, seed=seed)
+                return gen.from_photo(photo, subject_words, args.difficulty, n=N_CANDIDATES, seed=seed)
         else:
             def generate(seed):
                 return gen.from_prompt(subject_words, args.difficulty, n=N_CANDIDATES, seed=seed)
@@ -242,50 +301,24 @@ def build(args: argparse.Namespace, generate=None, detect=None, subjects_dir: Pa
         def detect(image):
             return detect_parts(image, subject_words, pack_id)
 
-    tries = []
-    for seed in (args.seed, args.seed + RETRY_SEED_OFFSET):
-        candidates = []
-        for i, image in enumerate(generate(seed)):  # generate(seed) uses seeds seed, seed + 1, ...
-            strokes = trace(image)
-            candidates.append(Candidate(image, strokes, line_metrics(image)["score"]))
-            print(f"  candidate {i} (seed {seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}")
-        tries.append(candidates)
-        chosen = choose(candidates)
-        if chosen is not None:
-            break
-    else:
-        counts = "; ".join(", ".join(str(len(c.strokes)) for c in t) for t in tries)
-        raise SystemExit(
-            f"No candidate had {MIN_STROKES}-{MAX_STROKES} strokes and a clean score (stroke counts: {counts}). "
-            "Try another --seed or a simpler --prompt."
+    try:
+        # Everything is built and checked against the schema before anything is written.
+        pack, assets = make_pack(
+            pack_id=pack_id, subject=args.subject, title=title, difficulty=args.difficulty,
+            source_kind="photo" if photo is not None else "prompt", prompt=args.prompt,
+            subject_words=subject_words, seed=args.seed, generate=generate, detect=detect, photo=photo,
         )
-
-    best = candidates[chosen]
-    parts = detect(best.image)
-    plan = build_plan(best.strokes, parts, subject=args.subject)
-    # Check everything before writing anything.
-    pack = assemble_pack(pack_id, args.subject, title, args.difficulty, source_kind, args.prompt,
-                         prompt_text, chosen, len(best.strokes), parts, plan)
+    except NoCleanCandidate as error:
+        raise SystemExit(str(error)) from None
     index_path = subjects_dir / "index.json"
     index = update_index(index_path, args.subject, title, args.difficulty, pack_id)
-    images = {f"pipeline/candidate-{i}.webp": webp_bytes(c.image) for i, c in enumerate(candidates)}
-    images["pipeline/skeleton.webp"] = webp_bytes(skeleton_image(best.image))
-    images["pipeline/parts.webp"] = webp_bytes(parts_image(best.image, parts))
-    if args.photo:
-        from pipeline.generate import pad_to_square
-
-        photo = Image.open(args.photo).convert("RGB")
-        images["pipeline/source.webp"] = webp_bytes(pad_to_square(photo, (255, 255, 255)).resize((SIZE, SIZE)))
 
     # Write: a fresh folder each time, so no stale images are left behind.
     folder = subjects_dir / pack_id
     if folder.exists():
         shutil.rmtree(folder)
     (folder / "pipeline").mkdir(parents=True)
-    target = render_target(best.strokes)
-    target.save(folder / "target.png", optimize=True)
-    target.resize((256, 256), Image.LANCZOS).save(folder / "thumb.png", optimize=True)
-    for name, data in images.items():
+    for name, data in assets.items():
         (folder / name).write_bytes(data)
     (folder / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
     index_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")

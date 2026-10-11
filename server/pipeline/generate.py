@@ -62,24 +62,27 @@ def pad_to_square(image: Image.Image, fill: tuple[int, int, int]) -> Image.Image
     return canvas
 
 
-def photo_lines(photo_path: str | Path) -> Image.Image:
+def photo_lines(photo: str | Path | Image.Image) -> Image.Image:
     """The photo's line art (white lines on black, 1024 x 1024), as the ControlNet expects it.
     This is only a guide for the redraw: the raw photo is never traced into strokes."""
     if "detector" not in _cache:
         from controlnet_aux import LineartDetector
 
         _cache["detector"] = LineartDetector.from_pretrained(models.ANNOTATORS_REPO).to("cuda")
-    photo = ImageOps.exif_transpose(Image.open(photo_path)).convert("RGB")  # phone photos the right way up
+    if not isinstance(photo, Image.Image):
+        photo = Image.open(photo)
+    photo = ImageOps.exif_transpose(photo).convert("RGB")  # phone photos the right way up
     lines = _cache["detector"](photo, detect_resolution=1024, image_resolution=1024)
     # Pad with black, which means "no line here" to the ControlNet.
     return pad_to_square(lines.convert("RGB"), (0, 0, 0)).resize((GEN_SIZE, GEN_SIZE))
 
 
 def from_photo(
-    photo_path: str | Path, subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0
+    photo: str | Path | Image.Image, subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0
 ) -> list[Image.Image]:
-    """n clean line drawings redrawn from a photo's lines, 768 x 768. `subject` (e.g. "a mug") goes in the prompt."""
-    control = photo_lines(photo_path)
+    """n clean line drawings redrawn from a photo's lines, 768 x 768. `subject` (e.g. "a mug") goes in the prompt.
+    `photo` is a file path or an already-opened image (the live server gets photos as bytes)."""
+    control = photo_lines(photo)
     pipe = _pipeline("photo")
     prompt = line_art_prompt(subject, difficulty=difficulty)
     return [
