@@ -190,8 +190,10 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
     from pipeline import generate as gen
     from pipeline.parts import detect_parts, subject_slug
 
-    words = prompt or "a simple object"
-    slug = re.sub(r"[^a-z0-9-]", "", subject_slug(words)) or "drawing"
+    words = prompt or "the object in the photo"  # neutral: "a simple object" pushed the redraw away from the photo
+    slug = re.sub(r"[^a-z0-9-]", "", subject_slug(prompt)) if prompt else "photo"
+    slug = slug or "drawing"
+    title = prompt[:1].upper() + prompt[1:] if prompt else "Your photo"
     photo = Image.open(io.BytesIO(image)) if image else None
     if photo is not None:
         from PIL import ImageOps
@@ -206,7 +208,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
             return gen.from_prompt(words, difficulty, n=LIVE_CANDIDATES, seed=seed)
 
     pack, assets = make_pack(
-        pack_id=f"live-{slug}-{difficulty}", subject=slug, title=words[:1].upper() + words[1:], difficulty=difficulty,
+        pack_id=f"live-{slug}-{difficulty}", subject=slug, title=title, difficulty=difficulty,
         source_kind="photo" if photo is not None else "prompt", prompt=prompt, subject_words=words,
         seed=secrets.randbelow(100_000),  # a new drawing every time
         generate=generate, detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
