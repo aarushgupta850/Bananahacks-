@@ -70,10 +70,43 @@ export async function checkLive(): Promise<boolean> {
   }
 }
 
+const PHOTO_MAX_SIDE = 1536 // px: the server's line-art detector works at 1024 anyway
+
+// Re-encodes any photo the browser can open (iPhone HEIC in Safari, WebP, GIF, huge JPEGs) as a JPEG of at most
+// 1536 px, as base64. The server only takes JPEG, PNG or WebP up to 15 MB, and a smaller upload is faster too.
+// If the browser can't open it (or this isn't a browser, as in tests), the original goes to the server unchanged.
+export async function photoAsJpeg(base64: string): Promise<string> {
+  if (typeof document === 'undefined') return base64
+  try {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+    const url = URL.createObjectURL(new Blob([bytes]))
+    try {
+      const img = new Image()
+      img.src = url
+      await img.decode()
+      const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.naturalWidth * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return base64
+      ctx.fillStyle = '#ffffff' // transparent PNGs become white, not black
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      return canvas.toDataURL('image/jpeg', 0.9).split(',')[1]
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  } catch {
+    return base64
+  }
+}
+
 // Asks the live server to build a pack from a prompt or a photo (base64). Takes up to 25 s.
 export async function generate(request: GenerateRequest): Promise<Pack> {
   if (!request.prompt && !request.imageBase64) throw new LiveError('rejected', 'generate needs a prompt or a photo')
-  return postForPack('/generate', request)
+  const imageBase64 = request.imageBase64 ? await photoAsJpeg(request.imageBase64) : undefined
+  return postForPack('/generate', { ...request, imageBase64 })
 }
 
 export interface RegenerateRequest {
