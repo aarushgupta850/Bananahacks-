@@ -21,7 +21,10 @@ CONTROLNET_SCALE = 0.8  # how strictly a photo redraw follows the photo's lines 
 # The live server's photo path and Happy accidents use img2img instead of the ControlNet: on an 8 GB card the
 # UNet and the ControlNet don't fit together, so each ControlNet step swapped them over PCIe (about 8 s a step,
 # far past the 23 s limit). img2img reuses the text pipeline and runs as fast as a text prompt.
-IMG2IMG_STRENGTH = 0.75  # how much the redraw may change the starting picture (1 = ignore it entirely)
+IMG2IMG_STRENGTH = 0.75  # how much a Happy-accidents redraw may change the canvas (1 = ignore it entirely)
+# Photos keep more of their own shape: at 0.75 a side-view F1 car came back as a fighter jet. With 4 Lightning
+# steps, 0.6 runs the last 2, which cleans the photo's lines up without inventing a different object.
+PHOTO_STRENGTH = 0.6
 
 _cache: dict[str, object] = {}  # "text" or "photo" -> pipeline, "detector" -> LineartDetector
 
@@ -129,13 +132,13 @@ def drawing_lines(drawing: Image.Image) -> Image.Image:
     return pad_to_square(lines, (0, 0, 0)).resize((GEN_SIZE, GEN_SIZE))
 
 
-def _img2img(pipe, prompt: str, seed: int, start: Image.Image) -> Image.Image:
+def _img2img(pipe, prompt: str, seed: int, start: Image.Image, strength: float = IMG2IMG_STRENGTH) -> Image.Image:
     import torch
 
     image = pipe(
         prompt,
         image=start.convert("RGB").resize((GEN_SIZE, GEN_SIZE)),
-        strength=IMG2IMG_STRENGTH,  # with 4 Lightning steps, 0.75 runs the last 3
+        strength=strength,  # with 4 Lightning steps, 0.75 runs the last 3
         num_inference_steps=4,
         guidance_scale=0.0,
         generator=torch.Generator("cpu").manual_seed(seed),
@@ -149,7 +152,7 @@ def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium"
     start = ImageOps.invert(photo_lines(photo).convert("L"))  # the detector gives white lines on black
     pipe = _pipeline("img2img")
     prompt = line_art_prompt(subject, difficulty=difficulty)
-    return [_img2img(pipe, prompt, seed + i, start) for i in range(n)]
+    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH) for i in range(n)]
 
 
 def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:
