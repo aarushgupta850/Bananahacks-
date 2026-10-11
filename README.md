@@ -59,6 +59,13 @@ The full rules are in [CLAUDE.md](CLAUDE.md), [web/CLAUDE.md](web/CLAUDE.md) and
 
 ## AI tools used
 
+- **Claude Code** (Anthropic's AI coding assistant) helped us throughout the build. Each of us used it in our
+  own part of the project to plan, write and test code, and we directed and reviewed what it wrote. We also
+  used it to review the drawing engine and to click through the app in a headless browser before merging.
+- **Image AI models** are part of the product itself: the pack pipeline in [`/server`](server) uses
+  SDXL with SDXL-Lightning to draw the line art, MistoLine and a line-art detector for photos, and OWLv2 to
+  find each drawing's parts. They are listed with their licenses in [CREDITS.md](CREDITS.md).
+
 ## Credits
 
 Every model, library, dataset and font we use is listed with its license in [CREDITS.md](CREDITS.md).
