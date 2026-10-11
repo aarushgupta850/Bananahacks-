@@ -43,7 +43,7 @@ const LIVE_MESSAGES: Record<LiveErrorKind, string> = {
 }
 
 export default function SubjectPicker({ onNext }: { onNext: () => void }) {
-  const { update } = useSession()
+  const { session, update } = useSession()
   const [index, setIndex] = useState<IndexState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0) // bumped by "Try again" to reload the index
   const [opening, setOpening] = useState<string | null>(null) // the subject whose pack is loading
@@ -68,9 +68,9 @@ export default function SubjectPicker({ onNext }: { onNext: () => void }) {
     setAttempt((n) => n + 1)
   }
 
-  // A new pack (ready-made or live) starts a fresh session.
+  // A new pack (ready-made or live) starts a fresh session, keeping the chosen time limit.
   function start(pack: Pack) {
-    update({ ...emptySession, pack })
+    update({ ...emptySession, pack, soloSeconds: session.soloSeconds })
     onNext()
   }
 

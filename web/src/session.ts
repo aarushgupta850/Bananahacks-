@@ -26,7 +26,13 @@ export interface Session {
   modeHistory: ModeChange[]
   retestStrokes: UserStroke[]
   retestAnalysis: Analysis | null
+  // Time limit for both solo rounds (test and retest), in seconds; null = no time limit.
+  // Chosen on the Reference screen and shared by both rounds, so the before/after comparison stays fair.
+  soloSeconds: number | null
 }
+
+// The time limit a new run starts with.
+export const DEFAULT_SOLO_SECONDS = 45
 
 export const emptySession: Session = {
   pack: null,
@@ -38,6 +44,7 @@ export const emptySession: Session = {
   modeHistory: [],
   retestStrokes: [],
   retestAnalysis: null,
+  soloSeconds: DEFAULT_SOLO_SECONDS,
 }
 
 export interface SessionContextValue {

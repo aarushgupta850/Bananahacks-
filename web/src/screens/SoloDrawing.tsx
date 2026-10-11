@@ -1,5 +1,5 @@
-// The two solo rounds, the test and the retest: the reference BESIDE the canvas (never on it), 45 seconds,
-// no help. One component for both so they stay identical, which keeps the before/after comparison fair.
+// The two solo rounds, the test and the retest: the reference BESIDE the canvas (never on it), the time limit
+// chosen on the Reference screen (or none), no help. One component for both so they stay identical, which keeps the before/after comparison fair.
 // When the round ends (Done, Skip or the timer) the engine analyzes the strokes and the session keeps the result.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import CanvasToolbar from '../canvas/CanvasToolbar'
@@ -13,8 +13,6 @@ import { usePack, useSession } from '../session'
 import CountdownRing from './CountdownRing'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
 import { useCountdown } from './useCountdown'
-
-const SOLO_SECONDS = 45
 
 const TEXT = {
   test: { title: 'Test', lead: 'Copy the drawing on your own. No help yet: we measure where you start.' },
@@ -44,7 +42,9 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
     onNext()
   }, [pack, round, update, onNext])
 
-  const remaining = useCountdown(SOLO_SECONDS, finish)
+  // Both rounds use the same limit from the session. With no limit the clock never runs and only Done ends the round.
+  const limit = session.soloSeconds
+  const remaining = useCountdown(limit ?? 0, finish, limit !== null)
 
   return (
     <PlaceholderScreen
@@ -63,7 +63,7 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
     >
       <div className="solo-layout">
         <aside className="solo-side">
-          <CountdownRing remaining={remaining} total={SOLO_SECONDS} />
+          {limit !== null && <CountdownRing remaining={remaining} total={limit} />}
           {/* The reference sits beside the canvas, never on it: copying, not tracing. */}
           <figure className="solo-reference">
             <img src={resolveAsset(pack, pack.target)} alt={`${pack.title}: the drawing to copy`} width={768} height={768} />
