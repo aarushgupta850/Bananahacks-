@@ -41,12 +41,14 @@ export default function TimeLimitPicker({ value, onChange, onValidityChange, loc
 
   return (
     <fieldset className="time-picker" disabled={locked}>
-      <legend>Time for the test and the retest</legend>
+      <legend>How much time do you get?</legend>
+      {/* One row of choices, like the difficulty buttons. The radios are hidden but still there for the keyboard
+          (arrow keys) and screen readers; the chosen one is filled dark AND bold, never shown by color alone. */}
       <div className="time-options">
         {PRESET_SECONDS.map((seconds) => (
           <label key={String(seconds)} className={!custom && value === seconds ? 'time-option is-active' : 'time-option'}>
             <input type="radio" name="solo-time" checked={!custom && value === seconds} onChange={() => pickPreset(seconds)} />
-            {choiceLabel(seconds)}
+            {shortLabel(seconds)}
           </label>
         ))}
         <label className={custom ? 'time-option is-active' : 'time-option'}>
@@ -56,7 +58,6 @@ export default function TimeLimitPicker({ value, onChange, onValidityChange, loc
       </div>
       {custom && (
         <div className="time-custom">
-          <label htmlFor="custom-seconds">Seconds ({CUSTOM_MIN_SECONDS}–{CUSTOM_MAX_SECONDS})</label>
           <input
             id="custom-seconds"
             type="number"
@@ -66,17 +67,23 @@ export default function TimeLimitPicker({ value, onChange, onValidityChange, loc
             step={1}
             value={customText}
             placeholder="90"
+            aria-label={`Seconds, from ${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}`}
             aria-invalid={customText !== '' && !customValid}
             aria-describedby="custom-seconds-hint"
             onChange={(e) => typeCustom(e.target.value)}
           />
+          <span aria-hidden="true">seconds</span>
           <span id="custom-seconds-hint" className={customText !== '' && !customValid ? 'time-hint is-problem' : 'time-hint'} role="status">
-            {customText === '' ? 'Type a number of seconds.'
-              : customValid ? 'Looks good.' : `Pick a whole number from ${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}.`}
+            {customText !== '' && !customValid ? `Pick ${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}.` : `${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}`}
           </span>
         </div>
       )}
-      {locked && <p className="time-hint">Locked after the test, so your retest gets the same time.</p>}
+      <p className="time-hint">
+        {locked ? 'Locked: your retest gets the same time, so it stays fair.' : 'You get the same time for the test and the retest, so it\'s fair.'}
+      </p>
     </fieldset>
   )
 }
+
+// Short words for the buttons: "30 s", "1 min", "No limit".
+const shortLabel = (seconds: number | null) => (seconds === null ? 'No limit' : choiceLabel(seconds))

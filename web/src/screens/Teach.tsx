@@ -4,11 +4,13 @@
 // Everything that happens is recorded so the report can replay it at 4x.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import CanvasToolbar from '../canvas/CanvasToolbar'
+import { strokesToPngBase64 } from '../canvas/canvasPng'
 import DrawingCanvas from '../canvas/DrawingCanvas'
 import GhostLayer from '../canvas/GhostLayer'
 import type { PenSize } from '../canvas/geometry'
 import { engine } from '../engine'
-import type { Ghost, HelpLevel, Mode, StrokeResult, UserStroke } from '../engine/types'
+import type { Ghost, HelpLevel, ModeChange, Mode, Pack, StrokeResult, UserStroke } from '../engine/types'
+import { checkLive, regenerate } from '../lib/live'
 import { usePack, useSession, type TeachRecording } from '../session'
 import CountdownRing from './CountdownRing'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
@@ -18,6 +20,18 @@ const LESSON_SECONDS = 120
 const SHOW_ME_MS = 3000
 const TOAST_MS = 4000
 const CHEER_MS = 1600
+
+// "Happy accidents" (only with ?happy=1 in the URL, and only when the live server is online): a stroke that
+// scores below 0.35 is sent to image AI, which redraws the target around the user's lines. The lesson then
+// carries on with the new guides, so the mistake becomes part of the drawing.
+const HAPPY = new URLSearchParams(window.location.search).get('happy') === '1'
+const HAPPY_BELOW = 0.35
+const HAPPY_COOLDOWN_MS = 30_000 // at most one redraw every 30 s, so the guides don't keep changing
+const SWAP_FADE_MS = 400
+const HAPPY_TOAST = 'Nice, we\u2019ve worked that into your drawing.'
+
+// The words that describe the subject, for the redraw: the live prompt if there was one, else "a fox".
+const subjectWords = (pack: Pack) => (pack.source.kind === 'prompt' && pack.source.prompt ? pack.source.prompt : `a ${pack.subject}`)
 // The meter eases toward each new accuracy instead of jumping, so one bad stroke doesn't look like a crash.
 // 0.4 = each stroke moves the meter 40% of the way to its accuracy.
 const METER_EASING = 0.4
@@ -38,8 +52,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const pack = usePack()
   const { session, update } = useSession()
 
-  // Made once when the screen opens: the lesson (shaped by the weak spots) and its teacher.
-  const [lesson] = useState(() => {
+  // Made when the screen opens: the lesson (shaped by the weak spots) and its teacher. A happy accident
+  // replaces both with the redrawn pack's.
+  const [lesson, setLesson] = useState(() => {
     const steps = engine.buildLesson(pack, session.weaknesses)
     return { steps, teacher: engine.createTeacher(pack, steps, 'auto') }
   })
@@ -51,16 +66,30 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const [showMe, setShowMe] = useState<Ghost[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [cheer, setCheer] = useState(0) // bumped when a step is finished, to flash "Step done"
+  const [toastKind, setToastKind] = useState<'warning' | 'happy'>('warning')
+  // Happy accidents: is the live server up, is a redraw on its way, and the old guides fading out after a swap.
+  const [liveOnline, setLiveOnline] = useState(false)
+  const [redrawing, setRedrawing] = useState(false)
+  const [fadingGhosts, setFadingGhosts] = useState<Ghost[] | null>(null)
+  const [swaps, setSwaps] = useState(0) // remounts the new guides so they fade in
+  const lastRedrawAt = useRef(-Infinity)
+  const earlierHistory = useRef<ModeChange[]>([]) // help-level changes from teachers replaced by a redraw
 
   // The recording starts with the ghosts shown before the first stroke, so the replay opens the same way.
   const recording = useRef<TeachRecording>({ events: [{ t: 0, type: 'ghosts', ghosts: result.ghosts }] })
   const startedAt = useRef(0)
   const timers = useRef<number[]>([])
   const cheers = useRef(0) // how many "Step done" flashes so far (each one's id)
+  const closed = useRef(false) // a redraw that answers after the screen closed is ignored
   useEffect(() => {
     startedAt.current = performance.now()
+    closed.current = false
     const pending = timers.current
-    return () => pending.forEach(clearTimeout)
+    if (HAPPY) checkLive().then((ok) => { if (!closed.current) setLiveOnline(ok) })
+    return () => {
+      closed.current = true
+      pending.forEach(clearTimeout)
+    }
   }, [])
 
   function later(ms: number, run: () => void) {
@@ -84,11 +113,53 @@ export default function Teach({ onBack, onNext }: NavProps) {
     setShowMe(null)
     const accuracy = next.accuracy
     if (accuracy !== null) setMeter((m) => (m === null ? accuracy : m + (accuracy - m) * METER_EASING))
-    if (next.warning) {
-      const warning = next.warning
-      setToast(warning)
-      later(TOAST_MS, () => setToast((current) => (current === warning ? null : current)))
+    if (next.warning) showToast(next.warning, 'warning')
+    if (HAPPY && liveOnline && !redrawing && accuracy !== null && accuracy < HAPPY_BELOW && !next.done) {
+      happyAccident([...strokes, stroke])
     }
+  }
+
+  function showToast(text: string, kind: 'warning' | 'happy') {
+    setToast(text)
+    setToastKind(kind)
+    later(TOAST_MS, () => setToast((current) => (current === text ? null : current)))
+  }
+
+  // The lesson right now, for a redraw that answers later.
+  const latest = useRef({ teacher: lesson.teacher, mode, ghosts: result.ghosts, done: result.done })
+  useEffect(() => {
+    latest.current = { teacher: lesson.teacher, mode, ghosts: showMe ?? result.ghosts, done: result.done }
+  }, [lesson, mode, result, showMe])
+
+  // Sends the drawing to image AI in the background (drawing carries on), then swaps in the redrawn lesson.
+  // Any failure (offline, busy, too slow) is silent: the current lesson simply continues.
+  function happyAccident(drawing: UserStroke[]) {
+    const now = sinceStart(startedAt.current)
+    if (now - lastRedrawAt.current < HAPPY_COOLDOWN_MS) return
+    lastRedrawAt.current = now
+    setRedrawing(true)
+    regenerate({ prompt: subjectWords(pack), canvasBase64: strokesToPngBase64(drawing), difficulty: pack.difficulty })
+      .then((newPack) => {
+        if (closed.current || newPack.steps.length === 0) return
+        // The answer comes seconds later, so use the lesson as it is now, not as it was when the stroke was drawn.
+        const now = latest.current
+        if (now.done) return
+        const teacher = engine.createTeacher(newPack, newPack.steps, now.mode)
+        const fresh = teacher.state()
+        if (fresh.done) return // the AI kept nothing new to draw: stay on the current lesson
+        earlierHistory.current.push(...now.teacher.history())
+        // Crossfade: the old guides fade out while the new ones fade in.
+        setFadingGhosts(now.ghosts)
+        later(SWAP_FADE_MS, () => setFadingGhosts(null))
+        setSwaps((n) => n + 1)
+        setLesson({ steps: newPack.steps, teacher })
+        setResult(fresh)
+        setShowMe(null)
+        recording.current.events.push({ t: sinceStart(startedAt.current), type: 'ghosts', ghosts: fresh.ghosts })
+        showToast(HAPPY_TOAST, 'happy')
+      })
+      .catch((error: unknown) => console.info('Happy accident skipped:', error))
+      .finally(() => { if (!closed.current) setRedrawing(false) })
   }
 
   function changeMode(next: Mode) {
@@ -107,7 +178,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const finish = useCallback(() => {
     update({
       steps: lesson.steps,
-      modeHistory: lesson.teacher.history(),
+      modeHistory: [...earlierHistory.current, ...lesson.teacher.history()],
       teachRecording: { events: [...recording.current.events] },
     })
     onNext()
@@ -155,9 +226,15 @@ export default function Teach({ onBack, onNext }: NavProps) {
           </div>
           <div className="canvas-stack">
             <DrawingCanvas strokes={strokes} onStroke={handleStroke} penSize={penSize} label="Lesson canvas. Draw over the ghost lines." />
-            <GhostLayer ghosts={ghosts} />
+            {fadingGhosts && <div className="ghost-swap is-out"><GhostLayer ghosts={fadingGhosts} /></div>}
+            <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} /></div>
+            {redrawing && <p className="teach-redrawing" role="status">Working your line into the drawing…</p>}
             {cheer !== 0 && !result.done && <p key={cheer} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>Step done</p>}
-            {toast && !result.done && <p className="teach-toast" role="status"><span aria-hidden="true">⚠ </span>{toast}</p>}
+            {toast && !result.done && (
+              <p className={toastKind === 'happy' ? 'teach-toast is-happy' : 'teach-toast'} role="status">
+                <span aria-hidden="true">{toastKind === 'happy' ? '✨ ' : '⚠ '}</span>{toast}
+              </p>
+            )}
           </div>
           {/* Undo and clear only tidy the ink here: the teacher has already checked those strokes. */}
           <CanvasToolbar
