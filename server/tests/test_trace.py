@@ -146,3 +146,24 @@ def test_tiny_bits_are_dropped_but_long_lines_stay():
         cv2.line(canvas, (x, 500), (x + 12, 506), INK, 5)  # short dashes, like toe marks
     strokes = trace(pil(canvas))
     assert len(strokes) == 1
+
+
+def test_a_gray_eye_without_an_outline_becomes_a_stroke():
+    canvas = page()
+    cv2.circle(canvas, (384, 384), 200, INK, 8)
+    cv2.ellipse(canvas, (320, 330), (22, 12), 0, 0, 360, (140, 140, 140), -1)  # a gray almond eye
+    strokes = trace(pil(canvas))
+    assert len(strokes) == 2
+    eye = strokes[1]
+    assert is_closed(eye)
+    xs, ys = [p[0] for p in eye], [p[1] for p in eye]
+    assert abs(sum(xs) / len(xs) - 320) < 4 and abs(sum(ys) / len(ys) - 330) < 4
+    assert max(xs) - min(xs) > max(ys) - min(ys)  # wider than tall, like the almond
+
+
+def test_a_gray_fill_that_already_has_an_outline_is_not_traced_twice():
+    canvas = page()
+    cv2.circle(canvas, (384, 384), 60, (140, 140, 140), -1)  # gray fill
+    cv2.circle(canvas, (384, 384), 60, INK, 6)  # with a dark outline on its edge
+    strokes = trace(pil(canvas))
+    assert len(strokes) == 1

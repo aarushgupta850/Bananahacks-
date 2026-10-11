@@ -14,9 +14,12 @@ The steps, in order:
 6. Drop tiny side spurs (under 15 px) that thinning leaves at the corners of thick lines.
 7. Join pieces back into strokes. Where only two pieces meet, they are one line, so they are always joined.
    At a real junction (3 or more pieces), the pair that continues straightest is joined, if its direction
-   changes by less than 30 degrees.
+   changes by less than 45 degrees. (The plan said 30; on the generated drawings an outline bends more than
+   that where a leg or tail meets it, while a side branch still meets at about 90 degrees.)
 8. Drop finished strokes shorter than 20 px: tiny bits (toe marks, eye fragments) a beginner can't use.
 9. Solid dots (like eyes) thin down to almost nothing, so each one becomes a small circle stroke instead.
+   Small gray shapes with no stroke near them (an eye drawn as a gray almond, with no dark outline) are
+   lighter than the ink threshold, so their outline becomes a stroke.
 10. Simplify each stroke with Ramer-Douglas-Peucker (epsilon 1.5 px) to drop redundant points.
 """
 
@@ -29,7 +32,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 from skimage.filters import threshold_otsu
-from skimage.measure import approximate_polygon
+from skimage.measure import approximate_polygon, find_contours
 from skimage.morphology import skeletonize, thin
 
 SIZE = 768  # all app coordinates are in 768 x 768 space
@@ -40,7 +43,10 @@ FILL_MIN_CORE_PX = 60  # ...but only if that deep part is this big: where two th
 FILL_RIM_PX = 4  # how much of a solid fill's edge is kept as its outline
 MIN_PIECE_PX = 15  # side spurs and stray bits shorter than this (in pixels of length) are dropped
 MIN_STROKE_PX = 20  # finished strokes shorter than this are dropped (about 2% of the drawing's diagonal)
-MAX_TURN_DEG = 30  # at a junction, join two pieces only if the line turns less than this
+GRAY_FEATURE_LEVEL = 170  # gray shapes between the ink threshold and this can be features (a gray eye)
+GRAY_FEATURE_AREA = (80, 4000)  # ...if their area in pixels is in this range
+MAX_GRAY_FEATURES = 6
+MAX_TURN_DEG = 45  # at a junction, join two pieces only if the line turns less than this
 # A piece's direction at a junction is measured between these two distances into the piece. The first few
 # pixels are skipped because a thick line's center line bends toward the middle of the junction.
 DIRECTION_SKIP_PX = 6
@@ -67,16 +73,25 @@ class Piece:
         return sum(math.dist(a, b) for a, b in zip(self.points, self.points[1:]))
 
 
-def ink_mask(image: Image.Image) -> np.ndarray:
-    """Steps 1-2: True where there is ink, specks removed. The image is resized to 768 x 768 first."""
+def gray_of(image: Image.Image) -> np.ndarray:
+    """The drawing as a 768 x 768 grayscale array."""
     if image.size != (SIZE, SIZE):
         image = image.resize((SIZE, SIZE), Image.LANCZOS)
-    gray = np.asarray(image.convert("L"))
+    return np.asarray(image.convert("L"))
+
+
+def ink_level(gray: np.ndarray) -> float:
+    """Step 1: the gray value at or below which a pixel is ink. Otsu counts values above its threshold as
+    paper, so ink is "at or below" (with only two gray levels in the image, the threshold is the ink level)."""
+    return min(threshold_otsu(gray), MAX_INK_LEVEL)
+
+
+def ink_mask(image: Image.Image) -> np.ndarray:
+    """Steps 1-2: True where there is ink, specks removed. The image is resized to 768 x 768 first."""
+    gray = gray_of(image)
     if int(gray.max()) - int(gray.min()) < 30:  # a blank page: no ink to find
         return np.zeros(gray.shape, dtype=bool)
-    # Otsu counts values above its threshold as paper, so ink is "at or below" (with only two gray
-    # levels in the image, the threshold is the ink level itself).
-    ink = gray <= min(threshold_otsu(gray), MAX_INK_LEVEL)
+    ink = gray <= ink_level(gray)
     # Label connected ink blobs (8-connectivity) and keep only those of SPECK_PX pixels or more.
     labels, count = ndimage.label(ink, structure=np.ones((3, 3), dtype=int))
     if count == 0:
@@ -118,6 +133,7 @@ def trace(image: Image.Image) -> list[list[tuple[float, float]]]:
     pieces = drop_spurs(pieces)
     strokes = [s for s in join_pieces(pieces) if s.length() >= MIN_STROKE_PX]
     strokes += dots_without_strokes(ink, strokes)
+    strokes += gray_features_without_strokes(gray_of(image), strokes)
     result = []
     for stroke in sorted(strokes, key=lambda p: -p.length()):
         points = np.array(stroke.points, dtype=float)
@@ -295,3 +311,37 @@ def dots_without_strokes(ink: np.ndarray, strokes: list[Piece]) -> list[Piece]:
         ]
         dots.append(Piece(circle, None, None, closed=True))
     return dots
+
+
+def gray_features_without_strokes(gray: np.ndarray, strokes: list[Piece]) -> list[Piece]:
+    """Step 9b: small, compact gray shapes (lighter than ink, darker than the page) with no stroke within
+    a few pixels become strokes along their own outline. An eye drawn as a gray almond is one."""
+    if int(gray.max()) - int(gray.min()) < 30:
+        return []
+    mask = (gray > ink_level(gray)) & (gray <= GRAY_FEATURE_LEVEL)
+    labels, count = ndimage.label(mask, structure=np.ones((3, 3), dtype=int))
+    near_strokes = np.zeros(gray.shape, dtype=bool)
+    for stroke in strokes:
+        for y, x in stroke.points:
+            near_strokes[int(y), int(x)] = True
+    near_strokes = ndimage.binary_dilation(near_strokes, iterations=4)
+    found = []
+    for label in range(1, count + 1):
+        blob = labels == label
+        area = int(blob.sum())
+        if not GRAY_FEATURE_AREA[0] <= area <= GRAY_FEATURE_AREA[1]:
+            continue
+        ys, xs = np.nonzero(blob)
+        height, width = int(np.ptp(ys)) + 1, int(np.ptp(xs)) + 1
+        if max(height, width) > 3 * min(height, width) or area < 0.45 * height * width:
+            continue  # thin bands (the soft edges of lines) and scattered shading are not features
+        if (blob & near_strokes).any():
+            continue  # already drawn by a stroke
+        # The outline of the shape, from a one-pixel-padded crop so it closes even at the crop's edge.
+        y0, x0 = ys.min(), xs.min()
+        crop = np.pad(blob[y0 : y0 + height, x0 : x0 + width], 1)
+        contour = max(find_contours(crop.astype(float), 0.5), key=len)
+        points = [(float(y + y0 - 1), float(x + x0 - 1)) for y, x in contour]
+        found.append((area, Piece(points, None, None, closed=True)))
+    found.sort(key=lambda f: -f[0])  # the biggest features first, if there are too many
+    return [piece for _, piece in found[:MAX_GRAY_FEATURES]]
