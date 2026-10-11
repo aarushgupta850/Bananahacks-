@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     unet = unet.to(torch.float16)
 
     pipe = StableDiffusionXLPipeline.from_pretrained(
-        BASE_REPO, unet=unet, torch_dtype=torch.float16, variant="fp16"
+        BASE_REPO, unet=unet, dtype=torch.float16, variant="fp16"
     )
     # Lightning was distilled with "trailing" timesteps; other spacings give blurry results.
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")

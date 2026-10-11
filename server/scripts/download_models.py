@@ -59,6 +59,9 @@ MODELS = [
             "unet/diffusion_pytorch_model.fp16.safetensors",
             "vae/config.json",
             "vae/diffusion_pytorch_model.fp16.safetensors",
+            # Not used by our pipeline, but diffusers (variant="fp16") treats every fp16 weight file
+            # in the repo as required, and refuses to load offline if this alternative VAE is missing.
+            "vae_1_0/diffusion_pytorch_model.fp16.safetensors",
         ],
     ),
     Model(
