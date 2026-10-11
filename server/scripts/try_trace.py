@@ -28,6 +28,7 @@ from pipeline.trace import ink_mask, skeleton_of, trace  # noqa: E402
 
 OUT_DIR = SERVER_DIR / "out" / "trace"
 MIN_STROKES, MAX_STROKES = 6, 60  # the pack quality gate
+REJECTED_SCORE = 1000  # quality.py adds 1000 for a blank page or a colored drawing
 # Distinct, saturated colors, so neighboring strokes are easy to tell apart.
 PALETTE = [
     (230, 25, 75), (60, 180, 75), (0, 130, 200), (245, 130, 48), (145, 30, 180), (70, 200, 220),
@@ -88,16 +89,21 @@ def main(argv: list[str] | None = None) -> int:
         strokes = trace(image)
         ms = (time.perf_counter() - start) * 1000
         score = line_metrics(image)["score"]
-        ok = MIN_STROKES <= len(strokes) <= MAX_STROKES
-        in_gate += ok
+        if score >= REJECTED_SCORE:
+            verdict = "(REJECTED: color/blank)"
+        elif MIN_STROKES <= len(strokes) <= MAX_STROKES:
+            verdict = "(in gate)"
+        else:
+            verdict = "(OUTSIDE 6-60)"
+        in_gate += verdict == "(in gate)"
         points = sum(len(s) for s in strokes)
-        print(f"{name:<32} {len(strokes):3d} strokes {'(in gate)' if ok else '(OUTSIDE 6-60)'}  "
+        print(f"{name:<32} {len(strokes):3d} strokes {verdict:<24}"
               f"{points:4d} points  score {score:7.1f}  traced in {ms:4.0f} ms")
         if not args.images:
             image.save(OUT_DIR / f"{name}.png")
         overlay(image, strokes).save(OUT_DIR / f"{name}-strokes.png")
         skeleton_image(image).save(OUT_DIR / f"{name}-skeleton.png")
-    print(f"\n{in_gate}/{len(drawings)} drawings inside the 6-60 stroke gate. Overlays: {OUT_DIR}")
+    print(f"\n{in_gate}/{len(drawings)} drawings pass (6-60 strokes and not rejected). Overlays: {OUT_DIR}")
     return 0
 
 

@@ -118,3 +118,31 @@ def test_a_solid_dot_becomes_a_small_circle_stroke():
     xs, ys = [p[0] for p in eye], [p[1] for p in eye]
     assert abs(sum(xs) / len(xs) - 260) < 3 and abs(sum(ys) / len(ys) - 280) < 3
     assert length(eye) < 2 * math.pi * 10  # smaller than the dot itself
+
+
+def test_medium_gray_fills_are_not_ink():
+    canvas = page()
+    cv2.circle(canvas, (384, 384), 200, INK, 8)
+    cv2.circle(canvas, (384, 384), 120, (140, 140, 140), -1)  # a gray fill, like the inside of an ear
+    strokes = trace(pil(canvas))
+    assert len(strokes) == 1
+    assert is_closed(strokes[0])
+
+
+def test_a_solid_black_area_traces_as_its_outline_not_a_zigzag():
+    canvas = page()
+    cv2.rectangle(canvas, (250, 250), (500, 450), INK, -1)  # a filled window
+    strokes = trace(pil(canvas))
+    assert len(strokes) == 1
+    (outline,) = strokes
+    assert is_closed(outline)
+    assert abs(length(outline) - 2 * (250 + 200)) < 0.1 * 2 * (250 + 200)
+
+
+def test_tiny_bits_are_dropped_but_long_lines_stay():
+    canvas = page()
+    cv2.line(canvas, (100, 400), (600, 400), INK, 6)
+    for x in range(120, 600, 60):
+        cv2.line(canvas, (x, 500), (x + 12, 506), INK, 5)  # short dashes, like toe marks
+    strokes = trace(pil(canvas))
+    assert len(strokes) == 1

@@ -2,9 +2,12 @@
 
 The steps, in order:
 1. Grayscale, then Otsu's threshold splits ink from paper. It picks the threshold from the image itself,
-   so it works even though the generated backgrounds are light gray, not white.
+   so it works even though the generated backgrounds are light gray, not white. The threshold is capped
+   at 100, so medium-gray fills (like the inside of an ear) count as paper, not ink.
 2. Remove specks: ink blobs under 30 px are noise.
-3. Skeletonize: thin every line to 1 px down its middle, so a thick outline becomes a single path.
+3. Hollow out solid black areas (anything thicker than 24 px, like a filled window): only their outline is
+   kept, because a filled shape would otherwise thin down to a zig-zag down its middle.
+   Then skeletonize: thin every line to 1 px down its middle, so a thick outline becomes a single path.
 4. Build a pixel graph (8-connectivity) and split it at endpoints and junctions into pieces.
 5. Walk each piece into an ordered list of points. Closed loops (a circle) have no ends, so they are
    walked separately.
@@ -12,8 +15,9 @@ The steps, in order:
 7. Join pieces back into strokes. Where only two pieces meet, they are one line, so they are always joined.
    At a real junction (3 or more pieces), the pair that continues straightest is joined, if its direction
    changes by less than 30 degrees.
-8. Solid dots (like eyes) thin down to almost nothing, so each one becomes a small circle stroke instead.
-9. Simplify each stroke with Ramer-Douglas-Peucker (epsilon 1.5 px) to drop redundant points.
+8. Drop finished strokes shorter than 20 px: tiny bits (toe marks, eye fragments) a beginner can't use.
+9. Solid dots (like eyes) thin down to almost nothing, so each one becomes a small circle stroke instead.
+10. Simplify each stroke with Ramer-Douglas-Peucker (epsilon 1.5 px) to drop redundant points.
 """
 
 from __future__ import annotations
@@ -29,8 +33,13 @@ from skimage.measure import approximate_polygon
 from skimage.morphology import skeletonize, thin
 
 SIZE = 768  # all app coordinates are in 768 x 768 space
+MAX_INK_LEVEL = 100  # gray values above this are never ink, even if Otsu's threshold is higher
 SPECK_PX = 30  # ink blobs smaller than this (in pixels) are noise
+FILL_HALF_WIDTH_PX = 12  # ink deeper than this from the paper is a solid fill, not a line (lines are thinner)
+FILL_MIN_CORE_PX = 60  # ...but only if that deep part is this big: where two thick lines meet is deep, but small
+FILL_RIM_PX = 4  # how much of a solid fill's edge is kept as its outline
 MIN_PIECE_PX = 15  # side spurs and stray bits shorter than this (in pixels of length) are dropped
+MIN_STROKE_PX = 20  # finished strokes shorter than this are dropped (about 2% of the drawing's diagonal)
 MAX_TURN_DEG = 30  # at a junction, join two pieces only if the line turns less than this
 # A piece's direction at a junction is measured between these two distances into the piece. The first few
 # pixels are skipped because a thick line's center line bends toward the middle of the junction.
@@ -67,7 +76,7 @@ def ink_mask(image: Image.Image) -> np.ndarray:
         return np.zeros(gray.shape, dtype=bool)
     # Otsu counts values above its threshold as paper, so ink is "at or below" (with only two gray
     # levels in the image, the threshold is the ink level itself).
-    ink = gray <= threshold_otsu(gray)
+    ink = gray <= min(threshold_otsu(gray), MAX_INK_LEVEL)
     # Label connected ink blobs (8-connectivity) and keep only those of SPECK_PX pixels or more.
     labels, count = ndimage.label(ink, structure=np.ones((3, 3), dtype=int))
     if count == 0:
@@ -78,10 +87,28 @@ def ink_mask(image: Image.Image) -> np.ndarray:
     return keep[labels]
 
 
+def hollow_fills(ink: np.ndarray) -> np.ndarray:
+    """Step 3a: keeps only the outline (a FILL_RIM_PX band) of solid areas thicker than 2 x FILL_HALF_WIDTH_PX.
+    Ordinary lines are thinner than that, so they are left alone."""
+    depth = ndimage.distance_transform_edt(ink)  # each ink pixel's distance to the nearest paper
+    labels, count = ndimage.label(depth > FILL_HALF_WIDTH_PX, structure=np.ones((3, 3), dtype=int))
+    if count == 0:
+        return ink
+    sizes = np.bincount(labels.ravel())
+    big = sizes >= FILL_MIN_CORE_PX
+    big[0] = False
+    core = big[labels]
+    if not core.any():
+        return ink
+    # The whole fill: its deep core grown back out to the fill's edges.
+    fill = ndimage.binary_dilation(core, iterations=FILL_HALF_WIDTH_PX + 1) & ink
+    return ink & ~(fill & (depth > FILL_RIM_PX))
+
+
 def skeleton_of(ink: np.ndarray) -> np.ndarray:
-    """Step 3: 1-px-wide center lines. thin() after skeletonize() removes the extra pixels that
+    """Step 3b: 1-px-wide center lines. thin() after skeletonize() removes the extra pixels that
     skeletonize leaves on diagonal corners, which would otherwise look like junctions."""
-    return thin(skeletonize(ink))
+    return thin(skeletonize(hollow_fills(ink)))
 
 
 def trace(image: Image.Image) -> list[list[tuple[float, float]]]:
@@ -89,7 +116,8 @@ def trace(image: Image.Image) -> list[list[tuple[float, float]]]:
     ink = ink_mask(image)
     pieces = split_into_pieces(skeleton_of(ink))
     pieces = drop_spurs(pieces)
-    strokes = join_pieces(pieces) + dots_without_strokes(ink, pieces)
+    strokes = [s for s in join_pieces(pieces) if s.length() >= MIN_STROKE_PX]
+    strokes += dots_without_strokes(ink, strokes)
     result = []
     for stroke in sorted(strokes, key=lambda p: -p.length()):
         points = np.array(stroke.points, dtype=float)
@@ -242,19 +270,23 @@ def join_pieces(pieces: list[Piece]) -> list[Piece]:
         pieces = [p for k, p in enumerate(pieces) if k not in (i, j)] + [joined]
 
 
-# ---------------------------------------------------------------- step 8: dots
+# ---------------------------------------------------------------- step 9: dots
 
 
-def dots_without_strokes(ink: np.ndarray, pieces: list[Piece]) -> list[Piece]:
-    """Step 8: every ink blob that no stroke passes through (a solid dot, like an eye) becomes a small
-    closed circle around its center, sized from its area, so the lesson still has the detail."""
+def dots_without_strokes(ink: np.ndarray, strokes: list[Piece]) -> list[Piece]:
+    """Step 9: every roughly round ink blob that no stroke passes through (a solid dot, like an eye) becomes
+    a small closed circle around its center, sized from its area, so the lesson still has the detail.
+    Long thin blobs (a short dash) are not dots, and are left out."""
     labels, count = ndimage.label(ink, structure=np.ones((3, 3), dtype=int))
-    covered = {int(labels[p]) for piece in pieces for p in piece.points}
+    covered = {int(labels[int(p[0]), int(p[1])]) for stroke in strokes for p in stroke.points}
     dots = []
     for label in range(1, count + 1):
         if label in covered:
             continue
         ys, xs = np.nonzero(labels == label)
+        height, width = int(np.ptp(ys)) + 1, int(np.ptp(xs)) + 1
+        if max(height, width) > 2 * min(height, width) or len(ys) < 0.5 * height * width:
+            continue  # not round and solid enough to be a dot
         cy, cx = float(ys.mean()), float(xs.mean())
         radius = max(3.0, math.sqrt(len(ys) / math.pi) * 0.6)  # a bit inside the dot's own edge
         circle = [
