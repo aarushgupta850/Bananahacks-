@@ -3,6 +3,18 @@
 Everything Ghost Lines uses that we didn't write, with its license. Models and datasets used by the
 pack pipeline in `/server` get listed here as they are added.
 
+## AI models (pack pipeline, `/server`)
+
+Downloaded by `server/scripts/download_models.py`; licenses as listed on each model's Hugging Face page.
+
+| Model | Used for | License | Link |
+|---|---|---|---|
+| Stable Diffusion XL base 1.0 (Stability AI) | Text encoders, VAE and pipeline config for image generation | CreativeML Open RAIL++-M | https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0 |
+| SDXL-Lightning, 4-step UNet (ByteDance) | Fast text-to-line-art generation (4 steps) | CreativeML Open RAIL++-M | https://huggingface.co/ByteDance/SDXL-Lightning |
+| MistoLine (TheMistoAI) | SDXL ControlNet that redraws a photo's lines cleanly (photo packs) | CreativeML Open RAIL++-M | https://huggingface.co/TheMistoAI/MistoLine |
+| Annotators: line-art detector (lllyasviel) | Pulling line art out of a photo, via controlnet-aux | Listed as "other" on the model page | https://huggingface.co/lllyasviel/Annotators |
+| OWLv2 base patch16 ensemble (Google) | Finding parts (head, ear, tail...) in a drawing from text labels | Apache-2.0 | https://huggingface.co/google/owlv2-base-patch16-ensemble |
+
 ## Fonts
 
 | Font | Used for | License | Link |
@@ -46,6 +58,7 @@ Listed in `server/requirements.txt`, except torch and torchvision, which are ins
 | SciPy | Math and image helpers in the pack pipeline | BSD-3-Clause | https://scipy.org |
 | Pillow | Reading and writing images | MIT-CMU | https://python-pillow.org |
 | PyTorch and torchvision | Running the image models on the GPU | BSD-3-Clause (bundled parts: Apache-2.0, MIT and others) | https://pytorch.org |
+| huggingface_hub | Downloading model weights (server/scripts/download_models.py) | Apache-2.0 | https://github.com/huggingface/huggingface_hub |
 | Transformers | Loading Hugging Face models | Apache-2.0 | https://github.com/huggingface/transformers |
 | Diffusers | Running the image generation models | Apache-2.0 | https://github.com/huggingface/diffusers |
 | Accelerate | Fitting models in 8 GB of VRAM (CPU offload) | Apache-2.0 | https://github.com/huggingface/accelerate |

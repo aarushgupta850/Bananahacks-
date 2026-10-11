@@ -20,6 +20,7 @@ scipy
 pillow
 
 # Models (Hugging Face)
+huggingface_hub
 transformers
 diffusers
 accelerate
