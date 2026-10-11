@@ -5,10 +5,12 @@ import type {
 } from '../types'
 import { config } from './config'
 import {
-  applyToAll, bbox, clamp, diagonal, IDENTITY, invertTransform, isClosed, length, lerpTransform, procrustes, resample,
-  type Transform,
+  applyToAll, bbox, clamp, diagonal, IDENTITY, invertTransform, isClosed, length, lerpTransform, PointGrid, procrustes,
+  resample, type Transform,
 } from './geometry'
 import { coverageShare, isTap, matchStroke } from './match'
+
+const isIdentity = (t: Transform) => t.scale === 1 && t.rotation === 0 && t.tx === 0 && t.ty === 0
 
 // Help levels from most help to least. Auto mode moves one place along this list at a time.
 const LEVELS: HelpLevel[] = ['guided', 'hints', 'checkin']
@@ -40,6 +42,13 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   let lastAccuracy: number | null = null
   let triesOnStep = 0                        // strokes drawn near the current step's guides without finishing it
   let triesStep = -1                         // which step triesOnStep counts for
+
+  // A guide with no length (a single point, or all its points in one spot) can't be traced: any line drawn over
+  // it is longer than the guide, and a dot is a tap, which is ignored. Such guides (possible in generated packs)
+  // count as drawn from the start, so they never block a step.
+  for (const { strokes } of lesson) {
+    for (const s of strokes) if (s.points.length < 2 || length(s.points) < config.minStrokeLength) done.add(s.id)
+  }
 
   // ---------- helpers ----------
 
@@ -99,7 +108,15 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
     pairs.push(...planPoints.map((from, i) => ({ from, to: user[i] })))
     if (pairs.length > config.adaptMaxPairs) pairs = pairs.slice(-config.adaptMaxPairs)
     const fit = procrustes(pairs, config.adaptMaxRotationDeg)
-    transform = lerpTransform(transform, fit, config.adaptBlend)
+    const next = lerpTransform(transform, fit, config.adaptBlend)
+    // Adapting must bring the guide closer to this stroke. A stroke matched to the wrong stretch (e.g. one long
+    // line over several guides) can pair points badly and make a fit that moves the guides away: skip that one.
+    const gap = (t: Transform) => planPoints.reduce((sum, p, i) => {
+      const [x, y] = applyToAll(t, [p])[0]
+      return sum + Math.hypot(x - user[i][0], y - user[i][1])
+    }, 0)
+    if (gap(next) <= 1.1 * gap(transform)) transform = next // a little worse is fine: the fit uses earlier strokes too
+    else pairs.splice(pairs.length - planPoints.length, planPoints.length)
   }
 
   // A gentle warning when a stroke is much bigger or smaller than its guide, e.g. "The head is getting large".
@@ -120,22 +137,27 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   function coverByCloseness(userPoints: Point[], candidates: { id: string; points: Point[] }[]) {
     const tolerance = config.coverDistance * baseDiagonal * transform.scale
     const user = resample(userPoints, 2 * config.guidePoints)
-    const near = (p: Point, cloud: Point[]) => cloud.some((q) => (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 <= tolerance ** 2)
+    const guides = candidates.map((c) => ({ id: c.id, closed: isClosed(c.points), points: resample(c.points, config.guidePoints) }))
+    const guidePoints = guides.flatMap((g) => g.points)
+    // Grids make "closest point" lookups fast (a few cells instead of every point), keeping addStroke quick.
+    const cellSize = Math.max(tolerance, 8)
+    const userGrid = new PointGrid(user, cellSize)
+    const guideGrid = new PointGrid(guidePoints, cellSize)
+    const distanceTo = (p: Point, grid: PointGrid) => {
+      const q = grid.nearest(p)
+      return q ? Math.hypot(p[0] - q[0], p[1] - q[1]) : Infinity
+    }
     const byGuide = new Map<string, number[]>()
-    const guidePoints: Point[] = []
-    for (const c of candidates) {
-      const guide = resample(c.points, config.guidePoints)
-      guidePoints.push(...guide)
-      const closed = isClosed(c.points)
+    for (const g of guides) {
       // A closed guide's last point is its first point again.
-      const hits = guide.flatMap((p, i) => (near(p, user) ? [closed && i === guide.length - 1 ? 0 : i] : []))
-      if (hits.length > 0) byGuide.set(c.id, hits)
+      const hits = g.points.flatMap((p, i) => (distanceTo(p, userGrid) <= tolerance ? [g.closed && i === g.points.length - 1 ? 0 : i] : []))
+      if (hits.length > 0) byGuide.set(g.id, hits)
     }
     // Share of the stroke that stayed on the guides (a stroke mostly off them earns no credit), and a score
     // from its average distance to them, on the same scale as match.ts's accuracy.
-    const onGuides = user.filter((p) => near(p, guidePoints)).length / user.length
-    const nearestDistance = (p: Point) => Math.sqrt(Math.min(...guidePoints.map((q) => (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2)))
-    const mean = guidePoints.length > 0 ? user.reduce((sum, p) => sum + nearestDistance(p), 0) / user.length : Infinity
+    const distances = user.map((p) => distanceTo(p, guideGrid))
+    const onGuides = distances.filter((d) => d <= tolerance).length / user.length
+    const mean = guidePoints.length > 0 ? distances.reduce((sum, d) => sum + d, 0) / user.length : Infinity
     const accuracy = clamp(1 - mean / (config.accuracyScale * baseDiagonal * transform.scale), 0, 1)
     return { byGuide, onGuides, accuracy }
   }
@@ -159,8 +181,29 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       const userPoints = stroke.points.map(([x, y]): Point => [x, y])
       if (userPoints.length < 2 || isTap(userPoints)) return state() // a tap, not a line: ignore it
       strokeCount++
-      const candidates = shownStrokes().map((s) => ({ id: s.id, points: adapted(s.points) }))
-      const match = matchStroke(userPoints, candidates, baseDiagonal * transform.scale)
+      // The shown guides where they are now (adapted to the user), the stroke's best match among them, and which
+      // guide points it passed close to.
+      const look = () => {
+        const shown = shownStrokes().map((s) => ({ id: s.id, points: adapted(s.points) }))
+        return {
+          match: matchStroke(userPoints, shown, baseDiagonal * transform.scale),
+          closeness: coverByCloseness(userPoints, shown),
+        }
+      }
+      let { match, closeness } = look()
+      // Self-repair: if the stroke is nowhere near the adapted guides but is near the guides' original places,
+      // the adaptation has drifted away from where the user draws (e.g. after one odd stroke). Without this the
+      // user could never match a guide again (and in Check-in they can't even see where the guides went), so
+      // the guides go back to their original places and the stroke is judged again.
+      const lost = !match && closeness.byGuide.size === 0 && closeness.accuracy === 0
+      if (lost && !isIdentity(transform)) {
+        const original = shownStrokes().map((s) => ({ id: s.id, points: s.points }))
+        if (matchStroke(userPoints, original, baseDiagonal) || coverByCloseness(userPoints, original).byGuide.size > 0) {
+          transform = { ...IDENTITY }
+          pairs = []
+          ;({ match, closeness } = look())
+        }
+      }
 
       const stepAtStart = currentIndex()
       const credit = (id: string, indices: number[]) => {
@@ -172,7 +215,6 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       }
 
       // Every guide point the stroke passed close to counts, if most of the stroke stayed on the guides.
-      const closeness = coverByCloseness(userPoints, candidates)
       const onTheGuides = closeness.onGuides >= config.doneCoverage
       if (onTheGuides) closeness.byGuide.forEach((indices, id) => credit(id, indices))
 
@@ -186,7 +228,11 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
         warning = sizeWarning(match.ghostId, match.user, match.guide)
         // A stroke with zero accuracy is too far off its guide to say where the user is drawing, and a dot or
         // a short tick is too small to say how big the user is drawing.
-        if (match.accuracy > 0 && length(match.guide) >= config.minAdaptLength) adapt(match.guide, match.user)
+        // A stroke that ran along several guides at once can't be paired point by point with the one it matched,
+        // and pairing it anyway would pull the guides away from the user, so it doesn't move them.
+        // ("Ran along" = passed close to at least a quarter of another guide; brushing past its end doesn't count.)
+        const spansGuides = [...closeness.byGuide].some(([id, hits]) => id !== match.ghostId && hits.length >= config.guidePoints / 4)
+        if (match.accuracy > 0 && !spansGuides && length(match.guide) >= config.minAdaptLength) adapt(match.guide, match.user)
         recent.push(match.accuracy)
         if (recent.length > config.autoWindow) recent.shift()
       } else {
@@ -194,8 +240,11 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       }
 
       // Never a dead end: after stepPatience strokes near the same step's guides without finishing it, the
-      // step counts as drawn and the lesson moves on.
-      if (lastAccuracy !== null && currentIndex() === stepAtStart && stepAtStart < lesson.length) {
+      // step counts as drawn and the lesson moves on. "Near" is generous on purpose: a stroke that matched a
+      // guide, touched one, or stayed within scoring distance of them (e.g. one long stroke over several steps'
+      // lines, or a guide shape the matcher can't follow) all count. Only strokes far from every guide don't.
+      const attempted = match !== null || closeness.byGuide.size > 0 || closeness.accuracy > 0
+      if (attempted && currentIndex() === stepAtStart && stepAtStart < lesson.length) {
         if (triesStep !== stepAtStart) {
           triesStep = stepAtStart
           triesOnStep = 0
