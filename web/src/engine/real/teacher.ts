@@ -40,6 +40,10 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   let strokeCount = 0
   let lastChangeAt = 0
   let lastAccuracy: number | null = null
+  const finishedAt = new Map<string, number>()  // plan stroke id -> the stroke count when strokes finished it
+  // A line drawn in several strokes is scored as one line: each guide keeps the length-weighted mean of the
+  // accuracies of the pieces drawn on it, and that mean is what the user sees.
+  const pieces = new Map<string, { sum: number; length: number }>()
   let triesOnStep = 0                        // strokes drawn near the current step's guides without finishing it
   let triesStep = -1                         // which step triesOnStep counts for
 
@@ -184,7 +188,12 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       // The shown guides where they are now (adapted to the user), the stroke's best match among them, and which
       // guide points it passed close to.
       const look = () => {
-        const shown = shownStrokes().map((s) => ({ id: s.id, points: adapted(s.points) }))
+        // Also the guides finished by the last few strokes (no longer shown): the piece that completes a line
+        // drawn in several strokes is judged against that line, not against whatever guide is left.
+        const recent = [...finishedAt].filter(([, at]) => strokeCount - at <= config.finishWindow).map(([id]) => plan.get(id))
+        const shownIds = new Set(shownStrokes().map((s) => s.id))
+        const shown = [...shownStrokes(), ...recent.filter((s): s is PlanStroke => !!s && !shownIds.has(s.id))]
+          .map((s) => ({ id: s.id, points: adapted(s.points) }))
         return {
           match: matchStroke(userPoints, shown, baseDiagonal * transform.scale),
           closeness: coverByCloseness(userPoints, shown),
@@ -206,12 +215,17 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       }
 
       const stepAtStart = currentIndex()
+      // How much of the matched guide was drawn before this stroke (to tell a new piece from a redraw).
+      const coveredBefore = new Set(match ? covered.get(match.ghostId) ?? [] : [])
       const credit = (id: string, indices: number[]) => {
         const traced = covered.get(id) ?? new Set<number>()
         indices.forEach((i) => traced.add(i))
         covered.set(id, traced)
         // The guide is drawn once most of it is covered, by one stroke or several (a long outline in pieces).
-        if (coverageShare(traced, plan.get(id)?.points ?? []) >= config.doneCoverage) done.add(id)
+        if (!done.has(id) && coverageShare(traced, plan.get(id)?.points ?? []) >= config.doneCoverage) {
+          done.add(id)
+          finishedAt.set(id, strokeCount)
+        }
       }
 
       // Every guide point the stroke passed close to counts, if most of the stroke stayed on the guides.
@@ -222,7 +236,17 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       if (match) {
         // A stroke that stays on the guides scores at least that well, even when it spans two of them and so
         // matches neither guide on its own.
-        lastAccuracy = onTheGuides ? Math.max(match.accuracy, closeness.accuracy) : match.accuracy
+        const piece = onTheGuides ? Math.max(match.accuracy, closeness.accuracy) : match.accuracy
+        // The score shown is for the whole line so far (all its pieces, weighted by how much each drew), so one
+        // short wobbly piece of a long line doesn't count as much as the line itself. A stroke that only goes
+        // over what was already drawn is a fresh try at the line, and starts the line's score again.
+        const fillsNew = match.covered.some((i) => !coveredBefore.has(i))
+        const line = (fillsNew && pieces.get(match.ghostId)) || { sum: 0, length: 0 }
+        const drawnLength = Math.max(length(userPoints), 1)
+        line.sum += piece * drawnLength
+        line.length += drawnLength
+        pieces.set(match.ghostId, line)
+        lastAccuracy = line.sum / line.length
         // A good stroke also covers the stretch of the guide it was matched to.
         if (match.accuracy >= config.doneThreshold) credit(match.ghostId, match.covered)
         warning = sizeWarning(match.ghostId, match.user, match.guide)
@@ -233,7 +257,7 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
         // ("Ran along" = passed close to at least a quarter of another guide; brushing past its end doesn't count.)
         const spansGuides = [...closeness.byGuide].some(([id, hits]) => id !== match.ghostId && hits.length >= config.guidePoints / 4)
         if (match.accuracy > 0 && !spansGuides && length(match.guide) >= config.minAdaptLength) adapt(match.guide, match.user)
-        recent.push(match.accuracy)
+        recent.push(match.accuracy) // Auto judges each stroke as drawn, not the pooled score shown for the line
         if (recent.length > config.autoWindow) recent.shift()
       } else {
         lastAccuracy = onTheGuides ? closeness.accuracy : null // matched no guide: no score, no penalty
@@ -250,7 +274,12 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
           triesOnStep = 0
         }
         triesOnStep++
-        if (triesOnStep >= config.stepPatience) lesson[stepAtStart].strokes.forEach((s) => done.add(s.id))
+        if (triesOnStep >= config.stepPatience) {
+          lesson[stepAtStart].strokes.filter((s) => !done.has(s.id)).forEach((s) => {
+            done.add(s.id)
+            finishedAt.set(s.id, strokeCount) // still matchable for a moment, like any guide just finished
+          })
+        }
       }
       autoAdjust()
       const result = state()

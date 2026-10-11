@@ -14,6 +14,8 @@ export const config = {
   coverDistance: 0.035,     // a guide point counts as drawn when a stroke passes this close (of the diagonal),
                             // whichever guide the stroke matched, in whatever direction or however many guides it spans
   stepPatience: 6,          // after this many strokes on one step without finishing it, the lesson moves on
+  finishWindow: 2,          // a guide finished by the last 2 strokes can still be matched, so the piece that
+                            // finishes a line drawn in several strokes is scored against that line
 
   // ---------- teacher (teacher.ts) ----------
   adaptMaxRotationDeg: 10,  // guides may turn at most this much to follow the user
