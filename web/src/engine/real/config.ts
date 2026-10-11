@@ -40,6 +40,7 @@ export const config = {
   // ---------- weaknesses, score, coaching (lesson.ts) ----------
   maxWeaknesses: 3,
   lineWeakBelow: 0.7,       // line confidence under this is reported as a weakness
+  proportionWorstShare: 0,  // 0 = proportion is the mean over parts; 0.5 = half mean, half the worst part
   weightProportion: 40,     // total = 40 * proportion + 35 * shape + 25 * line
   weightShape: 35,
   weightLine: 25,
