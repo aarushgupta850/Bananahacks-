@@ -53,3 +53,173 @@
 .ghost-keypoints circle {
   fill: var(--accent);
 }
+
+/* ---------- paper texture ---------- */
+/* Two faint grids of dots at different sizes read as paper grain without any image file. */
+.canvas-stack {
+  background-color: var(--surface);
+  background-image:
+    radial-gradient(rgb(28 27 25 / 4%) 1px, transparent 1px),
+    radial-gradient(rgb(28 27 25 / 3%) 1px, transparent 1px);
+  background-size: 7px 7px, 13px 13px;
+  background-position: 0 0, 3px 5px;
+}
+
+/* ---------- ghost animations ---------- */
+/* A 'stroke' ghost has pathLength=1, so dasharray 1 + offset 1 hides it and offset 0 shows all of it. */
+.ghost-stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: ghost-draw-on 400ms ease-out;
+}
+
+.ghost-construction,
+.ghost-keypoints {
+  animation: ghost-fade-in 400ms ease-out;
+}
+
+.ghost-layer .is-leaving {
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  animation: ghost-fade-out 200ms ease-out;
+}
+
+@keyframes ghost-draw-on {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes ghost-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ghost-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Reduced motion: ghosts just appear and disappear (global.css also shortens every animation). */
+@media (prefers-reduced-motion: reduce) {
+  .ghost-stroke,
+  .ghost-construction,
+  .ghost-keypoints,
+  .ghost-layer .is-leaving {
+    animation: none;
+  }
+}
+
+/* ---------- toolbar: pen sizes, undo, clear ---------- */
+.canvas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 640px;
+}
+
+.pen-sizes,
+.canvas-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 44px; /* touch target */
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition), background-color var(--transition);
+}
+
+.tool-btn:hover {
+  border-color: var(--ink-muted);
+}
+
+.tool-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The chosen pen gets a thick ring, not only a color change. */
+.tool-btn.is-active {
+  border: 2px solid var(--accent);
+  background: rgb(59 108 255 / 8%);
+}
+
+.pen-dot {
+  display: block;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+@media (max-width: 480px) {
+  .tool-text {
+    display: none; /* icon only on phones; the aria-label still names the button */
+  }
+}
+
+/* ---------- replay ---------- */
+.replay-player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.replay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.replay-controls progress {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--accent);
+}
+
+.replay-speed,
+.replay-empty {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---------- ?debug=canvas page ---------- */
+.demo-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-6);
+}
+
+.canvas-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dev-only {
+  align-self: flex-start;
+}
+
+.btn.dev-only {
+  border: 1px dashed var(--ink-muted);
+}

@@ -115,7 +115,7 @@ img {
   gap: var(--space-5);
   max-width: 1200px;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-5);
+  padding: var(--space-5) var(--space-5) var(--space-7);
 }
 
 .screen-intro {
@@ -185,4 +185,110 @@ dialog::backdrop {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---------- app header: brand and progress ---------- */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-5) 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  margin-left: calc(-1 * var(--space-2));
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.brand:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.stage-track {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-track li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.stage-dot {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.stage-track li.is-done .stage-dot {
+  border-color: var(--success);
+  background: var(--success);
+  color: #fff;
+}
+
+.stage-track li.is-current {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.stage-track li.is-current .stage-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+@media (max-width: 560px) {
+  /* Phones: only the current stage keeps its word; the others are numbers. */
+  .stage-track li:not(.is-current) .stage-label {
+    display: none;
+  }
+}
+
+/* ---------- screen transitions ---------- */
+
+.screen-enter {
+  animation: screen-in 200ms ease-out;
+}
+
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.crash-screen {
+  align-items: flex-start;
 }

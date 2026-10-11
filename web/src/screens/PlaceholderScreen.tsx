@@ -17,10 +17,11 @@ interface PlaceholderScreenProps {
   backLabel?: string
   nextLabel?: string
   extraActions?: ReactNode // more buttons, placed before Next
+  compact?: boolean        // drawing screens: smaller heading so the canvas and buttons fit on a laptop screen
 }
 
 export default function PlaceholderScreen({
-  title, lead, children, onBack, onNext, backLabel = 'Back', nextLabel = 'Next', extraActions,
+  title, lead, children, onBack, onNext, backLabel = 'Back', nextLabel = 'Next', extraActions, compact = false,
 }: PlaceholderScreenProps) {
   // Move focus to the heading on every new screen, so keyboard and screen-reader users start at the top.
   const heading = useRef<HTMLHeadingElement>(null)
@@ -29,7 +30,7 @@ export default function PlaceholderScreen({
   }, [])
 
   return (
-    <section className="screen" aria-labelledby="screen-title">
+    <section className={compact ? 'screen is-compact' : 'screen'} aria-labelledby="screen-title">
       <header className="screen-intro">
         <h1 id="screen-title" ref={heading} tabIndex={-1}>{title}</h1>
         <p className="screen-lead">{lead}</p>
