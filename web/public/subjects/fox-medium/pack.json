@@ -15,20 +15,60 @@
    "id": "head",
    "label": "Head",
    "box": [
-    227,
-    29,
-    299,
-    345
+    228,
+    150,
+    297,
+    215
    ]
   },
   {
-   "id": "eye",
-   "label": "Eye",
+   "id": "body",
+   "label": "Body",
    "box": [
-    410,
-    219,
-    43,
-    33
+    155,
+    295,
+    345,
+    425
+   ]
+  },
+  {
+   "id": "ears",
+   "label": "Ears",
+   "box": [
+    236,
+    28,
+    274,
+    148
+   ]
+  },
+  {
+   "id": "eyes",
+   "label": "Eyes",
+   "box": [
+    262,
+    192,
+    198,
+    98
+   ]
+  },
+  {
+   "id": "legs",
+   "label": "Legs",
+   "box": [
+    255,
+    440,
+    245,
+    282
+   ]
+  },
+  {
+   "id": "tail",
+   "label": "Tail",
+   "box": [
+    490,
+    485,
+    160,
+    202
    ]
   }
  ],
@@ -38,199 +78,199 @@
    "points": [
     [
      376,
-     29
+     150
     ],
     [
      396,
-     30
+     151
     ],
     [
      415,
-     35
+     154
     ],
     [
-     434,
-     42
+     433,
+     158
     ],
     [
      451,
-     52
+     164
     ],
     [
-     468,
-     65
-    ],
-    [
-     482,
-     80
-    ],
-    [
-     495,
-     96
-    ],
-    [
-     506,
-     115
-    ],
-    [
-     515,
-     135
-    ],
-    [
-     521,
-     157
-    ],
-    [
-     525,
-     179
-    ],
-    [
-     526,
-     202
-    ],
-    [
-     525,
-     224
-    ],
-    [
-     521,
-     246
-    ],
-    [
-     515,
-     268
-    ],
-    [
-     506,
-     288
-    ],
-    [
-     495,
-     307
+     467,
+     172
     ],
     [
      482,
+     181
+    ],
+    [
+     494,
+     192
+    ],
+    [
+     505,
+     204
+    ],
+    [
+     514,
+     216
+    ],
+    [
+     520,
+     230
+    ],
+    [
+     524,
+     243
+    ],
+    [
+     525,
+     258
+    ],
+    [
+     524,
+     272
+    ],
+    [
+     520,
+     285
+    ],
+    [
+     514,
+     299
+    ],
+    [
+     505,
+     311
+    ],
+    [
+     494,
      323
     ],
     [
-     468,
-     338
+     482,
+     334
+    ],
+    [
+     467,
+     343
     ],
     [
      451,
      351
     ],
     [
-     434,
-     361
+     433,
+     357
     ],
     [
      415,
-     368
+     361
     ],
     [
      396,
-     373
+     364
     ],
     [
      376,
-     374
+     365
     ],
     [
      357,
-     373
+     364
     ],
     [
      338,
-     368
+     361
     ],
     [
-     319,
-     361
+     320,
+     357
     ],
     [
      302,
      351
     ],
     [
-     285,
-     338
+     286,
+     343
     ],
     [
      271,
+     334
+    ],
+    [
+     259,
      323
     ],
     [
-     258,
-     307
+     248,
+     311
     ],
     [
-     247,
-     288
+     239,
+     299
     ],
     [
-     238,
-     268
+     233,
+     285
     ],
     [
-     232,
-     246
-    ],
-    [
-     228,
-     224
-    ],
-    [
-     227,
-     202
+     229,
+     272
     ],
     [
      228,
-     179
+     258
     ],
     [
-     232,
-     157
+     229,
+     243
     ],
     [
-     238,
-     135
+     233,
+     230
     ],
     [
-     247,
-     115
+     239,
+     216
     ],
     [
-     258,
-     96
+     248,
+     204
+    ],
+    [
+     259,
+     192
     ],
     [
      271,
-     80
+     181
     ],
     [
-     285,
-     65
+     286,
+     172
     ],
     [
      302,
-     52
+     164
     ],
     [
-     319,
-     42
+     320,
+     158
     ],
     [
      338,
-     35
+     154
     ],
     [
      357,
-     30
+     151
     ],
     [
      376,
-     29
+     150
     ]
    ],
    "tier": "construction",
@@ -238,24 +278,245 @@
    "keyPoints": [
     [
      376,
-     29
+     150
     ],
     [
-     526,
-     202
+     525,
+     258
     ],
     [
      376,
-     374
+     365
     ],
     [
-     227,
-     202
+     228,
+     258
     ]
    ]
   },
   {
-   "id": "s-2",
+   "id": "c-body",
+   "points": [
+    [
+     328,
+     295
+    ],
+    [
+     350,
+     297
+    ],
+    [
+     372,
+     302
+    ],
+    [
+     394,
+     311
+    ],
+    [
+     414,
+     323
+    ],
+    [
+     433,
+     339
+    ],
+    [
+     449,
+     357
+    ],
+    [
+     464,
+     378
+    ],
+    [
+     477,
+     401
+    ],
+    [
+     487,
+     426
+    ],
+    [
+     494,
+     453
+    ],
+    [
+     499,
+     480
+    ],
+    [
+     500,
+     508
+    ],
+    [
+     499,
+     535
+    ],
+    [
+     494,
+     562
+    ],
+    [
+     487,
+     589
+    ],
+    [
+     477,
+     614
+    ],
+    [
+     464,
+     637
+    ],
+    [
+     449,
+     658
+    ],
+    [
+     433,
+     676
+    ],
+    [
+     414,
+     692
+    ],
+    [
+     394,
+     704
+    ],
+    [
+     372,
+     713
+    ],
+    [
+     350,
+     718
+    ],
+    [
+     328,
+     720
+    ],
+    [
+     305,
+     718
+    ],
+    [
+     283,
+     713
+    ],
+    [
+     261,
+     704
+    ],
+    [
+     241,
+     692
+    ],
+    [
+     222,
+     676
+    ],
+    [
+     206,
+     658
+    ],
+    [
+     191,
+     637
+    ],
+    [
+     178,
+     614
+    ],
+    [
+     168,
+     589
+    ],
+    [
+     161,
+     562
+    ],
+    [
+     156,
+     535
+    ],
+    [
+     155,
+     508
+    ],
+    [
+     156,
+     480
+    ],
+    [
+     161,
+     453
+    ],
+    [
+     168,
+     426
+    ],
+    [
+     178,
+     401
+    ],
+    [
+     191,
+     378
+    ],
+    [
+     206,
+     357
+    ],
+    [
+     222,
+     339
+    ],
+    [
+     241,
+     323
+    ],
+    [
+     261,
+     311
+    ],
+    [
+     283,
+     302
+    ],
+    [
+     305,
+     297
+    ],
+    [
+     328,
+     295
+    ]
+   ],
+   "tier": "construction",
+   "partId": "body",
+   "keyPoints": [
+    [
+     328,
+     295
+    ],
+    [
+     500,
+     508
+    ],
+    [
+     328,
+     720
+    ],
+    [
+     155,
+     508
+    ]
+   ]
+  },
+  {
+   "id": "s-3",
    "points": [
     [
      491,
@@ -316,7 +577,301 @@
    ]
   },
   {
-   "id": "s-3",
+   "id": "s-4",
+   "points": [
+    [
+     335,
+     671
+    ],
+    [
+     324,
+     662
+    ],
+    [
+     290,
+     663
+    ],
+    [
+     267,
+     670
+    ],
+    [
+     259,
+     679
+    ],
+    [
+     209,
+     680
+    ],
+    [
+     200,
+     678
+    ],
+    [
+     181,
+     668
+    ],
+    [
+     167,
+     654
+    ],
+    [
+     159,
+     641
+    ],
+    [
+     157,
+     615
+    ],
+    [
+     160,
+     581
+    ],
+    [
+     165,
+     564
+    ],
+    [
+     179,
+     541
+    ],
+    [
+     198,
+     521
+    ],
+    [
+     211,
+     513
+    ],
+    [
+     270,
+     501
+    ]
+   ],
+   "tier": "outline",
+   "partId": "body",
+   "keyPoints": [
+    [
+     335,
+     671
+    ],
+    [
+     270,
+     501
+    ],
+    [
+     259,
+     679
+    ]
+   ]
+  },
+  {
+   "id": "s-5",
+   "points": [
+    [
+     384,
+     694
+    ],
+    [
+     405,
+     694
+    ]
+   ],
+   "tier": "outline",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     384,
+     694
+    ],
+    [
+     405,
+     694
+    ]
+   ]
+  },
+  {
+   "id": "s-6",
+   "points": [
+    [
+     406,
+     694
+    ],
+    [
+     410,
+     709
+    ],
+    [
+     417,
+     713
+    ],
+    [
+     422,
+     713
+    ]
+   ],
+   "tier": "outline",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     406,
+     694
+    ],
+    [
+     422,
+     713
+    ],
+    [
+     410,
+     709
+    ]
+   ]
+  },
+  {
+   "id": "s-7",
+   "points": [
+    [
+     423,
+     713
+    ],
+    [
+     429,
+     716
+    ],
+    [
+     441,
+     716
+    ],
+    [
+     457,
+     714
+    ],
+    [
+     470,
+     707
+    ],
+    [
+     478,
+     710
+    ],
+    [
+     495,
+     711
+    ],
+    [
+     512,
+     709
+    ],
+    [
+     517,
+     706
+    ]
+   ],
+   "tier": "outline",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     423,
+     713
+    ],
+    [
+     517,
+     706
+    ],
+    [
+     470,
+     707
+    ]
+   ]
+  },
+  {
+   "id": "s-8",
+   "points": [
+    [
+     271,
+     706
+    ],
+    [
+     276,
+     711
+    ],
+    [
+     281,
+     712
+    ],
+    [
+     304,
+     712
+    ],
+    [
+     310,
+     709
+    ],
+    [
+     323,
+     708
+    ],
+    [
+     335,
+     715
+    ],
+    [
+     352,
+     717
+    ],
+    [
+     363,
+     715
+    ]
+   ],
+   "tier": "outline",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     271,
+     706
+    ],
+    [
+     363,
+     715
+    ]
+   ]
+  },
+  {
+   "id": "s-9",
+   "points": [
+    [
+     259,
+     679
+    ],
+    [
+     260,
+     698
+    ],
+    [
+     265,
+     705
+    ],
+    [
+     271,
+     706
+    ]
+   ],
+   "tier": "outline",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     259,
+     679
+    ],
+    [
+     271,
+     706
+    ]
+   ]
+  },
+  {
+   "id": "s-10",
    "points": [
     [
      236,
@@ -488,7 +1043,7 @@
     ]
    ],
    "tier": "outline",
-   "partId": "head",
+   "partId": "ears",
    "keyPoints": [
     [
      236,
@@ -525,121 +1080,7 @@
    ]
   },
   {
-   "id": "s-4",
-   "points": [
-    [
-     335,
-     671
-    ],
-    [
-     324,
-     662
-    ],
-    [
-     290,
-     663
-    ],
-    [
-     267,
-     670
-    ],
-    [
-     259,
-     679
-    ],
-    [
-     209,
-     680
-    ],
-    [
-     200,
-     678
-    ],
-    [
-     181,
-     668
-    ],
-    [
-     167,
-     654
-    ],
-    [
-     159,
-     641
-    ],
-    [
-     157,
-     615
-    ],
-    [
-     160,
-     581
-    ],
-    [
-     165,
-     564
-    ],
-    [
-     179,
-     541
-    ],
-    [
-     198,
-     521
-    ],
-    [
-     211,
-     513
-    ],
-    [
-     270,
-     501
-    ]
-   ],
-   "tier": "outline",
-   "partId": null,
-   "keyPoints": [
-    [
-     335,
-     671
-    ],
-    [
-     270,
-     501
-    ],
-    [
-     259,
-     679
-    ]
-   ]
-  },
-  {
-   "id": "s-5",
-   "points": [
-    [
-     384,
-     694
-    ],
-    [
-     405,
-     694
-    ]
-   ],
-   "tier": "outline",
-   "partId": null,
-   "keyPoints": [
-    [
-     384,
-     694
-    ],
-    [
-     405,
-     694
-    ]
-   ]
-  },
-  {
-   "id": "s-6",
+   "id": "s-11",
    "points": [
     [
      598,
@@ -683,7 +1124,7 @@
     ]
    ],
    "tier": "outline",
-   "partId": null,
+   "partId": "tail",
    "keyPoints": [
     [
      598,
@@ -700,101 +1141,7 @@
    ]
   },
   {
-   "id": "s-7",
-   "points": [
-    [
-     406,
-     694
-    ],
-    [
-     410,
-     709
-    ],
-    [
-     417,
-     713
-    ],
-    [
-     422,
-     713
-    ]
-   ],
-   "tier": "outline",
-   "partId": null,
-   "keyPoints": [
-    [
-     406,
-     694
-    ],
-    [
-     422,
-     713
-    ],
-    [
-     410,
-     709
-    ]
-   ]
-  },
-  {
-   "id": "s-8",
-   "points": [
-    [
-     423,
-     713
-    ],
-    [
-     429,
-     716
-    ],
-    [
-     441,
-     716
-    ],
-    [
-     457,
-     714
-    ],
-    [
-     470,
-     707
-    ],
-    [
-     478,
-     710
-    ],
-    [
-     495,
-     711
-    ],
-    [
-     512,
-     709
-    ],
-    [
-     517,
-     706
-    ]
-   ],
-   "tier": "outline",
-   "partId": null,
-   "keyPoints": [
-    [
-     423,
-     713
-    ],
-    [
-     517,
-     706
-    ],
-    [
-     470,
-     707
-    ]
-   ]
-  },
-  {
-   "id": "s-9",
+   "id": "s-12",
    "points": [
     [
      529,
@@ -831,93 +1178,7 @@
    ]
   },
   {
-   "id": "s-10",
-   "points": [
-    [
-     271,
-     706
-    ],
-    [
-     276,
-     711
-    ],
-    [
-     281,
-     712
-    ],
-    [
-     304,
-     712
-    ],
-    [
-     310,
-     709
-    ],
-    [
-     323,
-     708
-    ],
-    [
-     335,
-     715
-    ],
-    [
-     352,
-     717
-    ],
-    [
-     363,
-     715
-    ]
-   ],
-   "tier": "outline",
-   "partId": null,
-   "keyPoints": [
-    [
-     271,
-     706
-    ],
-    [
-     363,
-     715
-    ]
-   ]
-  },
-  {
-   "id": "s-11",
-   "points": [
-    [
-     259,
-     679
-    ],
-    [
-     260,
-     698
-    ],
-    [
-     265,
-     705
-    ],
-    [
-     271,
-     706
-    ]
-   ],
-   "tier": "outline",
-   "partId": null,
-   "keyPoints": [
-    [
-     259,
-     679
-    ],
-    [
-     271,
-     706
-    ]
-   ]
-  },
-  {
-   "id": "s-12",
+   "id": "s-13",
    "points": [
     [
      377,
@@ -1018,7 +1279,7 @@
    ]
   },
   {
-   "id": "s-13",
+   "id": "s-14",
    "points": [
     [
      509,
@@ -1111,7 +1372,7 @@
    ]
   },
   {
-   "id": "s-14",
+   "id": "s-15",
    "points": [
     [
      244,
@@ -1272,7 +1533,7 @@
    ]
   },
   {
-   "id": "s-15",
+   "id": "s-16",
    "points": [
     [
      507,
@@ -1305,7 +1566,7 @@
    ]
   },
   {
-   "id": "s-16",
+   "id": "s-17",
    "points": [
     [
      237,
@@ -1350,145 +1611,7 @@
    ]
   },
   {
-   "id": "s-17",
-   "points": [
-    [
-     256,
-     169
-    ],
-    [
-     262,
-     163
-    ],
-    [
-     268,
-     151
-    ],
-    [
-     273,
-     147
-    ],
-    [
-     275,
-     141
-    ],
-    [
-     306,
-     122
-    ],
-    [
-     304,
-     103
-    ],
-    [
-     294,
-     81
-    ],
-    [
-     275,
-     63
-    ],
-    [
-     264,
-     60
-    ],
-    [
-     260,
-     66
-    ],
-    [
-     262,
-     126
-    ],
-    [
-     268,
-     150
-    ]
-   ],
-   "tier": "structure",
-   "partId": "head",
-   "keyPoints": [
-    [
-     256,
-     169
-    ],
-    [
-     268,
-     150
-    ],
-    [
-     264,
-     60
-    ],
-    [
-     306,
-     122
-    ]
-   ]
-  },
-  {
    "id": "s-18",
-   "points": [
-    [
-     434,
-     221
-    ],
-    [
-     447,
-     224
-    ],
-    [
-     450,
-     227
-    ],
-    [
-     447,
-     239
-    ],
-    [
-     435,
-     248
-    ],
-    [
-     417,
-     247
-    ],
-    [
-     413,
-     240
-    ],
-    [
-     417,
-     229
-    ],
-    [
-     425,
-     223
-    ],
-    [
-     434,
-     221
-    ]
-   ],
-   "tier": "structure",
-   "partId": "eye",
-   "keyPoints": [
-    [
-     450,
-     227
-    ],
-    [
-     417,
-     247
-    ],
-    [
-     413,
-     240
-    ]
-   ]
-  },
-  {
-   "id": "s-19",
    "points": [
     [
      458,
@@ -1524,7 +1647,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "body",
    "keyPoints": [
     [
      458,
@@ -1541,7 +1664,7 @@
    ]
   },
   {
-   "id": "s-20",
+   "id": "s-19",
    "points": [
     [
      268,
@@ -1601,7 +1724,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "body",
    "keyPoints": [
     [
      268,
@@ -1618,7 +1741,7 @@
    ]
   },
   {
-   "id": "s-21",
+   "id": "s-20",
    "points": [
     [
      471,
@@ -1682,7 +1805,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "body",
    "keyPoints": [
     [
      471,
@@ -1699,7 +1822,7 @@
    ]
   },
   {
-   "id": "s-22",
+   "id": "s-21",
    "points": [
     [
      291,
@@ -1751,7 +1874,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "body",
    "keyPoints": [
     [
      291,
@@ -1764,6 +1887,51 @@
     [
      369,
      524
+    ]
+   ]
+  },
+  {
+   "id": "s-22",
+   "points": [
+    [
+     220,
+     513
+    ],
+    [
+     219,
+     520
+    ],
+    [
+     211,
+     535
+    ],
+    [
+     200,
+     549
+    ],
+    [
+     181,
+     567
+    ],
+    [
+     173,
+     572
+    ],
+    [
+     165,
+     573
+    ]
+   ],
+   "tier": "structure",
+   "partId": "body",
+   "keyPoints": [
+    [
+     220,
+     513
+    ],
+    [
+     165,
+     573
     ]
    ]
   },
@@ -1804,7 +1972,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "legs",
    "keyPoints": [
     [
      441,
@@ -1818,67 +1986,6 @@
   },
   {
    "id": "s-24",
-   "points": [
-    [
-     497,
-     490
-    ],
-    [
-     513,
-     494
-    ],
-    [
-     534,
-     506
-    ],
-    [
-     552,
-     526
-    ],
-    [
-     560,
-     541
-    ],
-    [
-     563,
-     554
-    ],
-    [
-     563,
-     569
-    ],
-    [
-     557,
-     594
-    ],
-    [
-     545,
-     624
-    ],
-    [
-     522,
-     668
-    ]
-   ],
-   "tier": "structure",
-   "partId": null,
-   "keyPoints": [
-    [
-     497,
-     490
-    ],
-    [
-     522,
-     668
-    ],
-    [
-     563,
-     554
-    ]
-   ]
-  },
-  {
-   "id": "s-25",
    "points": [
     [
      322,
@@ -1922,7 +2029,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "legs",
    "keyPoints": [
     [
      322,
@@ -1939,7 +2046,7 @@
    ]
   },
   {
-   "id": "s-26",
+   "id": "s-25",
    "points": [
     [
      480,
@@ -1967,7 +2074,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "legs",
    "keyPoints": [
     [
      480,
@@ -1984,7 +2091,7 @@
    ]
   },
   {
-   "id": "s-27",
+   "id": "s-26",
    "points": [
     [
      282,
@@ -2020,7 +2127,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "legs",
    "keyPoints": [
     [
      282,
@@ -2037,47 +2144,140 @@
    ]
   },
   {
-   "id": "s-28",
+   "id": "s-27",
    "points": [
     [
-     220,
-     513
+     256,
+     169
     ],
     [
-     219,
-     520
+     262,
+     163
     ],
     [
-     211,
-     535
+     268,
+     151
     ],
     [
-     200,
-     549
+     273,
+     147
     ],
     [
-     181,
-     567
+     275,
+     141
     ],
     [
-     173,
-     572
+     306,
+     122
     ],
     [
-     165,
-     573
+     304,
+     103
+    ],
+    [
+     294,
+     81
+    ],
+    [
+     275,
+     63
+    ],
+    [
+     264,
+     60
+    ],
+    [
+     260,
+     66
+    ],
+    [
+     262,
+     126
+    ],
+    [
+     268,
+     150
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "ears",
    "keyPoints": [
     [
-     220,
-     513
+     256,
+     169
     ],
     [
-     165,
-     573
+     268,
+     150
+    ],
+    [
+     264,
+     60
+    ],
+    [
+     306,
+     122
+    ]
+   ]
+  },
+  {
+   "id": "s-28",
+   "points": [
+    [
+     497,
+     490
+    ],
+    [
+     513,
+     494
+    ],
+    [
+     534,
+     506
+    ],
+    [
+     552,
+     526
+    ],
+    [
+     560,
+     541
+    ],
+    [
+     563,
+     554
+    ],
+    [
+     563,
+     569
+    ],
+    [
+     557,
+     594
+    ],
+    [
+     545,
+     624
+    ],
+    [
+     522,
+     668
+    ]
+   ],
+   "tier": "structure",
+   "partId": "tail",
+   "keyPoints": [
+    [
+     497,
+     490
+    ],
+    [
+     522,
+     668
+    ],
+    [
+     563,
+     554
     ]
    ]
   },
@@ -2134,7 +2334,7 @@
     ]
    ],
    "tier": "structure",
-   "partId": null,
+   "partId": "tail",
    "keyPoints": [
     [
      600,
@@ -2166,6 +2366,279 @@
    "id": "s-30",
    "points": [
     [
+     434,
+     221
+    ],
+    [
+     447,
+     224
+    ],
+    [
+     450,
+     227
+    ],
+    [
+     447,
+     239
+    ],
+    [
+     435,
+     248
+    ],
+    [
+     417,
+     247
+    ],
+    [
+     413,
+     240
+    ],
+    [
+     417,
+     229
+    ],
+    [
+     425,
+     223
+    ],
+    [
+     434,
+     221
+    ]
+   ],
+   "tier": "structure",
+   "partId": "eyes",
+   "keyPoints": [
+    [
+     450,
+     227
+    ],
+    [
+     417,
+     247
+    ],
+    [
+     413,
+     240
+    ]
+   ]
+  },
+  {
+   "id": "s-31",
+   "points": [
+    [
+     428,
+     685
+    ],
+    [
+     424,
+     693
+    ],
+    [
+     423,
+     712
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     428,
+     685
+    ],
+    [
+     423,
+     712
+    ]
+   ]
+  },
+  {
+   "id": "s-32",
+   "points": [
+    [
+     487,
+     675
+    ],
+    [
+     489,
+     683
+    ],
+    [
+     488,
+     709
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     487,
+     675
+    ],
+    [
+     488,
+     709
+    ]
+   ]
+  },
+  {
+   "id": "s-33",
+   "points": [
+    [
+     443,
+     683
+    ],
+    [
+     443,
+     714
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     443,
+     683
+    ],
+    [
+     443,
+     714
+    ]
+   ]
+  },
+  {
+   "id": "s-34",
+   "points": [
+    [
+     363,
+     685
+    ],
+    [
+     363,
+     714
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     363,
+     685
+    ],
+    [
+     363,
+     714
+    ]
+   ]
+  },
+  {
+   "id": "s-35",
+   "points": [
+    [
+     349,
+     683
+    ],
+    [
+     347,
+     715
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     349,
+     683
+    ],
+    [
+     347,
+     715
+    ]
+   ]
+  },
+  {
+   "id": "s-36",
+   "points": [
+    [
+     307,
+     681
+    ],
+    [
+     308,
+     709
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     307,
+     681
+    ],
+    [
+     308,
+     709
+    ]
+   ]
+  },
+  {
+   "id": "s-37",
+   "points": [
+    [
+     292,
+     673
+    ],
+    [
+     290,
+     711
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     292,
+     673
+    ],
+    [
+     290,
+     711
+    ]
+   ]
+  },
+  {
+   "id": "s-38",
+   "points": [
+    [
+     274,
+     675
+    ],
+    [
+     273,
+     704
+    ],
+    [
+     271,
+     706
+    ]
+   ],
+   "tier": "detail",
+   "partId": "legs",
+   "keyPoints": [
+    [
+     274,
+     675
+    ],
+    [
+     271,
+     706
+    ]
+   ]
+  },
+  {
+   "id": "s-39",
+   "points": [
+    [
      488,
      126
     ],
@@ -2175,7 +2648,7 @@
     ]
    ],
    "tier": "detail",
-   "partId": "head",
+   "partId": "ears",
    "keyPoints": [
     [
      488,
@@ -2188,7 +2661,7 @@
    ]
   },
   {
-   "id": "s-31",
+   "id": "s-40",
    "points": [
     [
      264,
@@ -2208,7 +2681,7 @@
     ]
    ],
    "tier": "detail",
-   "partId": "head",
+   "partId": "ears",
    "keyPoints": [
     [
      264,
@@ -2225,7 +2698,7 @@
    ]
   },
   {
-   "id": "s-32",
+   "id": "s-41",
    "points": [
     [
      427,
@@ -2245,7 +2718,7 @@
     ]
    ],
    "tier": "detail",
-   "partId": "head",
+   "partId": "ears",
    "keyPoints": [
     [
      427,
@@ -2262,7 +2735,7 @@
    ]
   },
   {
-   "id": "s-33",
+   "id": "s-42",
    "points": [
     [
      324,
@@ -2278,7 +2751,7 @@
     ]
    ],
    "tier": "detail",
-   "partId": "head",
+   "partId": "ears",
    "keyPoints": [
     [
      324,
@@ -2291,264 +2764,52 @@
    ]
   },
   {
-   "id": "s-34",
-   "points": [
-    [
-     428,
-     685
-    ],
-    [
-     424,
-     693
-    ],
-    [
-     423,
-     712
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     428,
-     685
-    ],
-    [
-     423,
-     712
-    ]
-   ]
-  },
-  {
-   "id": "s-35",
-   "points": [
-    [
-     487,
-     675
-    ],
-    [
-     489,
-     683
-    ],
-    [
-     488,
-     709
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     487,
-     675
-    ],
-    [
-     488,
-     709
-    ]
-   ]
-  },
-  {
-   "id": "s-36",
-   "points": [
-    [
-     443,
-     683
-    ],
-    [
-     443,
-     714
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     443,
-     683
-    ],
-    [
-     443,
-     714
-    ]
-   ]
-  },
-  {
-   "id": "s-37",
-   "points": [
-    [
-     363,
-     685
-    ],
-    [
-     363,
-     714
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     363,
-     685
-    ],
-    [
-     363,
-     714
-    ]
-   ]
-  },
-  {
-   "id": "s-38",
-   "points": [
-    [
-     349,
-     683
-    ],
-    [
-     347,
-     715
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     349,
-     683
-    ],
-    [
-     347,
-     715
-    ]
-   ]
-  },
-  {
-   "id": "s-39",
-   "points": [
-    [
-     502,
-     675
-    ],
-    [
-     504,
-     708
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     502,
-     675
-    ],
-    [
-     504,
-     708
-    ]
-   ]
-  },
-  {
-   "id": "s-40",
-   "points": [
-    [
-     307,
-     681
-    ],
-    [
-     308,
-     709
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     307,
-     681
-    ],
-    [
-     308,
-     709
-    ]
-   ]
-  },
-  {
-   "id": "s-41",
-   "points": [
-    [
-     516,
-     673
-    ],
-    [
-     517,
-     705
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     516,
-     673
-    ],
-    [
-     517,
-     705
-    ]
-   ]
-  },
-  {
-   "id": "s-42",
-   "points": [
-    [
-     292,
-     673
-    ],
-    [
-     290,
-     711
-    ]
-   ],
-   "tier": "detail",
-   "partId": null,
-   "keyPoints": [
-    [
-     292,
-     673
-    ],
-    [
-     290,
-     711
-    ]
-   ]
-  },
-  {
    "id": "s-43",
    "points": [
     [
-     274,
+     502,
      675
     ],
     [
-     273,
-     704
-    ],
-    [
-     271,
-     706
+     504,
+     708
     ]
    ],
    "tier": "detail",
    "partId": null,
    "keyPoints": [
     [
-     274,
+     502,
      675
     ],
     [
-     271,
-     706
+     504,
+     708
+    ]
+   ]
+  },
+  {
+   "id": "s-44",
+   "points": [
+    [
+     516,
+     673
+    ],
+    [
+     517,
+     705
+    ]
+   ],
+   "tier": "detail",
+   "partId": null,
+   "keyPoints": [
+    [
+     516,
+     673
+    ],
+    [
+     517,
+     705
     ]
    ]
   }
@@ -2557,7 +2818,7 @@
   {
    "id": "step-1",
    "label": "Block in the head",
-   "tip": "Keep the head about 50% of the drawing height.",
+   "tip": "Keep the head about 31% of the drawing height.",
    "tier": "construction",
    "strokeIds": [
     "c-head"
@@ -2565,84 +2826,124 @@
   },
   {
    "id": "step-2",
-   "label": "Outline the head",
-   "tip": "Follow the outer edge in smooth, confident strokes.",
-   "tier": "outline",
+   "label": "Block in the body",
+   "tip": "Keep the body about 62% of the drawing height.",
+   "tier": "construction",
    "strokeIds": [
-    "s-2",
-    "s-3"
+    "c-body"
    ]
   },
   {
    "id": "step-3",
-   "label": "Outline the shape",
+   "label": "Outline the head",
    "tip": "Follow the outer edge in smooth, confident strokes.",
    "tier": "outline",
    "strokeIds": [
-    "s-4",
-    "s-5",
-    "s-6",
-    "s-7"
+    "s-3"
    ]
   },
   {
    "id": "step-4",
-   "label": "Outline the shape (continued)",
+   "label": "Outline the body",
    "tip": "Follow the outer edge in smooth, confident strokes.",
    "tier": "outline",
    "strokeIds": [
-    "s-8",
-    "s-9",
-    "s-10",
-    "s-11"
+    "s-4"
    ]
   },
   {
    "id": "step-5",
-   "label": "Add the head",
-   "tip": "Place the big inner lines before any small details.",
-   "tier": "structure",
+   "label": "Outline the legs",
+   "tip": "Keep the legs about 41% of the drawing height.",
+   "tier": "outline",
    "strokeIds": [
-    "s-12",
-    "s-13",
-    "s-14",
-    "s-15"
+    "s-5",
+    "s-6",
+    "s-7",
+    "s-8"
    ]
   },
   {
    "id": "step-6",
-   "label": "Add the head (continued)",
-   "tip": "Place the big inner lines before any small details.",
-   "tier": "structure",
+   "label": "Outline the legs (continued)",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
    "strokeIds": [
-    "s-16",
-    "s-17"
+    "s-9"
    ]
   },
   {
    "id": "step-7",
-   "label": "Add the eye",
-   "tip": "Keep the eye about 5% of the drawing height.",
-   "tier": "structure",
+   "label": "Outline the ears",
+   "tip": "Keep the ears about 22% of the drawing height.",
+   "tier": "outline",
    "strokeIds": [
-    "s-18"
+    "s-10"
    ]
   },
   {
    "id": "step-8",
-   "label": "Add the inner lines",
-   "tip": "Place the big inner lines before any small details.",
-   "tier": "structure",
+   "label": "Outline the tail",
+   "tip": "Keep the tail about 29% of the drawing height.",
+   "tier": "outline",
    "strokeIds": [
-    "s-19",
-    "s-20",
-    "s-21",
-    "s-22"
+    "s-11"
    ]
   },
   {
    "id": "step-9",
-   "label": "Add the inner lines (continued)",
+   "label": "Outline the shape",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-12"
+   ]
+  },
+  {
+   "id": "step-10",
+   "label": "Add the head",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-13",
+    "s-14",
+    "s-15",
+    "s-16"
+   ]
+  },
+  {
+   "id": "step-11",
+   "label": "Add the head (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-17"
+   ]
+  },
+  {
+   "id": "step-12",
+   "label": "Add the body",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-18",
+    "s-19",
+    "s-20",
+    "s-21"
+   ]
+  },
+  {
+   "id": "step-13",
+   "label": "Add the body (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-22"
+   ]
+  },
+  {
+   "id": "step-14",
+   "label": "Add the legs",
    "tip": "Place the big inner lines before any small details.",
    "tier": "structure",
    "strokeIds": [
@@ -2653,60 +2954,77 @@
    ]
   },
   {
-   "id": "step-10",
-   "label": "Add the inner lines (continued)",
+   "id": "step-15",
+   "label": "Add the ears",
    "tip": "Place the big inner lines before any small details.",
    "tier": "structure",
    "strokeIds": [
-    "s-27",
+    "s-27"
+   ]
+  },
+  {
+   "id": "step-16",
+   "label": "Add the tail",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
     "s-28",
     "s-29"
    ]
   },
   {
-   "id": "step-11",
-   "label": "Add the head",
-   "tip": "Press lightly and match the angle of the guide.",
-   "tier": "detail",
+   "id": "step-17",
+   "label": "Add the eyes",
+   "tip": "Keep the eyes about 14% of the drawing height.",
+   "tier": "structure",
    "strokeIds": [
-    "s-30",
-    "s-31",
-    "s-32",
-    "s-33"
+    "s-30"
    ]
   },
   {
-   "id": "step-12",
+   "id": "step-18",
+   "label": "Add the legs",
+   "tip": "Press lightly and match the angle of the guide.",
+   "tier": "detail",
+   "strokeIds": [
+    "s-31",
+    "s-32",
+    "s-33",
+    "s-34"
+   ]
+  },
+  {
+   "id": "step-19",
+   "label": "Add the legs (continued)",
+   "tip": "Press lightly and match the angle of the guide.",
+   "tier": "detail",
+   "strokeIds": [
+    "s-35",
+    "s-36",
+    "s-37",
+    "s-38"
+   ]
+  },
+  {
+   "id": "step-20",
+   "label": "Add the ears",
+   "tip": "Press lightly and match the angle of the guide.",
+   "tier": "detail",
+   "strokeIds": [
+    "s-39",
+    "s-40",
+    "s-41",
+    "s-42"
+   ]
+  },
+  {
+   "id": "step-21",
    "label": "Add the details",
    "tip": "Press lightly and match the angle of the guide.",
    "tier": "detail",
    "strokeIds": [
-    "s-34",
-    "s-35",
-    "s-36",
-    "s-37"
-   ]
-  },
-  {
-   "id": "step-13",
-   "label": "Add the details (continued)",
-   "tip": "Press lightly and match the angle of the guide.",
-   "tier": "detail",
-   "strokeIds": [
-    "s-38",
-    "s-39",
-    "s-40",
-    "s-41"
-   ]
-  },
-  {
-   "id": "step-14",
-   "label": "Add the details (continued)",
-   "tip": "Press lightly and match the angle of the guide.",
-   "tier": "detail",
-   "strokeIds": [
-    "s-42",
-    "s-43"
+    "s-43",
+    "s-44"
    ]
   }
  ],
@@ -2743,12 +3061,12 @@
    "id": "parts",
    "label": "Parts found",
    "image": "pipeline/parts.webp",
-   "text": "OWLv2 found: head, eye."
+   "text": "OWLv2 found: head, body, ears, eyes, legs, tail."
   },
   {
    "id": "order",
    "label": "Your lesson",
-   "text": "43 strokes in 14 steps: big shapes first, then outlines, inner lines and details."
+   "text": "44 strokes in 21 steps: big shapes first, then outlines, inner lines and details."
   }
  ]
 }
