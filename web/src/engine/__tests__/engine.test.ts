@@ -14,9 +14,15 @@ describe('engine switch', () => {
     info.mockRestore()
   })
 
-  it('has the real engine hand every call to the mock for now', () => {
+  it('has a complete real engine that no longer uses the mock', () => {
     for (const method of METHODS) expect(typeof realEngine[method]).toBe('function')
-    const analysis = realEngine.analyze(foxPack, drawing(99))
-    expect(realEngine.score(analysis)).toEqual(mockEngine.score(analysis))
+    // The mock never aligns strokes; the real engine moves them into the target's frame.
+    const strokes = drawing(99)
+    const analysis = realEngine.analyze(foxPack, strokes)
+    expect(analysis.alignedStrokes).toHaveLength(strokes.length)
+    expect(analysis.alignedStrokes).not.toEqual(mockEngine.analyze(foxPack, strokes).alignedStrokes)
+    const { total } = realEngine.score(analysis)
+    expect(total).toBeGreaterThanOrEqual(0)
+    expect(total).toBeLessThanOrEqual(100)
   })
 })
