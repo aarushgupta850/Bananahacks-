@@ -1,0 +1,8 @@
+[
+  {"id": "head", "label": "Head", "box": [190, 55, 200, 140]},
+  {"id": "body", "label": "Body", "box": [190, 140, 340, 380]},
+  {"id": "beak", "label": "Beak", "box": [150, 88, 120, 45]},
+  {"id": "wing", "label": "Wing", "box": [335, 205, 210, 255]},
+  {"id": "tail", "label": "Tail", "box": [440, 420, 150, 250]},
+  {"id": "legs", "label": "Legs", "box": [215, 450, 225, 265]}
+]

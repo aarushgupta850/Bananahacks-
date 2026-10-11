@@ -299,7 +299,9 @@ def build(args: argparse.Namespace, generate=None, detect=None, subjects_dir: Pa
         from pipeline.parts import detect_parts
 
         def detect(image):
-            return detect_parts(image, subject_words, pack_id)
+            # Parts are named after the subject id, not the prompt, so a reworded prompt ("a simple house")
+            # still looks for the house's parts (roof, door, ...).
+            return detect_parts(image, args.subject.replace("-", " "), pack_id)
 
     try:
         # Everything is built and checked against the schema before anything is written.
