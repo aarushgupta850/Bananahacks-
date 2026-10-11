@@ -8,7 +8,7 @@ Keep each prompt short: SDXL's text encoders read at most 77 tokens and silently
 """
 
 VARIANTS = {
-    # The first prompt we tried. It gave a detailed, hatched fox portrait with a decorative frame.
+    # The first prompt we tried. It gave detailed, hatched portraits with decorative frames.
     "baseline": (
         "simple black ink line drawing of {subject}, clean continuous outlines, "
         "minimal line art, coloring book page, plain white background, "
@@ -24,15 +24,23 @@ VARIANTS = {
         "very simple coloring page for young children, {subject}, whole body, side view, "
         "a few thick black outlines, no fur, no hatching, no texture, no frame, no background, white paper"
     ),
-    # Icon style tends to give bold, uniform, closed outlines.
+    # Icon style: bold, uniform, closed outlines. Clearly the cleanest in the first speed test
+    # (mean score 106 vs 850+ for the others, over 8 subjects).
     "icon": (
         "minimalist line icon of {subject}, whole body, bold uniform black outline, flat, "
         "very few lines, no details, no shading, no fill, isolated on plain white background"
     ),
+    # "icon" plus fixes for what the first speed test showed it still does sometimes:
+    # brand logos (a swoosh on every sneaker), garbled text, solid black areas and head-only busts.
+    "icon_clean": (
+        "minimalist line icon of {subject}, full body, bold uniform black outline only, flat, "
+        "very few lines, no details, no shading, no solid black areas, no text, no logo, "
+        "isolated on plain white background"
+    ),
 }
 
 # The variant the pipeline uses. Set from the speed test results (see server/SPEEDTEST.md).
-CHOSEN = "baseline"
+CHOSEN = "icon"
 
 
 def line_art_prompt(subject: str, variant: str = CHOSEN) -> str:

@@ -3,6 +3,7 @@
 Run from the repo root, with server/.venv active, after download_models.py has finished:
     python server/scripts/speedtest.py                                  # all stages, "a fox"
     python server/scripts/speedtest.py --subjects "a fox,a mug,a house" --seeds 2
+    python server/scripts/speedtest.py --variants icon,icon_clean --stages text,parts   # adds to earlier runs
     python server/scripts/speedtest.py --stages photo --photo-subject "a mug"   # just the photo test
 
 Stages (images go to server/out/speedtest/, which is not committed):
@@ -12,7 +13,7 @@ Stages (images go to server/out/speedtest/, which is not committed):
   photo  Photo to line art: controlnet_aux's LineartDetector pulls the lines out of
          server/scripts/test_photo.jpg, then SDXL-Lightning plus the MistoLine ControlNet redraws them
          cleanly with the winning prompt. Skipped (not failed) if there is no photo yet.
-  parts  OWLv2 looks for head, body, ear, eye, tail and leg on the cleanest image of the first subject.
+  parts  OWLv2 looks for each subject's parts (PART_LABELS) on its cleanest drawing.
 
 Each stage's results are saved in server/out/speedtest/results.json, so a later run of one stage
 (e.g. --stages photo once the photo exists) keeps the others. server/SPEEDTEST.md is rewritten from
@@ -48,8 +49,19 @@ STAGES = ["text", "photo", "parts"]
 GEN_SIZE = 1024  # SDXL's native size
 TARGET_SIZE = 768  # all app coordinates are in 768 x 768 space
 CONTROLNET_SCALE = 0.8  # how strictly the drawing follows the photo's lines (1.0 = strictly)
-OWL_LABELS = ["head", "body", "ear", "eye", "tail", "leg"]
+# Parts to look for per subject, the same lists the A2b part detector will use.
+PART_LABELS = {
+    "fox": ["head", "body", "ear", "eye", "tail", "leg"],
+    "cat": ["head", "body", "ear", "eye", "tail", "leg"],
+    "face": ["head", "eye", "nose", "mouth", "ear", "hair"],
+    "mug": ["body", "handle", "rim"],
+    "sneaker": ["sole", "toe", "laces", "heel"],
+    "house": ["roof", "wall", "door", "window", "chimney"],
+    "bird": ["head", "body", "wing", "tail", "beak", "leg"],
+    "fish": ["body", "tail", "fin", "eye", "mouth"],
+}
 OWL_THRESHOLD = 0.1  # OWLv2 scores are low in general; 0.1 is the usual starting point
+OWL_THRESHOLD_LOW = 0.05  # also drawn (in orange), to see whether a lower threshold would help
 
 # Licenses as listed on each model's Hugging Face page (checked by download_models.py --check).
 MODEL_LICENSES = [
@@ -98,8 +110,12 @@ def pad_to_square(image: Image.Image, fill: tuple[int, int, int]) -> Image.Image
 # ---------------------------------------------------------------- stage: text
 
 
-def stage_text(subjects: list[str], seeds: int) -> dict:
-    """Every prompt variant x every subject x `seeds` images, timed and scored."""
+def stage_text(subjects: list[str], seeds: int, variants: list[str], earlier: list[dict]) -> dict:
+    """Every chosen prompt variant x every subject x `seeds` images, timed and scored.
+
+    Images from earlier runs are kept unless this run makes the same (subject, variant, seed),
+    so a follow-up run of a few variants adds to the first comparison instead of replacing it.
+    """
     reset_peak()
     start = time.perf_counter()
     pipe = models.load_lightning()
@@ -109,7 +125,7 @@ def stage_text(subjects: list[str], seeds: int) -> dict:
     images = []
     for subject in subjects:
         slug = slugify(subject)
-        for variant in VARIANTS:
+        for variant in variants:
             prompt = line_art_prompt(subject, variant)
             for seed in range(seeds):
                 start = time.perf_counter()
@@ -130,24 +146,36 @@ def stage_text(subjects: list[str], seeds: int) -> dict:
                     {"subject": subject, "variant": variant, "seed": seed, "seconds": seconds, "path": str(path), **metrics}
                 )
                 print(
-                    f"[text] {slug:<8} {variant:<9} seed {seed}: {seconds:4.1f} s  score {metrics['score']:6.1f}  "
+                    f"[text] {slug:<8} {variant:<10} seed {seed}: {seconds:4.1f} s  score {metrics['score']:6.1f}  "
                     f"specks {metrics['specks']:3d}  pieces {metrics['pieces']:3d}  "
                     f"gray {metrics['gray_ratio']:.2f}  ink {metrics['ink']:.1%}"
                 )
-        save_grid([i for i in images if i["subject"] == subject], seeds, OUT_DIR / f"grid-{slug}.webp")
-
-    result = {"status": "ok", "load_s": load_s, "subjects": subjects, "seeds": seeds, "images": images, "peak_gb": peak_gb()}
     del pipe
     models.free_gpu()
-    return result
+
+    made = {(i["subject"], i["variant"], i["seed"]) for i in images}
+    merged = [i for i in earlier if (i["subject"], i["variant"], i["seed"]) not in made] + images
+    all_subjects = list(dict.fromkeys([i["subject"] for i in merged]))
+    for subject in subjects:
+        save_grid([i for i in merged if i["subject"] == subject], OUT_DIR / f"grid-{slugify(subject)}.webp")
+    return {
+        "status": "ok",
+        "load_s": load_s,
+        "run_times": [i["seconds"] for i in images],  # this run only, for the timing table
+        "subjects": all_subjects,
+        "images": merged,
+        "peak_gb": peak_gb(),
+    }
 
 
-def save_grid(images: list[dict], seeds: int, path: Path) -> None:
+def save_grid(images: list[dict], path: Path) -> None:
     """One row per prompt variant, one column per seed, labeled, to compare by eye."""
     thumb, label_h = 256, 22
-    grid = Image.new("RGB", (thumb * seeds, (thumb + label_h) * len(VARIANTS)), "white")
+    variants = [v for v in VARIANTS if any(i["variant"] == v for i in images)]
+    columns = max(i["seed"] for i in images) + 1
+    grid = Image.new("RGB", (thumb * columns, (thumb + label_h) * len(variants)), "white")
     draw = ImageDraw.Draw(grid)
-    for row, variant in enumerate(VARIANTS):
+    for row, variant in enumerate(variants):
         for item in (i for i in images if i["variant"] == variant):
             x, y = item["seed"] * thumb, row * (thumb + label_h)
             grid.paste(Image.open(item["path"]).resize((thumb, thumb)), (x, y + label_h))
@@ -162,7 +190,7 @@ def rank_variants(images: list[dict]) -> list[dict]:
         mine = [i for i in images if i["variant"] == variant]
         if not mine:
             continue
-        row = {"variant": variant}
+        row = {"variant": variant, "count": len(mine)}
         for key in ("score", "specks", "pieces", "gray_ratio", "ink", "seconds"):
             row[key] = statistics.mean(i[key] for i in mine)
         row["by_subject"] = {
@@ -174,7 +202,9 @@ def rank_variants(images: list[dict]) -> list[dict]:
 
 
 def best_image(images: list[dict], variant: str, subject: str) -> dict:
-    return min((i for i in images if i["variant"] == variant and i["subject"] == subject), key=lambda i: i["score"])
+    """The subject's cleanest image with this variant (or with any variant, if it has none)."""
+    mine = [i for i in images if i["subject"] == subject]
+    return min([i for i in mine if i["variant"] == variant] or mine, key=lambda i: i["score"])
 
 
 # ---------------------------------------------------------------- stage: photo
@@ -243,8 +273,24 @@ def stage_photo(photo_path: Path, subject: str, variant: str) -> dict:
 # ---------------------------------------------------------------- stage: parts
 
 
-def stage_parts(image_path: Path) -> dict:
-    """OWLv2 finds labeled parts on one drawing and draws the boxes."""
+def best_per_query(logits, pred_boxes, size: int) -> list[tuple[float, list[int]]]:
+    """For each text query, OWLv2's highest-scoring box: (score 0-1, [x0, y0, x1, y1] in pixels).
+
+    Read straight from the raw outputs instead of a thresholded result, so we also see how close
+    a part came when it scored below the threshold. Boxes come as normalized (cx, cy, w, h) on a
+    square image, which ours is.
+    """
+    scores = logits[0].sigmoid()  # (boxes, queries)
+    best = []
+    for q in range(scores.shape[1]):
+        i = int(scores[:, q].argmax())
+        cx, cy, w, h = (float(v) * size for v in pred_boxes[0, i])
+        best.append((float(scores[i, q]), [round(cx - w / 2), round(cy - h / 2), round(cx + w / 2), round(cy + h / 2)]))
+    return best
+
+
+def stage_parts(targets: list[tuple[str, Path]]) -> dict:
+    """OWLv2 looks for each subject's parts on its cleanest drawing and draws the boxes it finds."""
     import torch
     from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
@@ -254,37 +300,42 @@ def stage_parts(image_path: Path) -> dict:
     model = Owlv2ForObjectDetection.from_pretrained(models.OWL_REPO).to("cuda").eval()
     load_s = time.perf_counter() - start
 
-    image = Image.open(image_path).convert("RGB")
-    start = time.perf_counter()
-    inputs = processor(text=[OWL_LABELS], images=image, return_tensors="pt").to("cuda")
-    with torch.no_grad():
-        outputs = model(**inputs)
-    found = processor.post_process_grounded_object_detection(
-        outputs, threshold=OWL_THRESHOLD, target_sizes=[(image.height, image.width)], text_labels=[OWL_LABELS]
-    )[0]
-    torch.cuda.synchronize()
-    detect_s = time.perf_counter() - start
+    subjects, detect_times = [], []
+    for subject, image_path in targets:
+        slug = slugify(subject)
+        labels = PART_LABELS.get(slug, ["head", "body"])
+        # Two phrasings per part, to see which one OWLv2 understands better on line art.
+        queries = labels + [f"{slug} {label}" for label in labels]
+        image = Image.open(image_path).convert("RGB")
+        start = time.perf_counter()
+        inputs = processor(text=[queries], images=image, return_tensors="pt").to("cuda")
+        with torch.no_grad():
+            outputs = model(**inputs)
+        best = best_per_query(outputs.logits, outputs.pred_boxes, image.width)
+        torch.cuda.synchronize()
+        detect_times.append(time.perf_counter() - start)
 
-    detections = sorted(
-        (
-            {"label": label, "score": float(score), "box": [round(float(v)) for v in box]}
-            for label, score, box in zip(found["text_labels"], found["scores"], found["boxes"])
-        ),
-        key=lambda d: -d["score"],
-    )
-    draw = ImageDraw.Draw(image)
-    for d in detections:
-        draw.rectangle(d["box"], outline=(59, 108, 255), width=3)
-        draw.text((d["box"][0] + 4, d["box"][1] + 4), f"{d['label']} {d['score']:.2f}", fill=(59, 108, 255))
-    image.save(OUT_DIR / "owl-parts.png")
-    print(f"[parts] OWLv2 loaded in {load_s:.1f} s, found {len(detections)} parts in {detect_s:.2f} s")
+        parts = []
+        draw = ImageDraw.Draw(image)
+        for n, label in enumerate(labels):
+            plain, qualified = best[n], best[n + len(labels)]
+            score, box = max(plain, qualified, key=lambda b: b[0])
+            parts.append({"label": label, "plain": plain[0], "qualified": qualified[0], "box": box})
+            if score >= OWL_THRESHOLD_LOW:
+                color = (59, 108, 255) if score >= OWL_THRESHOLD else (242, 122, 94)
+                draw.rectangle(box, outline=color, width=3)
+                draw.text((box[0] + 4, box[1] + 4), f"{label} {score:.2f}", fill=color)
+        image.save(OUT_DIR / f"owl-{slug}.png")
+        found = sum(max(p["plain"], p["qualified"]) >= OWL_THRESHOLD for p in parts)
+        print(f"[parts] {slug:<8} {found}/{len(labels)} parts at {OWL_THRESHOLD}: "
+              + ", ".join(f"{p['label']} {max(p['plain'], p['qualified']):.2f}" for p in parts))
+        subjects.append({"subject": subject, "image": Path(image_path).name, "parts": parts})
 
     result = {
         "status": "ok",
-        "image": Path(image_path).name,
         "load_s": load_s,
-        "detect_s": detect_s,
-        "detections": detections,
+        "detect_s": statistics.mean(detect_times),
+        "subjects": subjects,
         "peak_gb": peak_gb(),
     }
     del model
@@ -318,7 +369,7 @@ def write_report(results: dict) -> None:
         "|---|---|---|---|",
     ]
     if text and text["status"] == "ok":
-        times = [i["seconds"] for i in text["images"]]
+        times = text.get("run_times") or [i["seconds"] for i in text["images"]]
         lines.append(
             f"| Text to line art (SDXL-Lightning, 4 steps, {GEN_SIZE} px) | {text['load_s']:.1f} s "
             f"| first {times[0]:.1f} s, then median {statistics.median(times[1:] or times):.1f} s "
@@ -335,9 +386,9 @@ def write_report(results: dict) -> None:
         ]
     else:
         lines.append(f"| Photo to line art | {status_text(photo)} | | |")
-    if parts and parts["status"] == "ok":
+    if parts and parts["status"] == "ok" and "subjects" in parts:
         lines.append(
-            f"| Part detection (OWLv2) | {parts['load_s']:.1f} s | {parts['detect_s']:.2f} s | {parts['peak_gb']:.2f} GB |"
+            f"| Part detection (OWLv2, per image) | {parts['load_s']:.1f} s | {parts['detect_s']:.2f} s | {parts['peak_gb']:.2f} GB |"
         )
     else:
         lines.append(f"| Part detection (OWLv2) | {status_text(parts)} | | |")
@@ -347,16 +398,16 @@ def write_report(results: dict) -> None:
         subjects = text["subjects"]
         lines += [
             "",
-            f"## Prompt comparison ({len(subjects)} subjects x {text['seeds']} seeds per variant, cleanest first)",
+            f"## Prompt comparison ({len(subjects)} subjects, cleanest first)",
             "",
             "Score from `server/pipeline/quality.py`, lower is cleaner: specks + half the separate pieces "
             "+ 50 x gray-per-ink ratio (shading) + a penalty for solid fills or a blank page.",
             "",
-            "| Variant | Score | Specks | Pieces | Gray ratio | Ink | Seconds |",
-            "|---|---|---|---|---|---|---|",
+            "| Variant | Images | Score | Specks | Pieces | Gray ratio | Ink | Seconds |",
+            "|---|---|---|---|---|---|---|---|",
         ]
         lines += [
-            f"| {r['variant']} | {r['score']:.1f} | {r['specks']:.1f} | {r['pieces']:.1f} | "
+            f"| {r['variant']} | {r['count']} | {r['score']:.1f} | {r['specks']:.1f} | {r['pieces']:.1f} | "
             f"{r['gray_ratio']:.2f} | {r['ink']:.1%} | {r['seconds']:.1f} |"
             for r in ranking
         ]
@@ -369,7 +420,9 @@ def write_report(results: dict) -> None:
                 "|---|" + "---|" * len(subjects),
             ]
             lines += [
-                f"| {r['variant']} | " + " | ".join(f"{r['by_subject'][s]:.1f}" for s in subjects) + " |"
+                f"| {r['variant']} | "
+                + " | ".join(f"{r['by_subject'][s]:.1f}" if s in r["by_subject"] else "-" for s in subjects)
+                + " |"
                 for r in ranking
             ]
         best = ranking[0]["variant"]
@@ -390,13 +443,24 @@ def write_report(results: dict) -> None:
             f"score {m['score']:.1f}, specks {m['specks']}, pieces {m['pieces']}, "
             f"gray ratio {m['gray_ratio']:.2f}, ink {m['ink']:.1%}.",
         ]
-    if parts and parts["status"] == "ok":
-        lines += ["", f"## Parts found on `{parts['image']}` (OWLv2, threshold {OWL_THRESHOLD})", ""]
-        if parts["detections"]:
-            lines += ["| Label | Score | Box (x0, y0, x1, y1) |", "|---|---|---|"]
-            lines += [f"| {d['label']} | {d['score']:.2f} | {tuple(d['box'])} |" for d in parts["detections"]]
-        else:
-            lines.append("No parts above the threshold.")
+    if parts and parts["status"] == "ok" and "subjects" in parts:
+        lines += [
+            "",
+            "## Parts (OWLv2 on each subject's cleanest drawing)",
+            "",
+            f"Best score per part, for the plain label (\"head\") and the subject-qualified one (\"fox head\"). "
+            f"Found = best score at least {OWL_THRESHOLD}; boxes are drawn in `owl-<subject>.png` "
+            f"(blue at {OWL_THRESHOLD} or more, orange from {OWL_THRESHOLD_LOW}).",
+            "",
+            "| Subject | Found | Part scores (plain / qualified) |",
+            "|---|---|---|",
+        ]
+        for item in parts["subjects"]:
+            found = sum(max(p["plain"], p["qualified"]) >= OWL_THRESHOLD for p in item["parts"])
+            scores = ", ".join(f"{p['label']} {p['plain']:.2f} / {p['qualified']:.2f}" for p in item["parts"])
+            lines.append(f"| {slugify(item['subject'])} (`{item['image']}`) | {found}/{len(item['parts'])} | {scores} |")
+    elif parts and parts["status"] == "ok":
+        lines += ["", "Part results are from an older version of this script; rerun with --stages parts."]
     lines += ["", "## Models", "", "| Model | Used for | License |", "|---|---|---|"]
     lines += [f"| [{repo}](https://huggingface.co/{repo}) | {use} | {lic} |" for repo, use, lic in MODEL_LICENSES]
     REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -424,14 +488,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Speed test and prompt comparison for the image AI.")
     parser.add_argument("--subjects", default="a fox", help="comma-separated, e.g. 'a fox,a mug,a house'")
     parser.add_argument("--seeds", type=int, default=4, help="images per prompt variant and subject")
+    parser.add_argument("--variants", default=",".join(VARIANTS), help="comma-separated prompt variants to generate")
     parser.add_argument("--stages", default=",".join(STAGES), help=f"comma-separated, from {STAGES}")
     parser.add_argument("--photo", type=Path, default=DEFAULT_PHOTO, help="photo for the photo stage")
     parser.add_argument("--photo-subject", default="a mug", help="what the photo shows, e.g. 'a mug'")
     args = parser.parse_args(argv)
     subjects = [s.strip() for s in args.subjects.split(",") if s.strip()]
     stages = [s.strip() for s in args.stages.split(",") if s.strip()]
+    variants = [v.strip() for v in args.variants.split(",") if v.strip()]
     if unknown := set(stages) - set(STAGES):
         parser.error(f"unknown stages {sorted(unknown)}; choose from {STAGES}")
+    if unknown := set(variants) - set(VARIANTS):
+        parser.error(f"unknown variants {sorted(unknown)}; choose from {list(VARIANTS)}")
 
     print(f"HF_HOME: {models.setup_hf_env() or '(not set, using the default cache)'}")
     import diffusers
@@ -458,7 +526,8 @@ def main(argv: list[str] | None = None) -> int:
         RESULTS_PATH.write_text(json.dumps(results, indent=1), encoding="utf-8")
 
     if "text" in stages:
-        results["text"] = run_stage(stage_text, subjects, args.seeds)
+        earlier = results.get("text", {}).get("images", []) if results.get("text", {}).get("status") == "ok" else []
+        results["text"] = run_stage(stage_text, subjects, args.seeds, variants, earlier)
         save()
     text_ok = results.get("text", {}).get("status") == "ok"
     ranking = rank_variants(results["text"]["images"]) if text_ok else []
@@ -474,9 +543,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if "parts" in stages:
         if text_ok:
-            first = results["text"]["subjects"][0]
-            image = best_image(results["text"]["images"], winner, first)["path"]
-            results["parts"] = run_stage(stage_parts, Path(image))
+            images = results["text"]["images"]
+            targets = [(s, Path(best_image(images, winner, s)["path"])) for s in results["text"]["subjects"]]
+            results["parts"] = run_stage(stage_parts, targets)
         else:
             results["parts"] = {"status": "skipped", "message": "needs a successful text stage first"}
         save()
@@ -485,7 +554,7 @@ def main(argv: list[str] | None = None) -> int:
     if ranking:
         print(f"\nCleanest prompt by score: {winner} (score {ranking[0]['score']:.1f})")
     print(f"Wrote {REPORT_PATH}")
-    print(f"Check by eye in {OUT_DIR}: grid-*.webp, photo-lines.png, photo-drawing.png, owl-parts.png")
+    print(f"Check by eye in {OUT_DIR}: grid-*.webp, owl-*.png, photo-lines.png, photo-drawing.png")
     failed = [name for name in STAGES if results.get(name, {}).get("status") == "failed" and name in stages]
     return 1 if failed else 0
 
