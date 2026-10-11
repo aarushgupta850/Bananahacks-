@@ -128,3 +128,15 @@ def test_ids_are_unique_and_points_are_whole_numbers():
 
 def test_empty_drawing_gives_an_empty_plan():
     assert build_plan([], [HEAD]) == {"strokes": [], "steps": []}
+
+
+
+def test_top_and_bottom_halves_get_construction_shapes():
+    from pipeline.order import build_plan
+    from pipeline.parts import halves
+
+    strokes = [[(100.0 + 4 * i, 200.0 + 4 * i) for i in range(100)], [(150.0, 500.0), (450.0, 520.0)]] * 4
+    plan = build_plan(strokes, halves((100.0, 200.0, 500.0, 600.0)), subject="teapot")
+    construction = [s["id"] for s in plan["strokes"] if s["tier"] == "construction"]
+    assert construction == ["c-top", "c-bottom"]
+    assert plan["steps"][0]["label"] == "Block in the top"

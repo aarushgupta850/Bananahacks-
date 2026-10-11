@@ -34,7 +34,6 @@ PART_LABELS = {
     "bird": ["head", "body", "wing", "tail", "beak", "leg"],
     "fish": ["body", "tail", "fin", "eye", "mouth"],
 }
-DEFAULT_LABELS = ["head", "body"]
 PAIRED = {"ear", "eye", "leg", "wing", "fin", "window"}  # these keep up to 2 boxes
 SIDE_VIEW = {"fox", "cat", "bird"}  # drawn from the side, so a pair of legs is front and back, not left and right
 WHOLE_OBJECT = {"body", "wall"}  # these may cover most of the drawing (and a face's head)
@@ -127,6 +126,19 @@ def load_override(pack_id: str | None) -> list[dict] | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
+def halves(drawing_box: tuple[float, float, float, float]) -> list[dict]:
+    """Parts for a subject we have no part names for (a live prompt like "a teapot"): the top and bottom halves
+    of the drawing. Neutral names never mislabel anything (a teapot has no "head"), and each half still gets its
+    own construction shape and its own measurements."""
+    x0, y0, x1, y1 = drawing_box
+    middle = (y0 + y1) / 2
+    w = round(x1 - x0)
+    return [
+        {"id": "top", "label": "Top", "box": [round(x0), round(y0), w, round(middle - y0)]},
+        {"id": "bottom", "label": "Bottom", "box": [round(x0), round(middle), w, round(y1 - middle)]},
+    ]
+
+
 def owl():
     """(processor, model) for OWLv2, loaded once. Also used by pipeline/safety.py."""
     if "owl" not in _cache:
@@ -154,9 +166,11 @@ def detect_parts(image: Image.Image, subject: str, pack_id: str | None = None) -
     ys, xs = np.nonzero(ink)
     drawing_box = (float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max()))
 
-    processor, model = owl()
     slug = subject_slug(subject)
-    labels = PART_LABELS.get(slug, DEFAULT_LABELS)
+    if slug not in PART_LABELS:
+        return halves(drawing_box)
+    processor, model = owl()
+    labels = PART_LABELS[slug]
     queries = [f"{slug} {label}" for label in labels]
     inputs = processor(text=[queries], images=image.convert("RGB"), return_tensors="pt").to("cuda")
     with torch.no_grad():
