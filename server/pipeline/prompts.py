@@ -49,12 +49,23 @@ VARIANTS = {
 # The variant the pipeline uses. Set from the speed test results (see server/SPEEDTEST.md).
 CHOSEN = "icon_clean"
 
+# Extra words per difficulty, placed right after the subject. Must match Difficulty in types.ts.
+DIFFICULTY_HINTS = {
+    "simple": "very simple, few lines, minimal detail",
+    "medium": "",
+    "detailed": "more detail, a few interior lines",
+}
 
-def line_art_prompt(subject: str, variant: str = CHOSEN) -> str:
+
+def line_art_prompt(subject: str, variant: str = CHOSEN, difficulty: str = "medium") -> str:
     """Builds the generation prompt for one subject, e.g. 'a fox' or 'a coffee mug'."""
     subject = " ".join(subject.split())  # collapse stray spaces and newlines
     if not subject:
         raise ValueError("subject must not be empty")
     if variant not in VARIANTS:
         raise ValueError(f"unknown prompt variant {variant!r}, expected one of {sorted(VARIANTS)}")
+    if difficulty not in DIFFICULTY_HINTS:
+        raise ValueError(f"unknown difficulty {difficulty!r}, expected one of {list(DIFFICULTY_HINTS)}")
+    if DIFFICULTY_HINTS[difficulty]:
+        subject = f"{subject}, {DIFFICULTY_HINTS[difficulty]}"
     return VARIANTS[variant].format(subject=subject)
