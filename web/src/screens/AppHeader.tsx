@@ -1,4 +1,4 @@
-// The bar at the top of every screen: the app name (which also restarts) and where the user is in the run.
+// The bar at the top of every screen: the app name (which goes back to the home page) and where the user is in the run.
 // The current stage is marked in text (aria-current and bold), not only by color.
 type Stage = 'test' | 'lesson' | 'retest' | 'report'
 
@@ -20,7 +20,7 @@ export default function AppHeader({ stage, onHome }: AppHeaderProps) {
   const at = stage ? STAGES.findIndex((s) => s.id === stage) : -1
   return (
     <header className="app-header">
-      <button type="button" className="brand" onClick={onHome} aria-label="Ghost Lines: start over">
+      <button type="button" className="brand" onClick={onHome} aria-label="Ghost Lines: home page">
         <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={28} height={28} />
         <span>Ghost Lines</span>
       </button>

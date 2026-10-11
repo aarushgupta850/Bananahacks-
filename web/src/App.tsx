@@ -5,6 +5,7 @@ import CanvasDemo from './canvas/CanvasDemo'
 import PackInspector from './dev/PackInspector'
 import AppHeader, { type Stage } from './screens/AppHeader'
 import ErrorBoundary from './screens/ErrorBoundary'
+import Home from './screens/Home'
 import Reference from './screens/Reference'
 import Report from './screens/Report'
 import Retest from './screens/Retest'
@@ -16,14 +17,14 @@ import type { Pack } from './engine/types'
 import { emptySession, SessionContext, type Session } from './session'
 import './styles/screens.css'
 
-type Screen = 'subjects' | 'reference' | 'test' | 'weakSpots' | 'teach' | 'retest' | 'report'
+type Screen = 'home' | 'subjects' | 'reference' | 'test' | 'weakSpots' | 'teach' | 'retest' | 'report'
 
-// The screens in order. Next moves one step forward, Back one step back.
+// The screens in order. Next moves one step forward, Back one step back. The home page comes before all of them.
 const FLOW: Screen[] = ['subjects', 'reference', 'test', 'weakSpots', 'teach', 'retest', 'report']
 
 // Which stage of the progress bar each screen belongs to (weak spots count as the start of the lesson).
 const STAGE_OF: Record<Screen, Stage | null> = {
-  subjects: null, reference: null, test: 'test', weakSpots: 'lesson', teach: 'lesson', retest: 'retest', report: 'report',
+  home: null, subjects: null, reference: null, test: 'test', weakSpots: 'lesson', teach: 'lesson', retest: 'retest', report: 'report',
 }
 
 export default function App() {
@@ -35,7 +36,7 @@ export default function App() {
 }
 
 function Flow() {
-  const [screen, setScreen] = useState<Screen>('subjects')
+  const [screen, setScreen] = useState<Screen>('home')
   const [session, setSession] = useState<Session>(emptySession)
 
   const update = useCallback((changes: Partial<Session>) => setSession((s) => ({ ...s, ...changes })), [])
@@ -56,12 +57,14 @@ function Flow() {
   const next = () => move(1)
   const back = () => move(-1)
 
-  // Every screen after the picker needs a pack, so without one the picker is shown.
-  const current: Screen = session.pack ? screen : 'subjects'
+  // Every screen after the picker needs a pack, so without one the picker is shown (or the home page).
+  const current: Screen = session.pack || screen === 'home' ? screen : 'subjects'
 
-  // The logo goes back to the subject picker. Mid-run that throws drawings away, so it asks first.
+  // The logo goes back to the home page. Mid-run that throws drawings away, so it asks first.
   const goHome = () => {
-    if (STAGE_OF[current] === null || window.confirm('Leave this lesson and start over? Your drawings will be lost.')) restart()
+    if (STAGE_OF[current] !== null && !window.confirm('Leave this lesson and start over? Your drawings will be lost.')) return
+    setSession((s) => ({ ...emptySession, soloSeconds: s.soloSeconds }))
+    setScreen('home')
   }
 
   // Mid-run, closing or reloading the tab would lose the drawings, so the browser asks first.
@@ -84,6 +87,7 @@ function Flow() {
       {/* key={current} remounts the wrapper on every screen change, which replays its fade-in. */}
       <main key={current} className="screen-enter">
         <ErrorBoundary onReset={restart}>
+          {current === 'home' && <Home onStart={() => setScreen('subjects')} />}
           {current === 'subjects' && <SubjectPicker onNext={next} />}
           {current === 'reference' && <Reference onBack={back} onNext={next} />}
           {current === 'test' && <Test onBack={back} onNext={next} />}

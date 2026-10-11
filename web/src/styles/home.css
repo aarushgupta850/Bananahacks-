@@ -1,0 +1,890 @@
+/* The home page (screens/Home.tsx). Colors, type, radius and timing come from tokens.css.
+   Motion uses only opacity, transform and stroke-dashoffset (cheap for the browser), and the
+   reduced-motion block at the bottom shows every element in its final state instead. */
+
+.home {
+  --home-width: 1200px;
+  --home-ghost: rgb(59 108 255 / 30%); /* the accent at the ghost opacity */
+  --home-tint: rgb(59 108 255 / 8%);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  overflow-x: clip; /* the hero glow is wider than small screens */
+}
+
+.home .btn-large {
+  min-height: 52px;
+  padding: var(--space-3) var(--space-6);
+  font-size: 1.0625rem;
+}
+
+.home .btn-large .home-icon {
+  width: 20px;
+  height: 20px;
+  transition: transform var(--transition);
+}
+
+.home .btn-large:hover .home-icon {
+  transform: translateX(3px);
+}
+
+.home .btn-primary {
+  box-shadow: 0 1px 2px rgb(28 27 25 / 10%), 0 8px 24px rgb(59 108 255 / 22%);
+}
+
+.home .btn-primary:hover {
+  border-color: var(--accent);
+  background: #2f5ae6;
+}
+
+.home .btn-primary:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.home-icon {
+  flex: none;
+}
+
+.home-eyebrow {
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------- hero ---------- */
+
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 72px);
+  max-width: var(--home-width);
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 64px) var(--space-5) clamp(56px, 8vw, 112px);
+}
+
+/* On wide screens the hero fills the first screenful (below the 76px header), centered in it. */
+@media (min-width: 961px) and (min-height: 640px) {
+  .home-hero {
+    min-height: calc(100vh - 76px);
+    min-height: calc(100svh - 76px);
+    padding-block: var(--space-6) var(--space-7);
+  }
+}
+
+.home-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* The hero text arrives in a short stagger on load. */
+.home-hero-text > * {
+  animation: home-rise 700ms var(--ease-out) both;
+}
+
+.home-hero-text > :nth-child(2) { animation-delay: 80ms; }
+.home-hero-text > :nth-child(3) { animation-delay: 160ms; }
+.home-hero-text > :nth-child(4) { animation-delay: 240ms; }
+.home-hero-text > :nth-child(5) { animation-delay: 320ms; }
+
+.home-title {
+  font-size: clamp(2.5rem, 5.2vw, 4.25rem);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.home-title-line {
+  display: block; /* the promise always starts on its own line */
+}
+
+.home-title-accent {
+  color: var(--accent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.home-underlined {
+  position: relative;
+  display: inline-block;
+}
+
+.home-underline {
+  position: absolute;
+  left: 0;
+  bottom: -0.12em;
+  width: 100%;
+  height: 0.28em;
+  overflow: visible;
+}
+
+.home-underline path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+  animation: home-draw 900ms var(--ease-out) 700ms forwards;
+}
+
+.home-lede {
+  max-width: 34rem;
+  color: var(--ink-muted);
+  font-size: clamp(1.0625rem, 1.4vw, 1.25rem);
+  line-height: 1.6;
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.home-note {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* The sheet of paper the fox is drawn on. */
+.hero-sketch {
+  position: relative;
+  margin: 0;
+  animation: home-rise 900ms var(--ease-out) 120ms both;
+}
+
+.hero-sketch::before {
+  /* a soft blue glow behind the sheet */
+  content: '';
+  position: absolute;
+  inset: -12% -16%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgb(59 108 255 / 14%), transparent);
+  pointer-events: none;
+}
+
+.hero-paper {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 2);
+  background-color: var(--surface);
+  background-image: radial-gradient(rgb(28 27 25 / 7%) 1px, transparent 1px);
+  background-size: 22px 22px;
+  box-shadow: 0 2px 4px rgb(28 27 25 / 4%), 0 24px 64px -16px rgb(28 27 25 / 18%);
+  transform: rotate(1.2deg);
+}
+
+.sketch-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sketch-svg path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sketch-ghosts path {
+  stroke: var(--home-ghost);
+  stroke-width: 4;
+  stroke-dasharray: 10 12;
+  animation: hero-ghosts 4.8s ease-out 0.2s both;
+}
+
+/* Each ink stroke is hidden until its turn (opacity 0 also hides the round cap at the start), then drawn. */
+.sketch-ink path {
+  stroke: var(--ink);
+  stroke-width: 4.5;
+  stroke-dasharray: 1;
+}
+
+.hero-paper .sketch-ink path,
+.is-visible .own-result .sketch-ink path {
+  animation: sketch-ink var(--draw-time, 0.4s) var(--ease-out) var(--draw-delay, 0s) both;
+}
+
+.own-result .sketch-ink path {
+  opacity: 0; /* waits for the demo to scroll into view */
+}
+
+.sketch-loading {
+  background: linear-gradient(100deg, transparent 30%, rgb(28 27 25 / 4%) 50%, transparent 70%) 0 0 / 200% 100%;
+  animation: home-shimmer 1.4s linear infinite;
+}
+
+.hero-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hero-chip .home-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.hero-chip-ghost {
+  top: 6%;
+  left: -6%;
+  color: var(--accent);
+  animation: home-pop 500ms var(--ease-out) 600ms both;
+}
+
+.hero-chip-done {
+  right: -4%;
+  bottom: 7%;
+  color: var(--success);
+  animation: home-pop 500ms var(--ease-out) var(--chip-delay, 5s) both;
+}
+
+.hero-replay {
+  position: absolute;
+  right: var(--space-3);
+  top: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transform: rotate(1.2deg);
+  transition: color var(--transition), background-color var(--transition);
+}
+
+.hero-replay .home-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.hero-replay:hover {
+  background: var(--home-tint);
+  color: var(--accent);
+}
+
+.hero-replay:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- sections ---------- */
+
+.home-section {
+  max-width: var(--home-width);
+  margin: 0 auto;
+  padding: clamp(56px, 8vw, 112px) var(--space-5);
+}
+
+.home-section-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 44rem;
+  margin: 0 auto clamp(32px, 5vw, 56px);
+  text-align: center;
+}
+
+.home-section h2 {
+  font-size: clamp(1.875rem, 3.4vw, 2.75rem);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.home-section-lede {
+  color: var(--ink-muted);
+  font-size: var(--text-lg);
+  line-height: 1.6;
+}
+
+/* Fades and lifts into place the first time it scrolls into view (Home.tsx adds is-visible). */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 700ms var(--ease-out), transform 700ms var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- how it works ---------- */
+
+.home-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-steps::before {
+  /* a dashed ghost line joining the three steps */
+  content: '';
+  position: absolute;
+  top: 52px;
+  left: 16%;
+  right: 16%;
+  border-top: 2px dashed var(--home-ghost);
+}
+
+.home-steps > li {
+  display: flex;
+}
+
+.home-step {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 1.5);
+  background: var(--surface);
+  transition: opacity 700ms var(--ease-out), transform 700ms var(--ease-out), box-shadow var(--transition),
+    border-color var(--transition);
+  transition-delay: var(--reveal-delay, 0ms), var(--reveal-delay, 0ms), 0ms, 0ms;
+}
+
+.home-step:hover {
+  border-color: rgb(59 108 255 / 35%);
+  box-shadow: 0 12px 32px -12px rgb(28 27 25 / 16%);
+}
+
+.home-step-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--home-tint);
+  color: var(--accent);
+}
+
+.home-step-number {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-6);
+  color: var(--line);
+  font-family: var(--font-heading);
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.home-step h3 {
+  margin-top: var(--space-2);
+  font-size: 1.5rem;
+}
+
+.home-step p {
+  color: var(--ink-muted);
+  line-height: 1.6;
+}
+
+/* ---------- how image AI makes a lesson ---------- */
+
+.home-ai {
+  max-width: none;
+  border-block: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--surface), var(--paper));
+}
+
+.home-pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-6);
+  max-width: var(--home-width);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.home-pipeline > li {
+  position: relative;
+  display: flex;
+}
+
+/* an arrow between neighbouring cards */
+.home-pipeline > li + li::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - 64px);
+  left: calc(-1 * var(--space-6) / 2 - 5px);
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid var(--home-ghost);
+  border-right: 2px solid var(--home-ghost);
+  transform: rotate(45deg);
+}
+
+.pipe-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pipe-art {
+  position: relative;
+  display: grid;
+  aspect-ratio: 1;
+  margin-bottom: var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.pipe-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pipe-prompt {
+  align-content: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.pipe-prompt-label {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pipe-prompt-text {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+}
+
+.pipe-prompt-style {
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.pipe-prompt-style strong {
+  color: var(--accent);
+}
+
+.pipe-drafts {
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: var(--line);
+}
+
+.pipe-draft {
+  position: relative;
+  min-width: 0;
+  background: var(--surface);
+}
+
+.pipe-draft img {
+  opacity: 0.5;
+}
+
+/* The chosen draft: full strength, an accent outline and a "Chosen" tag (so color isn't the only sign). */
+.pipe-draft.is-chosen img {
+  opacity: 1;
+}
+
+.pipe-draft.is-chosen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--accent);
+}
+
+.pipe-draft-tag {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pipe-card h3 {
+  font-size: 1.1875rem;
+}
+
+.pipe-card p {
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+/* ---------- make your own ---------- */
+
+.home-own {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 88px);
+}
+
+.home-own-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.home-own-text .btn {
+  margin-top: var(--space-3);
+}
+
+.home-own-demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.own-input {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 1.125rem;
+}
+
+/* "a mug" types itself, one letter at a time, once the demo scrolls into view. */
+.own-typed {
+  white-space: nowrap;
+}
+
+.own-typed > span {
+  opacity: 0;
+}
+
+.is-visible .own-typed > span {
+  animation: own-type 1ms linear var(--type-delay, 0s) forwards;
+}
+
+.own-caret {
+  width: 2px;
+  height: 1.3em;
+  margin-left: 2px;
+  background: var(--accent);
+  animation: own-blink 1s steps(1) infinite;
+}
+
+.own-arrow {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--home-tint);
+  color: var(--accent);
+}
+
+/* The result wipes in from left to right after the typing. */
+.own-result {
+  aspect-ratio: 1;
+  width: 100%;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  background-image: radial-gradient(rgb(28 27 25 / 7%) 1px, transparent 1px);
+  background-size: 16px 16px;
+  box-shadow: var(--shadow);
+}
+
+/* ---------- final call to action ---------- */
+
+.home-final {
+  padding: 0 var(--space-5) clamp(56px, 8vw, 112px);
+}
+
+.home-final-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: var(--home-width);
+  margin: 0 auto;
+  padding: clamp(48px, 7vw, 88px) var(--space-5);
+  border-radius: calc(var(--radius) * 2);
+  background-color: var(--ink);
+  background-image: radial-gradient(rgb(250 247 242 / 7%) 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: var(--paper);
+  text-align: center;
+}
+
+.home-final h2 {
+  font-size: clamp(1.875rem, 3.4vw, 2.75rem);
+  letter-spacing: -0.015em;
+}
+
+.home-final p {
+  max-width: 34rem;
+  color: rgb(250 247 242 / 75%);
+  font-size: var(--text-lg);
+}
+
+.home-final .btn {
+  margin-top: var(--space-3);
+}
+
+.home-final .btn-primary:focus-visible {
+  box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px var(--paper);
+}
+
+.home-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  max-width: var(--home-width);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-7);
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.home-footer-links {
+  display: flex;
+  gap: var(--space-5);
+}
+
+.home-footer a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+.home-footer a:hover {
+  color: var(--ink);
+}
+
+.home-footer a:focus-visible {
+  border-radius: 4px;
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- animations ---------- */
+
+@keyframes home-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes home-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes home-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes home-shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* The ghost lines appear, stay while the fox is drawn, then fade back, as help does in a real lesson. */
+@keyframes hero-ghosts {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+
+@keyframes sketch-ink {
+  0% { opacity: 0; stroke-dashoffset: 1; }
+  1% { opacity: 1; }
+  100% { opacity: 1; stroke-dashoffset: 0; }
+}
+
+@keyframes own-type {
+  to { opacity: 1; }
+}
+
+@keyframes own-blink {
+  50% { opacity: 0; }
+}
+
+
+/* ---------- smaller screens ---------- */
+
+@media (max-width: 960px) {
+  .home-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .home-hero-text {
+    align-items: center;
+    text-align: center;
+  }
+
+  .home-actions {
+    justify-content: center;
+  }
+
+  .hero-sketch {
+    width: min(100%, 520px);
+    margin: 0 auto;
+  }
+
+  .home-pipeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-pipeline > li + li::before {
+    display: none;
+  }
+
+  .home-own {
+    grid-template-columns: 1fr;
+  }
+
+  .home-own-demo {
+    width: min(100%, 560px);
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 860px) {
+  .home-steps {
+    grid-template-columns: 1fr;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  .home-steps::before {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .home-own-demo {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .own-input {
+    width: min(100%, 280px);
+  }
+
+  .own-arrow {
+    transform: rotate(90deg);
+  }
+
+  .own-result {
+    width: min(100%, 320px);
+  }
+
+  .home-footer {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-pipeline {
+    grid-template-columns: 1fr;
+  }
+
+  .home-actions,
+  .home-actions .btn {
+    width: 100%;
+  }
+
+  .hero-chip-ghost {
+    left: 2%;
+    top: -14px;
+  }
+
+  .hero-chip-done {
+    right: 2%;
+    bottom: -14px;
+  }
+}
+
+/* ---------- reduced motion: everything in its final state, nothing moves ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .home *,
+  .home *::before,
+  .home *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .sketch-ink path,
+  .own-result .sketch-ink path,
+  .home-underline path {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+
+  .own-typed > span {
+    opacity: 1;
+  }
+
+}
+
+/* "See how it works" glides down to the section instead of jumping (only when motion is fine). */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.home) {
+    scroll-behavior: smooth;
+  }
+}
+
+#how {
+  scroll-margin-top: var(--space-5);
+}
