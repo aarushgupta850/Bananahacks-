@@ -13,9 +13,11 @@ Endpoints:
   One job at a time (busy: 503). Answers within 23 s or gives up (504), because the web app stops
   waiting at 25 s. Bad input: 400, with a message. No clean drawing: 422.
 
-Safety: prompts are 40 characters or less, letters, numbers and spaces only, checked against a blocklist,
-and always wrapped in the line-art prompt. Photos are 5 MB or less, JPEG or PNG only. Requests are logged,
-but photos are never stored.
+Safety (see pipeline/safety.py): prompts are 80 characters or less, letters, numbers, spaces and simple
+punctuation, checked against a blocklist that also catches disguised words, and always wrapped in the line-art
+prompt. Photos are 5 MB or less, JPEG or PNG only, and both the photo and the chosen drawing are checked for
+nudity and weapons with OWLv2. Requests are logged, but photos are never stored.
+Any allowed prompt or photo gets a lesson: if no drawing fits the stroke limit, the cleanest one is simplified.
 """
 
 from __future__ import annotations
@@ -38,20 +40,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from pipeline import safety
+
 # Browsers may only call this API from the deployed site and the local dev server.
 # An origin is scheme + host (+ port), so the GitHub Pages entry has no /Bananahacks-/ path.
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "https://aarushgupta850.github.io",
 ]
-MAX_PROMPT_CHARS = 40
-PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 ]+")  # letters, numbers and spaces only
-# Words that never belong in a drawing lesson for beginners (whole words, lowercase). Add to it as needed.
-BLOCKLIST = {
-    "nude", "naked", "nsfw", "sex", "sexy", "porn", "breasts", "kill", "killing", "murder", "blood", "bloody",
-    "gore", "corpse", "dead", "gun", "guns", "rifle", "knife", "weapon", "bomb", "explosion", "drug", "drugs",
-    "cocaine", "suicide", "nazi", "swastika", "terrorist", "hitler", "hate", "racist",
-}
+MAX_PROMPT_CHARS = 80  # the same as the input box in SubjectPicker.tsx
+PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, spaces and simple punctuation
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 TIMEOUT_S = 23  # the web app (web/src/lib/live.ts) gives up after 25 s, so answer before that
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
@@ -60,6 +58,9 @@ log = logging.getLogger("ghostlines.live")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 _lock = asyncio.Lock()  # one job at a time: the GPU can only build one pack at once
 _gpu_name: str | None = None
+
+
+REFUSED = "Let's draw something else."
 
 
 class InputError(ValueError):
@@ -80,9 +81,9 @@ def check_prompt(prompt: str) -> str:
     if len(prompt) > MAX_PROMPT_CHARS:
         raise InputError(f"Keep it to {MAX_PROMPT_CHARS} characters or less.")
     if not PROMPT_PATTERN.fullmatch(prompt):
-        raise InputError("Use only letters, numbers and spaces.")
-    if any(word in BLOCKLIST for word in prompt.lower().split()):
-        raise InputError("Let's draw something else.")
+        raise InputError("Use letters, numbers, spaces and simple punctuation only.")
+    if safety.blocked_prompt(prompt):
+        raise InputError(REFUSED)
     return prompt
 
 
@@ -150,6 +151,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
     slug = re.sub(r"[^a-z0-9-]", "", subject_slug(words)) or "drawing"
     photo = Image.open(io.BytesIO(image)) if image else None
     if photo is not None:
+        safety.check_picture(photo)  # before any drawing is made from it
         def generate(seed):
             return gen.from_photo(photo, words, difficulty, n=LIVE_CANDIDATES, seed=seed)
     else:
@@ -161,7 +163,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         source_kind="photo" if photo is not None else "prompt", prompt=prompt, subject_words=words,
         seed=secrets.randbelow(100_000),  # a new drawing every time
         generate=generate, detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
-        log=log.info,
+        log=log.info, always=True, check_drawing=safety.check_picture,
     )
     return with_data_urls(pack, assets)
 
@@ -246,6 +248,9 @@ async def generate(request: GenerateRequest):
     except asyncio.TimeoutError:
         log.info("generate %s %r (%s): timed out after %d s", kind, prompt, request.difficulty, TIMEOUT_S)
         return JSONResponse({"error": "timeout"}, status_code=504)
+    except safety.UnsafeContent as error:
+        log.info("generate %s %r: refused by the picture check (%s)", kind, prompt, error)
+        return JSONResponse({"error": REFUSED}, status_code=400)
     except NoCleanCandidate as error:
         log.info("generate %s %r: no clean drawing (%s)", kind, prompt, error)
         return JSONResponse({"error": "Couldn't make a clean drawing of that. Try a simpler subject."}, status_code=422)

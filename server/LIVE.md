@@ -41,6 +41,10 @@ apps that use the GPU.
 - `POST /generate` with `{"prompt": "a teapot", "difficulty": "medium"}` or `{"imageBase64": "...", ...}`.
 - One job at a time: a second request while one runs gets HTTP 503 ("busy").
 - It answers within 23 seconds or returns 504, because the site stops waiting at 25 seconds.
-- Prompts: 40 characters or less, letters, numbers and spaces only, checked against a blocklist, and always
-  wrapped in the line-art prompt. Photos: JPEG or PNG, 5 MB or less, never stored.
+- Every allowed prompt or photo gets a lesson. If no drawing fits the 60-stroke limit, the cleanest one is
+  simplified to its 60 longest lines.
+- Prompts: 80 characters or less (letters, numbers, spaces, simple punctuation), checked against a blocklist that
+  also catches disguised words ("n4k3d", "p.o.r.n"), and always wrapped in the line-art prompt. Photos: JPEG or
+  PNG, 5 MB or less, never stored. The photo and the chosen drawing are checked for nudity and weapons with
+  OWLv2, and refused with a friendly message if found (see server/pipeline/safety.py).
 - Only the live site and the local dev server may call it (CORS).

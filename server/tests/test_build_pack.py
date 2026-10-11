@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 from pydantic import ValidationError
 
 import build_pack
@@ -81,13 +81,26 @@ def test_schema_rejects_unknown_fields_and_broken_references():
 # ---------------------------------------------------------------- choosing
 
 
-def test_choose_takes_the_fewest_strokes_inside_the_gate_and_skips_rejected():
+def test_choose_takes_the_cleanest_inside_the_gate_and_skips_rejected():
     def c(n, score=10.0):
         return Candidate(None, [[(0, 0), (1, 1)]] * n, score)
 
-    assert choose([c(70), c(12), c(8, 1086.8), c(30)]) == 1  # 8 strokes, but colored
+    assert choose([c(70), c(12, 30.0), c(8, 1086.8), c(30, 20.0)]) == 3  # cleanest; the 8-stroke one is colored
     assert choose([c(5), c(61)]) is None
-    assert choose([c(20, 40.0), c(20, 30.0)]) == 1  # a tie goes to the cleaner one
+    assert choose([c(20, 30.0), c(12, 30.0)]) == 1  # a tie goes to fewer strokes
+
+
+def test_choose_anyway_and_simplify_keep_the_big_lines():
+    from build_pack import choose_anyway, simplify
+
+    def c(n, score=10.0):
+        return Candidate(None, [[(0, 0), (1, 1)]] * n, score)
+
+    assert choose_anyway([c(3, 1.0), c(140, 80.0), c(90, 50.0)]) == 2  # cleanest with enough lines
+    assert choose_anyway([c(0, 1000.0)]) is None  # blank
+    strokes = [[(0, 0), (k, 0)] for k in range(1, 101)]  # lengths 1..100
+    kept = simplify(strokes, limit=60)
+    assert len(kept) == 60 and kept[0] == [(0, 0), (41, 0)] and kept[-1] == [(0, 0), (100, 0)]  # order kept
 
 
 # ---------------------------------------------------------------- index
@@ -177,3 +190,23 @@ def test_build_stops_with_a_clear_message_when_nothing_fits(subjects):
 def test_subject_must_be_a_safe_folder_name():
     with pytest.raises(SystemExit):
         parse_args(["--subject", "../evil", "--difficulty", "medium", "--prompt", "x"])
+
+
+def test_always_builds_a_pack_from_a_busy_drawing_and_runs_the_safety_check():
+    from build_pack import make_pack
+
+    busy = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(busy)
+    for k in range(90):  # 90 separate short lines: over the 60-stroke gate
+        x, y = 40 + (k % 10) * 70, 40 + (k // 10) * 75
+        draw.line([(x, y), (x + 30 + k % 7 * 3, y + 20)], fill=INK, width=6)
+    checked = []
+    common = dict(pack_id="live-busy-medium", subject="busy", title="Busy", difficulty="medium", source_kind="prompt",
+                  prompt="busy", subject_words="busy", seed=0, generate=lambda seed: [busy] * 3,
+                  detect=lambda image: [], retries=0, log=lambda *a: None)
+    with pytest.raises(build_pack.NoCleanCandidate):
+        make_pack(**common)
+    pack, _ = make_pack(**common, always=True, check_drawing=checked.append)
+    schema.Pack.model_validate(pack)
+    assert len([s for s in pack["strokes"] if s["tier"] != "construction"]) <= 60
+    assert len(checked) == 1

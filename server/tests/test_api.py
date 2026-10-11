@@ -57,12 +57,13 @@ def test_cors_allows_only_the_site_and_the_dev_server():
     assert api.ALLOWED_ORIGINS == ["http://localhost:5173", "https://aarushgupta850.github.io"]
 
 
-@pytest.mark.parametrize("prompt", ["a teapot", "  red   fox  ", "Robot 3000"])
+@pytest.mark.parametrize("prompt", ["a teapot", "  red   fox  ", "Robot 3000", "an F1 car, racing!", "a dog's bone"])
 def test_good_prompts_are_cleaned_and_accepted(prompt):
     assert api.check_prompt(prompt) == " ".join(prompt.split())
 
 
-@pytest.mark.parametrize("prompt", ["", "   ", "x" * 41, "a <b>cat</b>", "cat; rm -rf /", "a naked cat", "GUN"])
+@pytest.mark.parametrize("prompt", ["", "   ", "x" * 81, "a <b>cat</b>", "cat; rm -rf /", "a naked cat", "GUN",
+                                    "n4k3d lady", "p.o.r.n", "pornhub logo", "a NUDE beach"])
 def test_bad_prompts_are_rejected(prompt):
     with pytest.raises(api.InputError):
         api.check_prompt(prompt)
@@ -159,3 +160,21 @@ def test_warm_up_also_warms_the_photo_path_when_both_pipelines_stay(monkeypatch,
     fake_build.clear()
     api.warm_up()
     assert fake_build == [("a cat", False, "medium")]
+
+
+def test_a_refused_picture_is_a_400(monkeypatch):
+    from pipeline.safety import UnsafeContent
+
+    def build(*args):
+        raise UnsafeContent("a gun (0.71)")
+
+    monkeypatch.setattr(api, "BUILD", build)
+    response = run(api.generate(api.GenerateRequest(imageBase64=png_base64())))
+    assert status(response) == 400 and body(response)["error"] == api.REFUSED
+
+
+@pytest.mark.parametrize("prompt", ["a cat", "a sunflower", "Dickens' house", "a butterfly", "a scarf", "a cocktail"])
+def test_harmless_prompts_pass_the_word_filter(prompt):
+    from pipeline.safety import blocked_prompt
+
+    assert not blocked_prompt(prompt)
