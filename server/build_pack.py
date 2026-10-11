@@ -154,7 +154,9 @@ def clean_drawing(image: Image.Image) -> Image.Image:
     # The page's brightness around each pixel: the lightest value nearby, smoothed (pages are often unevenly lit).
     page = ndimage.uniform_filter(ndimage.maximum_filter(gray, size=31), size=31)
     ratio = gray / np.maximum(page, 1.0)  # 1 = page, lower = ink
-    ink = float(np.percentile(ratio, 2))
+    # The ink's level: the darkest 2% of pixels, but at most half the page's brightness, so a drawing with very
+    # little ink (under 2% of the image) doesn't mistake the page for ink.
+    ink = min(float(np.percentile(ratio, 2)), 0.5)
     white_from = 1.0 - 0.18 * (1.0 - ink)  # this close to the page counts as page
     out = np.clip((ratio - ink) / max(white_from - ink, 1e-3), 0.0, 1.0) ** 1.6
     return Image.fromarray((out * 255).astype(np.uint8), "L").resize((SIZE, SIZE), Image.LANCZOS)
