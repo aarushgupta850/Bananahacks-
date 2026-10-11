@@ -11,6 +11,9 @@ export const config = {
   doneThreshold: 0.5,       // a stroke at this accuracy or better counts toward drawing its guide
   doneCoverage: 0.8,        // a guide is drawn once strokes like that have covered 80% of it (in one stroke or several)
   minAdaptLength: 20,       // px: shorter traced stretches (dots, ticks) don't move the guides
+  coverDistance: 0.035,     // a guide point counts as drawn when a stroke passes this close (of the diagonal),
+                            // whichever guide the stroke matched, in whatever direction or however many guides it spans
+  stepPatience: 6,          // after this many strokes on one step without finishing it, the lesson moves on
 
   // ---------- teacher (teacher.ts) ----------
   adaptMaxRotationDeg: 10,  // guides may turn at most this much to follow the user

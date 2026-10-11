@@ -5,7 +5,8 @@ import type {
 } from '../types'
 import { config } from './config'
 import {
-  applyToAll, bbox, diagonal, IDENTITY, invertTransform, length, lerpTransform, procrustes, type Transform,
+  applyToAll, bbox, clamp, diagonal, IDENTITY, invertTransform, isClosed, length, lerpTransform, procrustes, resample,
+  type Transform,
 } from './geometry'
 import { coverageShare, isTap, matchStroke } from './match'
 
@@ -37,6 +38,8 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   let strokeCount = 0
   let lastChangeAt = 0
   let lastAccuracy: number | null = null
+  let triesOnStep = 0                        // strokes drawn near the current step's guides without finishing it
+  let triesStep = -1                         // which step triesOnStep counts for
 
   // ---------- helpers ----------
 
@@ -111,6 +114,32 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
     return undefined
   }
 
+  // Which sample points of each shown guide a stroke passed close to (the same points match.ts uses, so the two
+  // kinds of coverage add up). This credits a stroke that runs along two guides at once (a whole outline in one
+  // go), one drawn backwards, or one in a different order. Also returns how close the stroke stayed to the guides.
+  function coverByCloseness(userPoints: Point[], candidates: { id: string; points: Point[] }[]) {
+    const tolerance = config.coverDistance * baseDiagonal * transform.scale
+    const user = resample(userPoints, 2 * config.guidePoints)
+    const near = (p: Point, cloud: Point[]) => cloud.some((q) => (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 <= tolerance ** 2)
+    const byGuide = new Map<string, number[]>()
+    const guidePoints: Point[] = []
+    for (const c of candidates) {
+      const guide = resample(c.points, config.guidePoints)
+      guidePoints.push(...guide)
+      const closed = isClosed(c.points)
+      // A closed guide's last point is its first point again.
+      const hits = guide.flatMap((p, i) => (near(p, user) ? [closed && i === guide.length - 1 ? 0 : i] : []))
+      if (hits.length > 0) byGuide.set(c.id, hits)
+    }
+    // Share of the stroke that stayed on the guides (a stroke mostly off them earns no credit), and a score
+    // from its average distance to them, on the same scale as match.ts's accuracy.
+    const onGuides = user.filter((p) => near(p, guidePoints)).length / user.length
+    const nearestDistance = (p: Point) => Math.sqrt(Math.min(...guidePoints.map((q) => (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2)))
+    const mean = guidePoints.length > 0 ? user.reduce((sum, p) => sum + nearestDistance(p), 0) / user.length : Infinity
+    const accuracy = clamp(1 - mean / (config.accuracyScale * baseDiagonal * transform.scale), 0, 1)
+    return { byGuide, onGuides, accuracy }
+  }
+
   function state(): StrokeResult {
     const i = currentIndex()
     return {
@@ -133,18 +162,27 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       const candidates = shownStrokes().map((s) => ({ id: s.id, points: adapted(s.points) }))
       const match = matchStroke(userPoints, candidates, baseDiagonal * transform.scale)
 
+      const stepAtStart = currentIndex()
+      const credit = (id: string, indices: number[]) => {
+        const traced = covered.get(id) ?? new Set<number>()
+        indices.forEach((i) => traced.add(i))
+        covered.set(id, traced)
+        // The guide is drawn once most of it is covered, by one stroke or several (a long outline in pieces).
+        if (coverageShare(traced, plan.get(id)?.points ?? []) >= config.doneCoverage) done.add(id)
+      }
+
+      // Every guide point the stroke passed close to counts, if most of the stroke stayed on the guides.
+      const closeness = coverByCloseness(userPoints, candidates)
+      const onTheGuides = closeness.onGuides >= config.doneCoverage
+      if (onTheGuides) closeness.byGuide.forEach((indices, id) => credit(id, indices))
+
       let warning: string | undefined
       if (match) {
-        lastAccuracy = match.accuracy
-        // A good stroke covers the stretch of the guide it traced. The guide is drawn once most of it is
-        // covered, by one stroke or several (a long outline can be drawn in pieces).
-        if (match.accuracy >= config.doneThreshold) {
-          const traced = covered.get(match.ghostId) ?? new Set<number>()
-          match.covered.forEach((i) => traced.add(i))
-          covered.set(match.ghostId, traced)
-          const guide = plan.get(match.ghostId)?.points ?? []
-          if (coverageShare(traced, guide) >= config.doneCoverage) done.add(match.ghostId)
-        }
+        // A stroke that stays on the guides scores at least that well, even when it spans two of them and so
+        // matches neither guide on its own.
+        lastAccuracy = onTheGuides ? Math.max(match.accuracy, closeness.accuracy) : match.accuracy
+        // A good stroke also covers the stretch of the guide it was matched to.
+        if (match.accuracy >= config.doneThreshold) credit(match.ghostId, match.covered)
         warning = sizeWarning(match.ghostId, match.user, match.guide)
         // A stroke with zero accuracy is too far off its guide to say where the user is drawing, and a dot or
         // a short tick is too small to say how big the user is drawing.
@@ -152,7 +190,18 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
         recent.push(match.accuracy)
         if (recent.length > config.autoWindow) recent.shift()
       } else {
-        lastAccuracy = null // matched no guide: no score, no penalty
+        lastAccuracy = onTheGuides ? closeness.accuracy : null // matched no guide: no score, no penalty
+      }
+
+      // Never a dead end: after stepPatience strokes near the same step's guides without finishing it, the
+      // step counts as drawn and the lesson moves on.
+      if (lastAccuracy !== null && currentIndex() === stepAtStart && stepAtStart < lesson.length) {
+        if (triesStep !== stepAtStart) {
+          triesStep = stepAtStart
+          triesOnStep = 0
+        }
+        triesOnStep++
+        if (triesOnStep >= config.stepPatience) lesson[stepAtStart].strokes.forEach((s) => done.add(s.id))
       }
       autoAdjust()
       const result = state()
