@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+__pycache__
+.venv
+
+# Model weights
+*.safetensors
+*.ckpt
+*.bin
+
+# Server artifacts
+server/models
+server/cache
+server/out
