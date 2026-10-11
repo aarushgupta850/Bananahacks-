@@ -10,6 +10,7 @@ import SubjectPicker from './screens/SubjectPicker'
 import Teach from './screens/Teach'
 import Test from './screens/Test'
 import WeakSpots from './screens/WeakSpots'
+import type { Pack } from './engine/types'
 import { emptySession, SessionContext, type Session } from './session'
 import './styles/screens.css'
 
@@ -35,6 +36,11 @@ function Flow() {
     setSession(emptySession)
     setScreen('subjects')
   }, [])
+  // Level up on the report: a fresh session on the new pack, starting at its reference.
+  const startPack = useCallback((pack: Pack) => {
+    setSession({ ...emptySession, pack })
+    setScreen('reference')
+  }, [])
   const context = useMemo(() => ({ session, update, restart }), [session, update, restart])
 
   // Moves `by` screens along FLOW, staying inside the list.
@@ -54,7 +60,7 @@ function Flow() {
         {current === 'weakSpots' && <WeakSpots onBack={back} onNext={next} />}
         {current === 'teach' && <Teach onBack={back} onNext={next} />}
         {current === 'retest' && <Retest onBack={back} onNext={next} />}
-        {current === 'report' && <Report onBack={back} />}
+        {current === 'report' && <Report onBack={back} onStartPack={startPack} />}
       </main>
     </SessionContext.Provider>
   )

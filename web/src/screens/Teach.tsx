@@ -50,7 +50,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const [showMe, setShowMe] = useState<Ghost[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
-  const recording = useRef<TeachRecording>({ events: [] })
+  // The recording starts with the ghosts shown before the first stroke, so the replay opens the same way.
+  const recording = useRef<TeachRecording>({ events: [{ t: 0, type: 'ghosts', ghosts: result.ghosts }] })
   const startedAt = useRef(0)
   const timers = useRef<number[]>([])
   useEffect(() => {

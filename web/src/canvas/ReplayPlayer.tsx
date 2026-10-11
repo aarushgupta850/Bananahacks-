@@ -37,7 +37,7 @@ export default function ReplayPlayer({ recording, initialGhosts = [] }: { record
     }
   }, [playing, length])
 
-  if (recording.events.length === 0) {
+  if (!recording.events.some((e) => e.type === 'stroke')) {
     return <p className="replay-empty">No lesson strokes were recorded, so there is nothing to replay.</p>
   }
 
