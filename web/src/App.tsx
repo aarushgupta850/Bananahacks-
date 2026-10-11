@@ -64,6 +64,15 @@ function Flow() {
     if (STAGE_OF[current] === null || window.confirm('Leave this lesson and start over? Your drawings will be lost.')) restart()
   }
 
+  // Mid-run, closing or reloading the tab would lose the drawings, so the browser asks first.
+  const inRun = STAGE_OF[current] !== null
+  useEffect(() => {
+    if (!inRun) return
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [inRun])
+
   // Each new screen starts at the top of the page (the report is long; the next screen shouldn't open halfway).
   useEffect(() => {
     window.scrollTo(0, 0)
