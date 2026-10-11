@@ -1,10 +1,69 @@
-/* Layout for the placeholder screens. Jeff replaces these as he designs each screen. */
+/* Layout for every screen of the flow. Values come from tokens.css. */
+
+/* ---------- shared bits ---------- */
+
+.muted {
+  color: var(--ink-muted);
+}
+
+.chip,
+.card-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* A row of options where exactly one is chosen (difficulty). The chosen one gets a filled background
+   AND bold text, so it is not shown by color alone. */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.segmented button {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.segmented button.is-active {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+}
+
+.segmented button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.segmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
 /* ---------- subject picker ---------- */
 
 .subject-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: var(--space-4);
   margin: 0;
   padding: 0;
@@ -14,38 +73,68 @@
 .subject-card {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
   gap: var(--space-3);
-  width: 100%;
   padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.subject-card:hover,
+.subject-card:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.subject-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-.subject-card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow);
-}
-
-.subject-card:focus-visible {
+.subject-open:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
 
-.subject-card:disabled {
+.subject-open:disabled {
   cursor: progress;
 }
 
-.subject-card img {
+.subject-thumb {
+  position: relative;
+  display: block;
+}
+
+.subject-thumb img {
   width: 100%;
   height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
   border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.ai-badge {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: rgb(28 27 25 / 75%);
+  color: var(--paper);
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .subject-title {
@@ -54,30 +143,200 @@
   font-weight: 600;
 }
 
-.subject-status {
+.subject-status,
+.subject-level {
   color: var(--ink-muted);
   font-size: var(--text-sm);
 }
 
+.make-own {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+  border: 1px dashed var(--ink-muted);
+  border-radius: var(--radius);
+}
+
+.make-own-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.make-own-header h2 {
+  font-size: var(--text-lg);
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-3);
+  border: 1px solid var(--success);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.make-own-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.field input[type='text'] {
+  min-width: 240px;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.field input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.field input:disabled {
+  opacity: 0.55;
+}
+
+/* Lines that sketch themselves while live AI works. */
+.sketch-loader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.sketch-loader svg {
+  width: 120px;
+  height: 80px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.sketch-loader path,
+.sketch-loader circle {
+  stroke-dasharray: 1;
+  animation: sketch 1.8s ease-in-out infinite;
+}
+
+.sketch-loader path:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.sketch-loader circle {
+  animation-delay: 0.6s;
+}
+
+@keyframes sketch {
+  0% { stroke-dashoffset: 1; }
+  60%, 100% { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sketch-loader path,
+  .sketch-loader circle {
+    animation: none;
+  }
+}
+
 /* ---------- reference ---------- */
 
+.reference-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(240px, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.reference-figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.reference-figure figcaption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
 .reference-image {
-  width: min(100%, 560px);
+  width: 100%;
   height: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.flow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.flow-steps li::marker {
+  font-family: var(--font-heading);
+  font-weight: 600;
+}
+
+@media (max-width: 800px) {
+  .reference-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---------- test and retest: reference beside the canvas, stacked on narrow screens ---------- */
 
 .solo-layout {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(0, 2fr);
-  gap: var(--space-5);
+  grid-template-columns: minmax(180px, 280px) minmax(0, 640px);
+  gap: var(--space-6);
   align-items: start;
+  justify-content: center;
+}
+
+.solo-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
 }
 
 .solo-reference {
+  width: 100%;
   margin: 0;
 }
 
@@ -86,6 +345,7 @@
   height: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .solo-reference figcaption {
@@ -94,17 +354,175 @@
   font-size: var(--text-sm);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 760px) {
   .solo-layout {
     grid-template-columns: 1fr;
   }
 
+  /* On narrow screens the timer and a small reference sit in a row above the canvas. */
+  .solo-side {
+    flex-direction: row;
+    align-items: center;
+  }
+
   .solo-reference {
-    max-width: 200px;
+    max-width: 160px;
   }
 }
 
+/* ---------- countdown ring ---------- */
+
+.countdown {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+}
+
+.countdown svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg); /* start the ring at 12 o'clock */
+}
+
+.countdown circle {
+  fill: none;
+  stroke-width: 6;
+}
+
+.countdown-track {
+  stroke: var(--line);
+}
+
+.countdown-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 250ms linear, stroke var(--transition);
+}
+
+.countdown.is-low .countdown-fill {
+  stroke: var(--warning);
+}
+
+.countdown-number {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-note {
+  position: absolute;
+  bottom: -20px;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ---------- weak spots ---------- */
+
+.weak-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--space-4);
+}
+
+.weak-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--surface);
+  animation: card-in 300ms ease-out both;
+}
+
+.weak-card:nth-child(2) { animation-delay: 80ms; }
+.weak-card:nth-child(3) { animation-delay: 160ms; }
+.weak-card:nth-child(4) { animation-delay: 240ms; }
+
+.weak-card.is-good {
+  border-left-color: var(--success);
+}
+
+.weak-card h2 {
+  font-size: var(--text-lg);
+}
+
+.weak-message {
+  font-weight: 600;
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.part-compare {
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.part-compare text {
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+/* Target: dashed ink. Yours: solid accent. Text labels say which is which too. */
+.compare-target rect {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+.compare-target text {
+  fill: var(--ink);
+}
+
+.compare-user rect {
+  fill: rgb(59 108 255 / 10%);
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.compare-user text {
+  fill: var(--accent);
+}
+
+.compare-user-line,
+.compare-target-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.compare-user-line {
+  stroke: var(--warning);
+}
+
+.compare-target-line {
+  stroke: var(--ink);
+}
+
 /* ---------- teach ---------- */
+
+.teach-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 640px) minmax(220px, 280px);
+  gap: var(--space-6);
+  align-items: start;
+  justify-content: center;
+}
 
 .teach-step {
   display: flex;
@@ -114,13 +532,153 @@
 }
 
 .teach-step h2 {
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
 }
 
-.teach-warning {
-  color: var(--ink);
+.step-count {
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.teach-toast {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  left: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-left: 4px solid var(--warning);
-  padding-left: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--text-sm);
+  pointer-events: none; /* never blocks drawing */
+  animation: card-in 200ms ease-out;
+}
+
+.teach-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.panel-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.panel-label {
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* The help level: a pill whose text names the level; its fill gets lighter as help fades. */
+.help-pill {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-4);
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  font-weight: 700;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.help-guided {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.help-hints {
+  background: rgb(59 108 255 / 15%);
+  color: var(--ink);
+}
+
+.help-checkin {
+  background: transparent;
+  color: var(--ink);
+  border-style: dashed;
+}
+
+.meter {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transition: width 400ms ease-out;
+}
+
+.meter-text {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.mode-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition), background-color var(--transition);
+}
+
+.mode-option.is-active {
+  border: 2px solid var(--accent);
+  background: rgb(59 108 255 / 6%);
+}
+
+.mode-option:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.mode-option input {
+  grid-row: span 2;
+  accent-color: var(--accent);
+}
+
+.mode-name {
+  font-weight: 700;
+}
+
+.mode-hint {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 900px) {
+  .teach-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .teach-panel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .mode-picker {
+    flex-basis: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }
 
 /* ---------- "How this lesson was made" ---------- */

@@ -218,5 +218,8 @@
 
 .dev-only {
   align-self: flex-start;
+}
+
+.btn.dev-only {
   border: 1px dashed var(--ink-muted);
 }
