@@ -15,7 +15,6 @@ of starting a download.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 from pathlib import Path
@@ -23,12 +22,10 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVER_DIR))  # so `pipeline` and `scripts` import when run as a script
 
+from pipeline import models  # noqa: E402
 from pipeline.prompts import line_art_prompt  # noqa: E402
-from scripts.download_models import ENV_FILE, read_env_file  # noqa: E402
+from pipeline.quality import line_metrics  # noqa: E402
 
-BASE_REPO = "stabilityai/stable-diffusion-xl-base-1.0"
-LIGHTNING_REPO = "ByteDance/SDXL-Lightning"
-LIGHTNING_FILE = "sdxl_lightning_4step_unet.safetensors"
 OUT_DIR = SERVER_DIR / "out"
 TARGET_SIZE = 768  # all app coordinates are in 768 x 768 space
 MAX_IMAGE_BYTES = 300 * 1024  # pipeline images must be 300 KB or less
@@ -40,42 +37,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)
 
-    # Same as download_models.py: HF settings must be in the environment before the HF libraries load.
-    env = read_env_file(ENV_FILE)
-    if env.get("HF_HOME") and not os.environ.get("HF_HOME"):
-        os.environ["HF_HOME"] = env["HF_HOME"]
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    print(f"HF_HOME: {os.environ.get('HF_HOME', '(not set, using the default cache)')}")
-
+    # HF settings must be in the environment before the HF libraries load.
+    print(f"HF_HOME: {models.setup_hf_env() or '(not set, using the default cache)'}")
     import torch
-    from diffusers import EulerDiscreteScheduler, StableDiffusionXLPipeline, UNet2DConditionModel
-    from huggingface_hub import hf_hub_download
-    from safetensors.torch import load_file
 
-    if not torch.cuda.is_available():
-        print("CUDA is not available. Check the torch install (it must be a +cu build).")
+    try:
+        gpu, vram_gb = models.gpu_info()
+    except RuntimeError as error:
+        print(error)
         return 1
-    gpu = torch.cuda.get_device_properties(0)
-    vram_gb = gpu.total_memory / 1024**3
-    print(f"GPU: {gpu.name}, {vram_gb:.1f} GB VRAM, torch {torch.__version__}")
+    print(f"GPU: {gpu}, {vram_gb:.1f} GB VRAM, torch {torch.__version__}")
+    if vram_gb <= models.OFFLOAD_VRAM_GB:
+        print("8 GB card: using model CPU offload")
 
     start = time.time()
-    # Build an empty SDXL UNet from the base config, then fill it with the Lightning weights.
-    unet = UNet2DConditionModel.from_config(UNet2DConditionModel.load_config(BASE_REPO, subfolder="unet"))
-    unet.load_state_dict(load_file(hf_hub_download(LIGHTNING_REPO, LIGHTNING_FILE)))
-    unet = unet.to(torch.float16)
-
-    pipe = StableDiffusionXLPipeline.from_pretrained(
-        BASE_REPO, unet=unet, dtype=torch.float16, variant="fp16"
-    )
-    # Lightning was distilled with "trailing" timesteps; other spacings give blurry results.
-    pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
-    if vram_gb <= 8.5:
-        # 8 GB cards can't hold SDXL all at once: keep each part on the CPU until it is needed.
-        pipe.enable_model_cpu_offload()
-        print("8 GB card: using model CPU offload")
-    else:
-        pipe.to("cuda")
+    pipe = models.load_lightning()
     print(f"Loaded in {time.time() - start:.1f} s")
 
     prompt = line_art_prompt(args.subject)
@@ -99,11 +75,11 @@ def main(argv: list[str] | None = None) -> int:
     image.save(out_path, "WEBP", quality=85)
 
     # Rough check that it looks like line art: mostly white page, some dark ink.
-    gray = image.convert("L")
-    dark = sum(1 for p in gray.getdata() if p < 128) / (TARGET_SIZE * TARGET_SIZE)
+    metrics = line_metrics(image)
+    dark = metrics["ink"]
     size = out_path.stat().st_size
     print(f"Generated in {seconds:.1f} s, peak VRAM {peak_gb:.2f} GB")
-    print(f"Saved {out_path} ({size / 1024:.0f} KB, {dark:.1%} dark pixels)")
+    print(f"Saved {out_path} ({size / 1024:.0f} KB, {dark:.1%} dark pixels, cleanliness score {metrics['score']:.1f})")
     if size > MAX_IMAGE_BYTES:
         print("Warning: image is over 300 KB")
     if not 0.005 < dark < 0.4:
