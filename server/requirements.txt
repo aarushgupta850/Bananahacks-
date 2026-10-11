@@ -1,0 +1,30 @@
+# Python packages for the pack pipeline and the optional live API in /server.
+#
+# torch and torchvision are NOT listed here. Install them FIRST, separately, with CUDA:
+# the PyPI build of torch on Windows is CPU-only, and controlnet-aux (which needs both) would
+# otherwise pull in the CPU build. For the RTX 4060 Ti (driver supports CUDA 13):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+# Then:
+#   pip install -r server/requirements.txt
+
+# Live API
+fastapi
+uvicorn
+pydantic
+
+# Image processing
+numpy
+opencv-python
+scikit-image
+scipy
+pillow
+
+# Models (Hugging Face)
+transformers
+diffusers
+accelerate
+safetensors
+controlnet-aux
+
+# Tests
+pytest
