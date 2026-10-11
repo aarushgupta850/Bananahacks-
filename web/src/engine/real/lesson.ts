@@ -46,7 +46,8 @@ function allWeaknesses(analysis: Analysis): Weakness[] {
       })
     }
   }
-  if (analysis.lineConfidence < config.lineWeakBelow) {
+  // An empty drawing has no lines to judge, so it gets no line weakness (only the missing parts).
+  if (analysis.alignedStrokes.length > 0 && analysis.lineConfidence < config.lineWeakBelow) {
     found.push({
       partId: null, kind: 'line', severity: clamp(config.lineWeakBelow - analysis.lineConfidence, 0, 1),
       message: 'Lines look hesitant. Try single, confident strokes',
@@ -70,6 +71,8 @@ export function buildLesson(pack: Pack, weaknesses: Weakness[]): Step[] {
     const index = weaknesses.findIndex((w) => w.partId !== null && parts.has(w.partId))
     return index === -1 ? weaknesses.length : index
   }
+  // Nothing to fix: keep the pack's own step order.
+  if (weaknesses.length === 0) return pack.steps.map((step) => ({ ...step, strokeIds: [...step.strokeIds] }))
   const mentioned = new Set<Weakness>()
   return pack.steps
     .map((step, order) => ({ step, order }))
@@ -134,10 +137,12 @@ function spotOn(label: string, measure: 'size' | 'position', error: number): str
 
 export function coach(_pack: Pack, test: Analysis, retest: Analysis): Coaching {
   // Fix items: the test's 3 biggest problems, improved when the retest error is at least 40% smaller.
+  // A part left out of the retest is never "improved", however big its error was in the test.
+  const missingNow = (w: Weakness) => w.partId !== null && retest.parts.some((p) => p.partId === w.partId && p.missing)
   const fix = allWeaknesses(test).slice(0, config.maxWeaknesses).map((w): CoachItem => ({
     text: describeFix(w, test, retest),
     partId: w.partId,
-    status: errorOf(w, retest) <= errorOf(w, test) * (1 - config.improvedShare) ? 'improved' : 'not-yet',
+    status: !missingNow(w) && errorOf(w, retest) <= errorOf(w, test) * (1 - config.improvedShare) ? 'improved' : 'not-yet',
   }))
 
   // Good items: the retest's best parts that weren't already a fix item, by their best measure.

@@ -5,9 +5,9 @@ import type {
 } from '../types'
 import { config } from './config'
 import {
-  applyToAll, bbox, diagonal, IDENTITY, invertTransform, lerpTransform, procrustes, type Transform,
+  applyToAll, bbox, diagonal, IDENTITY, invertTransform, length, lerpTransform, procrustes, type Transform,
 } from './geometry'
-import { matchStroke } from './match'
+import { coverageShare, isTap, matchStroke } from './match'
 
 // Help levels from most help to least. Auto mode moves one place along this list at a time.
 const LEVELS: HelpLevel[] = ['guided', 'hints', 'checkin']
@@ -31,6 +31,7 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   let transform: Transform = { ...IDENTITY } // plan space -> where the user is drawing
   let pairs: { from: Point; to: Point }[] = [] // matched plan point -> user point, for the fit
   const done = new Set<string>()             // plan stroke ids drawn well enough
+  const covered = new Map<string, Set<number>>() // plan stroke id -> guide points traced well so far (see match.ts)
   const recent: number[] = []                // accuracies of the last few matched strokes
   const changes: ModeChange[] = []
   let strokeCount = 0
@@ -126,19 +127,28 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
 
   return {
     addStroke(stroke: UserStroke): StrokeResult {
-      if (stroke.points.length < 2) return state() // a tap, not a line: ignore it
-      strokeCount++
       const userPoints = stroke.points.map(([x, y]): Point => [x, y])
+      if (userPoints.length < 2 || isTap(userPoints)) return state() // a tap, not a line: ignore it
+      strokeCount++
       const candidates = shownStrokes().map((s) => ({ id: s.id, points: adapted(s.points) }))
       const match = matchStroke(userPoints, candidates, baseDiagonal * transform.scale)
 
       let warning: string | undefined
       if (match) {
         lastAccuracy = match.accuracy
-        if (match.accuracy >= config.doneThreshold) done.add(match.ghostId)
+        // A good stroke covers the stretch of the guide it traced. The guide is drawn once most of it is
+        // covered, by one stroke or several (a long outline can be drawn in pieces).
+        if (match.accuracy >= config.doneThreshold) {
+          const traced = covered.get(match.ghostId) ?? new Set<number>()
+          match.covered.forEach((i) => traced.add(i))
+          covered.set(match.ghostId, traced)
+          const guide = plan.get(match.ghostId)?.points ?? []
+          if (coverageShare(traced, guide) >= config.doneCoverage) done.add(match.ghostId)
+        }
         warning = sizeWarning(match.ghostId, match.user, match.guide)
-        // A stroke with zero accuracy is too far off its guide to say where the user is drawing.
-        if (match.accuracy > 0) adapt(match.guide, match.user)
+        // A stroke with zero accuracy is too far off its guide to say where the user is drawing, and a dot or
+        // a short tick is too small to say how big the user is drawing.
+        if (match.accuracy > 0 && length(match.guide) >= config.minAdaptLength) adapt(match.guide, match.user)
         recent.push(match.accuracy)
         if (recent.length > config.autoWindow) recent.shift()
       } else {
