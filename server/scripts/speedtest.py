@@ -62,6 +62,23 @@ PART_LABELS = {
 }
 OWL_THRESHOLD = 0.1  # OWLv2 scores are low in general; 0.1 is the usual starting point
 OWL_THRESHOLD_LOW = 0.05  # also drawn (in orange), to see whether a lower threshold would help
+REJECTED_SCORE = 1000  # quality.py adds 1000 for a blank page or a colored drawing
+
+# What the speed-test images showed when checked by eye (the scores can't see all of this).
+EYE_NOTES = [
+    "baseline, playbook and kids: detailed illustrations with fur/feather hatching, frames and backgrounds; "
+    "too hard for a beginner to copy.",
+    "icon: bold, uniform outlines, the first usable style; but some head-only busts, a brand-like swoosh "
+    "on sneakers, garbled text on a house and solid black fills.",
+    "icon_clean (CHOSEN): whole bodies for cat, fox and bird, no garbled text, no cartoon faces; picked by eye "
+    "for 7 of 8 subjects. One fox seed came out in full color, which led to quality.py's color reject.",
+    "icon_mono: 'black and white' removed color but made drawings more detailed (fur, fills); 'no frame' did "
+    "not remove circle frames and added rectangular ones on some seeds. Rejected.",
+    "Backgrounds are light gray (about #d8 to #e0), not white, in every variant: tracing must threshold first.",
+    "OWLv2 parts: subject-qualified labels ('cat head') score far higher than plain ones ('head'). Distinctive "
+    "parts (handle, beak, chimney, door, tail) are reliable; paired parts return only one box (one ear, one eye); "
+    "a few boxes are wrong (bird 'head' = whole bird, fish 'mouth' on a fin, sneaker 'heel' = whole upper).",
+]
 
 # Licenses as listed on each model's Hugging Face page (checked by download_models.py --check).
 MODEL_LICENSES = [
@@ -184,7 +201,12 @@ def save_grid(images: list[dict], path: Path) -> None:
 
 
 def rank_variants(images: list[dict]) -> list[dict]:
-    """Averages the scores per prompt variant over all subjects and seeds, cleanest first."""
+    """Summarizes each prompt variant, cleanest first.
+
+    Ranked by "best of N": for each subject take the variant's best seed, then average over subjects.
+    That is how the pack builder uses a prompt (generate several candidates, keep the cleanest), so
+    one rejected seed doesn't sink a variant the way it would with a plain mean.
+    """
     rows = []
     for variant in VARIANTS:
         mine = [i for i in images if i["variant"] == variant]
@@ -193,12 +215,15 @@ def rank_variants(images: list[dict]) -> list[dict]:
         row = {"variant": variant, "count": len(mine)}
         for key in ("score", "specks", "pieces", "gray_ratio", "color", "ink", "seconds"):
             row[key] = statistics.mean(i[key] for i in mine)
+        row["median"] = statistics.median(i["score"] for i in mine)
+        row["rejected"] = sum(i["score"] >= REJECTED_SCORE for i in mine)
         row["by_subject"] = {
-            s: statistics.mean(i["score"] for i in mine if i["subject"] == s)
+            s: min(i["score"] for i in mine if i["subject"] == s)
             for s in dict.fromkeys(i["subject"] for i in mine)
         }
+        row["best_of_n"] = statistics.mean(row["by_subject"].values())
         rows.append(row)
-    return sorted(rows, key=lambda r: r["score"])
+    return sorted(rows, key=lambda r: r["best_of_n"])
 
 
 def best_image(images: list[dict], variant: str, subject: str) -> dict:
@@ -402,21 +427,22 @@ def write_report(results: dict) -> None:
             "",
             "Score from `server/pipeline/quality.py`, lower is cleaner: specks + half the separate pieces "
             "+ 50 x gray-per-ink ratio (shading) + penalties for solid fills, a blank page or color "
-            "(any image scoring 1000+ was rejected outright). Earlier runs' images are re-scored with the current "
-            "quality.py, so every variant is judged the same way.",
+            f"(an image scoring {REJECTED_SCORE}+ is rejected). Earlier runs' images are re-scored with the current "
+            "quality.py, so every variant is judged the same way. Ranked by best of N: each subject's best seed, "
+            "averaged over subjects, because the pack builder keeps the cleanest of several candidates.",
             "",
-            "| Variant | Images | Score | Specks | Pieces | Gray ratio | Color | Ink | Seconds |",
+            "| Variant | Images | Best of N | Median | Mean | Rejected | Gray ratio | Color | Seconds |",
             "|---|---|---|---|---|---|---|---|---|",
         ]
         lines += [
-            f"| {r['variant']} | {r['count']} | {r['score']:.1f} | {r['specks']:.1f} | {r['pieces']:.1f} | "
-            f"{r['gray_ratio']:.2f} | {r['color']:.2f} | {r['ink']:.1%} | {r['seconds']:.1f} |"
+            f"| {r['variant']} | {r['count']} | {r['best_of_n']:.1f} | {r['median']:.1f} | {r['score']:.1f} | "
+            f"{r['rejected']} | {r['gray_ratio']:.2f} | {r['color']:.2f} | {r['seconds']:.1f} |"
             for r in ranking
         ]
         if len(subjects) > 1:
             lines += [
                 "",
-                "Mean score per subject:",
+                "Best score per subject (the candidate the pack builder would keep):",
                 "",
                 "| Variant | " + " | ".join(slugify(s) for s in subjects) + " |",
                 "|---|" + "---|" * len(subjects),
@@ -430,13 +456,17 @@ def write_report(results: dict) -> None:
         best = ranking[0]["variant"]
         lines += [
             "",
-            f"Cleanest by score: **{best}**. `CHOSEN` in `server/pipeline/prompts.py` is **{CHOSEN}**; "
-            "set it after checking the grid-*.webp images by eye.",
+            f"Cleanest by best-of-N score: **{best}**. Chosen prompt (`CHOSEN` in `server/pipeline/prompts.py`): "
+            f"**{CHOSEN}**, also checked by eye in the grid-*.webp images:",
             "",
             "```",
-            VARIANTS[best],
+            VARIANTS[CHOSEN],
             "```",
+            "",
+            "## Checked by eye",
+            "",
         ]
+        lines += [f"- {note}" for note in EYE_NOTES]
     if photo and photo["status"] == "ok":
         m = photo["metrics"]
         lines += [
@@ -465,7 +495,8 @@ def write_report(results: dict) -> None:
         lines += ["", "Part results are from an older version of this script; rerun with --stages parts."]
     lines += ["", "## Models", "", "| Model | Used for | License |", "|---|---|---|"]
     lines += [f"| [{repo}](https://huggingface.co/{repo}) | {use} | {lic} |" for repo, use, lic in MODEL_LICENSES]
-    REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # newline="\n" so the committed report has the same line endings on Windows as everywhere else.
+    REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 def status_text(stage: dict | None) -> str:
@@ -539,11 +570,11 @@ def main(argv: list[str] | None = None) -> int:
         save()
     text_ok = results.get("text", {}).get("status") == "ok"
     ranking = rank_variants(results["text"]["images"]) if text_ok else []
-    winner = ranking[0]["variant"] if ranking else CHOSEN
+    # The photo and parts stages use the chosen prompt, since that's what the pack builder will use.
 
     if "photo" in stages:
         if args.photo.is_file():
-            results["photo"] = run_stage(stage_photo, args.photo, args.photo_subject, winner)
+            results["photo"] = run_stage(stage_photo, args.photo, args.photo_subject, CHOSEN)
         else:
             print(f"[photo] skipped: no photo at {args.photo}")
             results["photo"] = {"status": "skipped", "message": f"no photo at {args.photo.name} yet"}
@@ -552,7 +583,7 @@ def main(argv: list[str] | None = None) -> int:
     if "parts" in stages:
         if text_ok:
             images = results["text"]["images"]
-            targets = [(s, Path(best_image(images, winner, s)["path"])) for s in results["text"]["subjects"]]
+            targets = [(s, Path(best_image(images, CHOSEN, s)["path"])) for s in results["text"]["subjects"]]
             results["parts"] = run_stage(stage_parts, targets)
         else:
             results["parts"] = {"status": "skipped", "message": "needs a successful text stage first"}
@@ -560,7 +591,7 @@ def main(argv: list[str] | None = None) -> int:
 
     write_report(results)
     if ranking:
-        print(f"\nCleanest prompt by score: {winner} (score {ranking[0]['score']:.1f})")
+        print(f"\nCleanest by best-of-N score: {ranking[0]['variant']} ({ranking[0]['best_of_n']:.1f}); chosen: {CHOSEN}")
     print(f"Wrote {REPORT_PATH}")
     print(f"Check by eye in {OUT_DIR}: grid-*.webp, owl-*.png, photo-lines.png, photo-drawing.png")
     failed = [name for name in STAGES if results.get(name, {}).get("status") == "failed" and name in stages]

@@ -37,8 +37,8 @@ VARIANTS = {
         "very few lines, no details, no shading, no solid black areas, no text, no logo, "
         "isolated on plain white background"
     ),
-    # "icon_clean" (the cleanest in the second speed test) plus fixes for what it still did:
-    # one fox came out in full color, and some seeds still drew a circle frame around the subject.
+    # "icon_clean" plus "black and white, no frame". Tried in the third speed test and rejected: it removed
+    # color but made drawings more detailed, and frames stayed. Kept here so the comparison can be rerun.
     "icon_mono": (
         "minimalist black and white line icon of {subject}, full body, bold uniform black outline only, "
         "flat, very few lines, no details, no shading, no solid black areas, no text, no logo, "
