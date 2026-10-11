@@ -2,9 +2,67 @@
   "subjects": [
     {
       "subject": "fox",
-      "title": "Fox (demo)",
-      "thumb": "demo-fox-medium/thumb.svg",
-      "packs": { "medium": "demo-fox-medium" }
+      "title": "Fox",
+      "thumb": "fox-medium/thumb.png",
+      "packs": {
+        "medium": "fox-medium"
+      }
+    },
+    {
+      "subject": "cat",
+      "title": "Cat",
+      "thumb": "cat-medium/thumb.png",
+      "packs": {
+        "medium": "cat-medium"
+      }
+    },
+    {
+      "subject": "face",
+      "title": "Face",
+      "thumb": "face-medium/thumb.png",
+      "packs": {
+        "medium": "face-medium"
+      }
+    },
+    {
+      "subject": "mug",
+      "title": "Mug",
+      "thumb": "mug-medium/thumb.png",
+      "packs": {
+        "medium": "mug-medium"
+      }
+    },
+    {
+      "subject": "sneaker",
+      "title": "Sneaker",
+      "thumb": "sneaker-medium/thumb.png",
+      "packs": {
+        "medium": "sneaker-medium"
+      }
+    },
+    {
+      "subject": "bird",
+      "title": "Bird",
+      "thumb": "bird-medium/thumb.png",
+      "packs": {
+        "medium": "bird-medium"
+      }
+    },
+    {
+      "subject": "fish",
+      "title": "Fish",
+      "thumb": "fish-medium/thumb.png",
+      "packs": {
+        "medium": "fish-medium"
+      }
+    },
+    {
+      "subject": "house",
+      "title": "House",
+      "thumb": "house-medium/thumb.png",
+      "packs": {
+        "medium": "house-medium"
+      }
     }
   ]
 }

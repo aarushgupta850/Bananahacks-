@@ -1,7 +1,6 @@
 """Tests for the pack schema and the pack builder, with fake drawings instead of the GPU models."""
 
 import json
-import shutil
 from pathlib import Path
 
 import cv2
@@ -44,11 +43,16 @@ FAKE_PARTS = [{"id": "head", "label": "Head", "box": [150, 200, 200, 200]},
               {"id": "body", "label": "Body", "box": [225, 355, 350, 230]}]
 
 
+# A fixed one-subject index, so these tests don't depend on whichever packs the real index.json lists.
+DEMO_ONLY_INDEX = {"subjects": [{"subject": "fox", "title": "Fox (demo)", "thumb": "demo-fox-medium/thumb.svg",
+                                 "packs": {"medium": "demo-fox-medium"}}]}
+
+
 @pytest.fixture
 def subjects(tmp_path):
     folder = tmp_path / "subjects"
     folder.mkdir()
-    shutil.copy(DEMO_INDEX, folder / "index.json")
+    (folder / "index.json").write_text(json.dumps(DEMO_ONLY_INDEX))
     return folder
 
 
