@@ -46,6 +46,7 @@ Listed in `server/requirements.txt`, except torch and torchvision, which are ins
 | SciPy | Math and image helpers in the pack pipeline | BSD-3-Clause | https://scipy.org |
 | Pillow | Reading and writing images | MIT-CMU | https://python-pillow.org |
 | PyTorch and torchvision | Running the image models on the GPU | BSD-3-Clause (bundled parts: Apache-2.0, MIT and others) | https://pytorch.org |
+| huggingface_hub | Downloading model weights (server/scripts/download_models.py) | Apache-2.0 | https://github.com/huggingface/huggingface_hub |
 | Transformers | Loading Hugging Face models | Apache-2.0 | https://github.com/huggingface/transformers |
 | Diffusers | Running the image generation models | Apache-2.0 | https://github.com/huggingface/diffusers |
 | Accelerate | Fitting models in 8 GB of VRAM (CPU offload) | Apache-2.0 | https://github.com/huggingface/accelerate |
