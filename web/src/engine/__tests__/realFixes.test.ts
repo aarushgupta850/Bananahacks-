@@ -3,6 +3,8 @@
 // mostly belong to no part, a test that leaves a part out, a drawing that isn't finished, a stray tap.
 import { describe, expect, it } from 'vitest'
 import packText from '../../../public/subjects/demo-fox-medium/pack.json?raw'
+import foxText from '../../../public/subjects/fox-medium/pack.json?raw'
+import careful from './fixtures/fox-medium--careful--aarush.json'
 import { parsePack } from '../../lib/packs'
 import { analyze } from '../real/analyze'
 import { coach, findWeaknesses } from '../real/lesson'
@@ -127,5 +129,23 @@ describe('real engine fixes', () => {
     const retest = analyze(demo, copyOf(visible(demo).filter((s) => s.partId !== 'eyes')))
     const item = coach(demo, badEyes, retest).fix.find((f) => f.partId === 'eyes')!
     expect(item.status).toBe('not-yet')
+  })
+
+  it('finds eyes drawn inside a head that is bigger and lower than the target', () => {
+    // Head and eyes scaled 1.3x about a point below the head, so the eyes land on the target's nose lines.
+    const grow = ([x, y]: Point): Point => [280 + (x - 280) * 1.3, 330 + (y - 330) * 1.3]
+    const strokes = visible(demo).map((s) => toUser(s.partId === 'head' || s.partId === 'eyes' ? s.points.map(grow) : s.points))
+    const eyes = analyze(demo, strokes).parts.find((p) => p.partId === 'eyes')!
+    expect(eyes.missing).toBe(false)
+    expect(Math.abs(eyes.offset.dx) + Math.abs(eyes.offset.dy)).toBeLessThan(0.1) // right where they belong in the head
+  })
+
+  it("finds the eyes in Aarush's careful fox, without a made-up eye size", () => {
+    const fox = parsePack(JSON.parse(foxText), 'fox-medium')
+    const a = analyze(fox, (careful as { strokes: UserStroke[] }).strokes)
+    const eyes = a.parts.find((p) => p.partId === 'eyes')!
+    expect(eyes.missing).toBe(false)
+    expect(eyes.sizeError).toBe(0) // fox-medium's plan has one eye stroke, so eye size isn't judged
+    expect(findWeaknesses(fox, a).some((w) => w.partId === 'eyes')).toBe(false)
   })
 })
