@@ -16,12 +16,13 @@ interface PlaceholderScreenProps {
   onNext?: () => void      // no Next button when missing
   backLabel?: string
   nextLabel?: string
+  nextDisabled?: boolean   // shows Next but greyed out (e.g. while a form value is invalid)
   extraActions?: ReactNode // more buttons, placed before Next
   compact?: boolean        // drawing screens: smaller heading so the canvas and buttons fit on a laptop screen
 }
 
 export default function PlaceholderScreen({
-  title, lead, children, onBack, onNext, backLabel = 'Back', nextLabel = 'Next', extraActions, compact = false,
+  title, lead, children, onBack, onNext, backLabel = 'Back', nextLabel = 'Next', extraActions, compact = false, nextDisabled = false,
 }: PlaceholderScreenProps) {
   // Move focus to the heading on every new screen, so keyboard and screen-reader users start at the top.
   const heading = useRef<HTMLHeadingElement>(null)
@@ -40,7 +41,7 @@ export default function PlaceholderScreen({
         {onBack && <button type="button" className="btn" onClick={onBack}>{backLabel}</button>}
         <div className="screen-nav-end">
           {extraActions}
-          {onNext && <button type="button" className="btn btn-primary" onClick={onNext}>{nextLabel}</button>}
+          {onNext && <button type="button" className="btn btn-primary" onClick={onNext} disabled={nextDisabled}>{nextLabel}</button>}
         </div>
       </nav>
     </section>

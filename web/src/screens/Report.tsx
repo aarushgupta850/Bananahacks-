@@ -11,6 +11,7 @@ import { usePack, useSession } from '../session'
 import PipelinePanel from './PipelinePanel'
 import PlaceholderScreen from './PlaceholderScreen'
 import { describeModeHistory, describeScale, formatChange, harderDifficulty } from './reportText'
+import { timingLabel } from './timeLimit'
 
 const LEVEL_UP_SCORE = 75 // "Level up" shows when the retest total is at least this
 const COUNT_UP_MS = 900
@@ -120,6 +121,8 @@ function ReportBody({ pack, test, retest, overlay, setOverlay, onStartPack }: Bo
         <div className="report-card-head">
           <span className="report-brand">Ghost Lines</span>
           <h2>{pack.title}</h2>
+          {/* Both rounds used this limit, so the comparison is like for like. */}
+          <span className="chip report-timing">{timingLabel(session.soloSeconds)}</span>
         </div>
 
         <div className="report-drawings">

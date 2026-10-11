@@ -40,12 +40,13 @@ function Flow() {
 
   const update = useCallback((changes: Partial<Session>) => setSession((s) => ({ ...s, ...changes })), [])
   const restart = useCallback(() => {
-    setSession(emptySession)
+    // Starting over keeps the time limit the user chose; everything else is cleared.
+    setSession((s) => ({ ...emptySession, soloSeconds: s.soloSeconds }))
     setScreen('subjects')
   }, [])
   // Level up on the report: a fresh session on the new pack, starting at its reference.
   const startPack = useCallback((pack: Pack) => {
-    setSession({ ...emptySession, pack })
+    setSession((s) => ({ ...emptySession, pack, soloSeconds: s.soloSeconds }))
     setScreen('reference')
   }, [])
   const context = useMemo(() => ({ session, update, restart }), [session, update, restart])
