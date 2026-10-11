@@ -148,4 +148,13 @@ describe('real engine fixes', () => {
     expect(eyes.sizeError).toBe(0) // fox-medium's plan has one eye stroke, so eye size isn't judged
     expect(findWeaknesses(fox, a).some((w) => w.partId === 'eyes')).toBe(false)
   })
+
+  it('finds nothing to fix in a perfect copy of any shipped pack', () => {
+    const packFiles = import.meta.glob<string>('../../../public/subjects/*/pack.json', { query: '?raw', import: 'default', eager: true })
+    for (const [path, text] of Object.entries(packFiles)) {
+      const pack = parsePack(JSON.parse(text), path)
+      const a = analyze(pack, copyOf(visible(pack)))
+      expect(findWeaknesses(pack, a).map((w) => w.message), pack.id).toEqual([])
+    }
+  })
 })
