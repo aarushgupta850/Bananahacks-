@@ -135,7 +135,8 @@ function parentOf(child: Part, parts: Part[]): Part | null {
 // its plan lines. A small stroke given to the parent (or to nothing) whose center, seen in that frame, falls in a
 // child part's box (the eyes) goes to that child.
 function placeSmallStrokesInsideTheirParent(
-  pack: Pack, partSets: Map<string, Point[]>, byStroke: { points: Point[]; part: string | null }[], targetDiagonal: number,
+  pack: Pack, partSets: Map<string, Point[]>, byStroke: { points: Point[]; part: string | null; distance: number }[],
+  targetDiagonal: number,
 ): Map<string, (p: Point) => Point> {
   const frames = new Map<string, (p: Point) => Point>() // child part id -> its parent's frame (user -> target)
   const smallLimit = config.smallStrokeShare * targetDiagonal
@@ -164,6 +165,8 @@ function placeSmallStrokesInsideTheirParent(
     const margin = 0.1 * Math.max(uw, uh)
     for (const stroke of byStroke) {
       if (!isSmall(stroke.points) || (stroke.part !== parentId && stroke.part !== null)) continue
+      // A stroke lying right on its plan lines (a whisker, a lace) is already placed well: leave it.
+      if (stroke.distance <= config.onLineDistance * targetDiagonal) continue
       const [cx, cy] = boxCenter(bbox(stroke.points))
       if (cx < ux - margin || cx > ux + uw + margin || cy < uy - margin || cy > uy + uh + margin) continue
       const [mx, my] = toTarget([cx, cy])
@@ -180,7 +183,10 @@ function missingPart(partId: string, label: string): PartMetric {
   }
 }
 
-export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
+export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
+  // Only parts that own at least one plan stroke can be measured. A part with no lines of its own (a mug's "rim"
+  // whose ellipse was traced into the body outline) could never be drawn, so it was always "Forgot the rim".
+  const pack: Pack = { ...fullPack, parts: fullPack.parts.filter((p) => fullPack.strokes.some((s) => s.partId === p.id)) }
   const drawn = strokes.filter((s) => s.points.length >= 2 && !isTap(s.points.map(([x, y]): Point => [x, y])))
   const usedFallback = pack.parts.length === 0
   if (drawn.length === 0) {
@@ -219,7 +225,11 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
         bestPart = partId
       }
     }
-    return { points, part: bestPart && bestDistance <= config.partMaxDistance * targetDiagonal ? bestPart : null }
+    return {
+      points,
+      part: bestPart && bestDistance <= config.partMaxDistance * targetDiagonal ? bestPart : null,
+      distance: bestDistance, // how far the stroke is from the plan lines it was given to
+    }
   })
   const parentFrames = placeSmallStrokesInsideTheirParent(pack, partSets, byStroke, targetDiagonal)
   const assigned = new Map<string, Point[]>()
@@ -232,16 +242,14 @@ export function analyze(pack: Pack, strokes: UserStroke[]): Analysis {
   const parts = pack.parts.map((part): PartMetric => {
     const drawnPoints = assigned.get(part.id)
     if (!drawnPoints || drawnPoints.length === 0) return missingPart(part.id, part.label)
-    // A part inside another (the eyes in the head) is measured in its parent's frame, so a head drawn too big
-    // doesn't also make the eyes "too big".
-    const frame = parentFrames.get(part.id)
-    const userPoints = frame ? drawnPoints.map(frame) : drawnPoints
+    const userPoints = drawnPoints
+    const isChild = parentFrames.has(part.id) // a part inside another, like the eyes in the head
     const planPoints = partSets.get(part.id) ?? []
     // When the plan lines cover only a little of the part's box (a pack whose left eye was traced into the cheek
     // line has one eye stroke for "eyes"), the part's size can't be judged: only its position is, against the box.
     const [bx0, by0, bw, bh] = part.box
     const covered = bbox(planPoints)[2] * bbox(planPoints)[3] >= config.minPlanCoverage * bw * bh
-    const sizeKnown = !frame || covered
+    const sizeKnown = !isChild || covered
     const tBox = sizeKnown ? bbox(planPoints) : part.box
     const uBox = bbox(userPoints)
     const sizeError = sizeKnown ? diagonal(uBox) / Math.max(diagonal(tBox), 1) - 1 : 0

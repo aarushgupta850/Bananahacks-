@@ -33,6 +33,7 @@ export const config = {
   alignPointsPerStroke: 32, // points per stroke during alignment
   partMaxDistance: 0.15,    // strokes farther than 15% of the diagonal from every part are ignored
   smallStrokeShare: 0.12,   // strokes under 12% of the diagonal (eyes, a nose) are placed inside their parent part
+  onLineDistance: 0.01,     // a small stroke within 1% of the diagonal of its plan lines is never moved to a child part
   minPlanCoverage: 0.3,     // a child part whose plan lines cover under 30% of its box is judged by position only
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
