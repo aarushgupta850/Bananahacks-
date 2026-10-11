@@ -1,14 +1,10 @@
-// The real engine. Methods that aren't written yet hand the call to the mock, so the app works end to end.
-// Each method is written out on its own line so it can be swapped for the real version one at a time.
-import { mockEngine } from '../mock'
-import { createTeacher } from './teacher'
+// The real engine: pure TypeScript, no DOM, no dependencies. Tunable numbers live in config.ts.
+// - analyze.ts: aligns a solo drawing with the target and measures every part
+// - lesson.ts: weak spots, lesson order, score and before/after coaching
+// - teacher.ts: the live lesson (stroke matching, adaptive guides, assistance modes)
 import type { Engine } from '../types'
+import { analyze } from './analyze'
+import { buildLesson, coach, findWeaknesses, score } from './lesson'
+import { createTeacher } from './teacher'
 
-export const realEngine: Engine = {
-  analyze: (pack, strokes) => mockEngine.analyze(pack, strokes),
-  findWeaknesses: (pack, analysis) => mockEngine.findWeaknesses(pack, analysis),
-  buildLesson: (pack, weaknesses) => mockEngine.buildLesson(pack, weaknesses),
-  createTeacher, // real: adaptive guides and assistance modes (teacher.ts)
-  score: (analysis) => mockEngine.score(analysis),
-  coach: (pack, test, retest) => mockEngine.coach(pack, test, retest),
-}
+export const realEngine: Engine = { analyze, findWeaknesses, buildLesson, createTeacher, score, coach }
