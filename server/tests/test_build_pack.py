@@ -91,6 +91,17 @@ def test_choose_takes_the_cleanest_inside_the_gate_and_skips_rejected():
     assert choose([c(20, 30.0), c(12, 30.0)]) == 1  # a tie goes to fewer strokes
 
 
+def test_choose_prefers_a_whole_subject_then_one_that_fits_the_lesson_as_drawn():
+    def c(n, score=10.0, cut_off=False):
+        return Candidate(None, [[(0, 0), (1, 1)]] * n, score, cut_off)
+
+    # The cleanest draft runs off the edge, so the next one wins.
+    assert choose([c(20, 5.0, cut_off=True), c(22, 9.0)]) == 1
+    # For a simple lesson (25 strokes), a clean 40-stroke draft would lose 15 lines; a 22-stroke one keeps all.
+    assert choose([c(40, 5.0), c(22, 9.0)], limit=25) == 1
+    assert choose([c(40, 5.0), c(22, 9.0)]) == 0  # with the usual limit both fit, so the cleanest wins
+
+
 def test_choose_anyway_and_simplify_keep_the_big_lines():
     from build_pack import choose_anyway, simplify
 
@@ -123,15 +134,18 @@ def test_update_index_merges_without_touching_other_subjects(subjects):
     assert index["subjects"][1]["packs"] == {"medium": "cat-medium"}  # the other subject is untouched
 
 
-def test_render_target_smooths_curves_but_keeps_the_ends():
-    from build_pack import smooth
+def test_without_strokes_paints_out_the_dropped_lines_and_keeps_the_rest():
+    from build_pack import without_strokes
 
-    line = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0)]
-    out = smooth(line)
-    assert out[0] == line[0] and out[-1] == line[-1]
-    assert len(out) > len(line)
-    loop = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 0.0)]
-    assert smooth(loop)[0] == smooth(loop)[-1]  # a closed stroke stays closed
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.line([(100, 200), (600, 200)], fill=INK, width=9)    # kept
+    draw.line([(350, 200), (350, 600)], fill=INK, width=9)    # dropped: it meets the kept line at (350, 200)
+    out = np.asarray(without_strokes(drawing, kept=[[(100, 200), (600, 200)]],
+                                     dropped=[[(350, 200), (350, 600)]]).convert("L"))
+    assert (out[197:204, 100:600] < 128).mean() > 0.95   # the kept line is untouched, junction included
+    assert (out[215:600, 340:361] < 128).sum() == 0      # the dropped line is gone
+    assert abs(int(out[400, 350]) - 220) <= 1            # painted in the page's own gray
 
 
 # ---------------------------------------------------------------- the whole build
@@ -240,7 +254,7 @@ def test_a_simple_lesson_keeps_few_strokes_and_its_reference_shows_just_those():
                              log=lambda *a: None, always=True, rate=True, limit=25)
     assert len([s for s in pack["strokes"] if s["tier"] != "construction"]) <= 25
     assert pack["difficulty"] == "simple"
-    # The reference is drawn from the kept strokes: far less ink than the 90-line picture.
+    # The reference shows only the kept strokes (the others are painted out): far less ink than 90 lines.
     ink = (np.asarray(Image.open(io.BytesIO(assets["target.png"])).convert("L")) < 128).mean()
     original = (np.asarray(busy.convert("L")) < 128).mean()
     assert ink < 0.5 * original

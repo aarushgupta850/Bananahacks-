@@ -38,6 +38,7 @@ from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import line_art_prompt  # noqa: E402
 from pipeline.quality import line_metrics  # noqa: E402
 from pipeline.frame import remove_frame  # noqa: E402
+from pipeline.strays import is_cut_off, remove_strays  # noqa: E402
 from pipeline.trace import ink_mask, skeleton_of, trace  # noqa: E402
 
 SUBJECTS_DIR = SERVER_DIR.parent / "web" / "public" / "subjects"
@@ -61,6 +62,7 @@ class Candidate:
     image: Image.Image
     strokes: list
     score: float
+    cut_off: bool = False  # the subject runs off the edge of the image (strays.is_cut_off)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -82,23 +84,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 # ---------------------------------------------------------------- choosing a candidate
 
 
-def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
-    """Index of the cleanest candidate (lowest quality score) inside the stroke gate, or None. Ties go to fewer
-    strokes. (Fewest strokes first, as before, kept drawings with dashed or broken lines over cleaner ones.)"""
+def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
+    """Index of the best candidate inside the stroke gate, or None. In order of preference: a whole subject (not
+    cut off at the edge), then one that fits `limit` as drawn (a drawing over the limit loses its smallest lines,
+    so it looks unfinished), then the cleanest (lowest quality score), then the fewest strokes. (Fewest strokes
+    first, as before, kept drawings with dashed or broken lines over cleaner ones.)"""
     usable = [
         i for i, c in enumerate(candidates)
         if min_strokes <= len(c.strokes) <= MAX_STROKES and c.score < REJECTED_SCORE
     ]
     if not usable:
         return None
-    return min(usable, key=lambda i: (candidates[i].score, len(candidates[i].strokes)))
+    return min(usable, key=lambda i: (candidates[i].cut_off, len(candidates[i].strokes) > limit,
+                                      candidates[i].score, len(candidates[i].strokes)))
 
 
 def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
     """When no candidate fits the gate: the cleanest one with enough lines, colored or not (it gets retraced in
-    black anyway), or None if every candidate is blank."""
+    black anyway), preferring a whole subject, or None if every candidate is blank."""
     usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= min_strokes]
-    return min(usable, key=lambda i: candidates[i].score) if usable else None
+    return min(usable, key=lambda i: (candidates[i].cut_off, candidates[i].score)) if usable else None
 
 
 def simplify(strokes: list, limit: int = MAX_STROKES) -> list:
@@ -123,35 +128,33 @@ def rate_difficulty(n_strokes: int) -> str:
 # ---------------------------------------------------------------- images
 
 
-def smooth(points: list, rounds: int = 2) -> list:
-    """Chaikin's corner cutting: each round replaces every corner with two points a quarter of the way
-    along its segments, so the simplified polylines render as smooth curves. The ends stay put."""
-    for _ in range(rounds):
-        if len(points) < 3:
-            return points
-        closed = points[0] == points[-1]
-        out = [] if closed else [points[0]]
-        for (x0, y0), (x1, y1) in zip(points, points[1:]):
-            out += [(0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1), (0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1)]
-        points = out + [out[0]] if closed else out + [points[-1]]
-    return points
+KEEP_NEAR_PX = 3     # without_strokes: drawn pixels this close to a kept stroke stay (where a dropped line meets it)
+LINE_REACH_PX = 12   # ...and a dropped stroke's line reaches this far from its center line (thick lines, soft edges)
 
 
-def render_target(strokes: list) -> Image.Image:
-    """The drawing the user copies: the traced strokes as clean black lines on white. Drawn from the strokes
-    themselves, so what the user sees is exactly what their drawing is measured against. Smoothed, and drawn
-    at 2x then scaled down, for clean curves and edges."""
-    scale = 2
-    canvas = Image.new("L", (SIZE * scale, SIZE * scale), 255)
-    draw = ImageDraw.Draw(canvas)
-    for stroke in strokes:
-        points = [(x * scale, y * scale) for x, y in smooth([tuple(p) for p in stroke])]
-        if len(points) > 1:
-            draw.line(points, fill=0, width=5 * scale, joint="curve")
-            for x, y in (points[0], points[-1]):  # round line ends
-                r = 2.5 * scale
-                draw.ellipse((x - r, y - r, x + r, y + r), fill=0)
-    return canvas.resize((SIZE, SIZE), Image.LANCZOS)
+def without_strokes(image: Image.Image, kept: list, dropped: list) -> Image.Image:
+    """The AI drawing with the dropped strokes' lines painted over in the page's color, for a lesson that keeps only
+    some of the drawing's strokes. The reference then shows exactly what the lesson teaches, still drawn the way the
+    AI drew it. (Re-drawing the kept strokes themselves looked broken and sketchy: uniform lines with gaps wherever
+    a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line."""
+    import numpy as np
+    from scipy import ndimage
+
+    def lines(strokes: list) -> np.ndarray:
+        canvas = Image.new("1", (SIZE, SIZE), 0)
+        draw = ImageDraw.Draw(canvas)
+        for stroke in strokes:
+            draw.line([tuple(p) for p in stroke], fill=1, width=1)
+        return np.asarray(canvas, dtype=bool)
+
+    to_kept = ndimage.distance_transform_edt(~lines(kept))
+    to_dropped = ndimage.distance_transform_edt(~lines(dropped))
+    rgb = image.convert("RGB").resize((SIZE, SIZE))
+    pixels = np.asarray(rgb).copy()
+    drawn = np.asarray(rgb.convert("L")) < 200
+    erase = drawn & (to_dropped < to_kept) & (to_kept > KEEP_NEAR_PX) & (to_dropped <= LINE_REACH_PX)
+    pixels[erase] = np.median(pixels[~drawn], axis=0).astype(np.uint8) if (~drawn).any() else 255
+    return Image.fromarray(pixels, "RGB")
 
 
 def clean_drawing(image: Image.Image) -> Image.Image:
@@ -296,11 +299,12 @@ def make_pack(
     With `rate` (the live server), the pack's difficulty is rate_difficulty() of the chosen drawing, not `difficulty`
     (which still goes into the prompt). Offline packs keep the difficulty they were built for.
     `limit` (the live server: fewer for simple, more for detailed) is the most strokes a lesson keeps. A drawing
-    with more is simplified to its longest strokes, and its reference is then drawn from exactly those strokes, so
+    with more is simplified to its longest strokes, and the other strokes' lines are painted out of its reference, so
     what the user copies is what the lesson teaches (and a "simple" lesson really is simple).
 
     `min_strokes` raises the gate's lower end (a drawing of a few scattered fragments is not a drawing of the
-    subject). Every draft first has any frame drawn around the picture removed (pipeline/frame.py).
+    subject). Every draft first has any frame drawn around the picture removed (pipeline/frame.py), then any stray
+    marks around the subject (pipeline/strays.py).
     `source_note` says how a photo became the subject, in the "How this lesson was made" panel.
 
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
@@ -310,12 +314,13 @@ def make_pack(
         first_seed = seed + attempt * RETRY_SEED_OFFSET
         candidates = []
         for i, image in enumerate(generate(first_seed)):
-            image = remove_frame(image)
+            image = remove_strays(remove_frame(image))
             strokes = trace(image)
-            candidates.append(Candidate(image, strokes, line_metrics(image)["score"]))
-            log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}")
+            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], is_cut_off(image)))
+            log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}"
+                + (", cut off at the edge" if candidates[-1].cut_off else ""))
         tries.append(candidates)
-        chosen = choose(candidates, min_strokes)
+        chosen = choose(candidates, min_strokes, limit)
         if chosen is not None:
             break
     else:
@@ -334,15 +339,19 @@ def make_pack(
     if check_drawing is not None:
         check_drawing(best.image)
     simplified = len(best.strokes) > limit
+    dropped = []  # the strokes a simplified lesson leaves out
     if simplified:
-        best = Candidate(best.image, simplify(best.strokes, limit), best.score)
+        kept = simplify(best.strokes, limit)
+        kept_ids = {id(stroke) for stroke in kept}
+        dropped = [stroke for stroke in best.strokes if id(stroke) not in kept_ids]
+        best = Candidate(best.image, kept, best.score, best.cut_off)
     if rate:
         difficulty = rate_difficulty(len(best.strokes))  # what the user will draw (the reference shows just these)
     parts = detect(best.image)
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
                          n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note)
-    target = render_target(best.strokes) if simplified else clean_drawing(best.image)
+    target = clean_drawing(without_strokes(best.image, best.strokes, dropped) if simplified else best.image)
     assets = {
         "target.png": png_bytes(target),
         "thumb.png": png_bytes(target.resize((256, 256), Image.LANCZOS)),
