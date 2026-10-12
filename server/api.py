@@ -213,6 +213,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         seed=secrets.randbelow(100_000),  # a new drawing every time
         generate=generate, detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
         log=log.info, always=True, check_drawing=safety.check_picture,
+        rate=True,  # label the lesson by how hard the drawing came out, not by what was asked for
     )
     return with_data_urls(pack, assets)
 
@@ -240,7 +241,7 @@ def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
         source_kind="prompt", prompt=prompt, subject_words=prompt, seed=secrets.randbelow(100_000),
         generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=LIVE_CANDIDATES, seed=seed),
         detect=lambda image: detect_parts(image, prompt), retries=0, log=log.info, always=True,
-        check_drawing=safety.check_picture,
+        check_drawing=safety.check_picture, rate=True,
     )
     return with_data_urls(drop_covered(pack, canvas_ink), assets)
 

@@ -210,6 +210,30 @@ def test_always_builds_a_pack_from_a_busy_drawing_and_runs_the_safety_check():
     schema.Pack.model_validate(pack)
     assert len([s for s in pack["strokes"] if s["tier"] != "construction"]) <= 60
     assert len(checked) == 1
+    assert pack["difficulty"] == "medium"  # without rate=True the pack keeps the difficulty it was asked for
+
+    # The live server rates the drawing instead: 90 strokes is far past medium, whatever the user picked.
+    rated, _ = make_pack(**common, always=True, rate=True)
+    assert rated["difficulty"] == "detailed"
+    assert "traced into 90 strokes" in {s["id"]: s for s in rated["pipeline"]}["chosen"]["text"]
+
+
+def test_rate_difficulty_counts_the_strokes_the_user_has_to_draw():
+    from build_pack import rate_difficulty
+
+    assert [rate_difficulty(n) for n in (6, 20, 21, 53, 60, 61, 140)] == [
+        "simple", "simple", "medium", "medium", "medium", "detailed", "detailed"]
+
+
+def test_a_rated_pack_with_few_strokes_says_simple_even_when_detailed_was_asked_for():
+    from build_pack import make_pack
+
+    pack, _ = make_pack(pack_id="live-cat-detailed", subject="cat", title="Cat", difficulty="detailed",
+                        source_kind="prompt", prompt="a cat", subject_words="a cat", seed=0,
+                        generate=lambda seed: [cat_drawing()] * 3, detect=lambda image: FAKE_PARTS, retries=0,
+                        log=lambda *a: None, always=True, rate=True)
+    assert pack["difficulty"] == "simple"  # the fake cat is a handful of strokes
+    assert "more detail" in {s["id"]: s for s in pack["pipeline"]}["source"]["text"]  # the prompt still asked for it
 
 
 def test_clean_drawing_whitens_an_uneven_page_and_keeps_the_ink_black():
