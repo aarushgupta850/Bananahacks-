@@ -166,7 +166,7 @@ type LiveState =
   | { kind: 'checking' }
   | { kind: 'offline' }
   | { kind: 'online' }
-  | { kind: 'generating' }
+  | { kind: 'generating'; waiting?: boolean } // waiting: someone else's lesson is being drawn first
   | { kind: 'problem'; message: string }
 
 // Reads a photo as base64 without the "data:image/...;base64," prefix (what the server expects).
@@ -191,6 +191,21 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
     return () => { cancelled = true }
   }, [])
 
+  // While it says offline, look again every 15 s, so a slow first check (or a server that comes back) doesn't
+  // leave the box saying "offline" until the page is reloaded.
+  const offline = live.kind === 'offline'
+  useEffect(() => {
+    if (!offline) return
+    let cancelled = false
+    const timer = window.setInterval(() => {
+      checkLive().then((ok) => { if (ok && !cancelled) setLive({ kind: 'online' }) })
+    }, 15_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [offline])
+
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!prompt.trim() && !photo) return
@@ -200,7 +215,7 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
         prompt: prompt.trim() || undefined,
         imageBase64: photo ? await readAsBase64(photo) : undefined,
         difficulty,
-      })
+      }, () => setLive({ kind: 'generating', waiting: true }))
       onPack(pack)
     } catch (error) {
       console.error(error)
@@ -222,7 +237,9 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
       <p className="muted">Type anything, or upload a photo. Image AI draws it, traces it and turns it into a lesson.</p>
 
       {live.kind === 'generating' ? (
-        <SketchLoader text="Drawing your lesson… this takes about 20 seconds." />
+        <SketchLoader text={live.waiting
+          ? 'Someone else is drawing right now. You\u2019re next, hold on…'
+          : 'Drawing your lesson… this takes about 20 seconds.'} />
       ) : (
         <form className="make-own-form" onSubmit={submit}>
           <label className="field">

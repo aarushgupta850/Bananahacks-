@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkLive, generate, getLiveUrl, LiveError, regenerate } from '../../lib/live'
+import { BUSY_RETRIES, BUSY_WAIT_MS, checkLive, generate, getLiveUrl, LiveError, regenerate } from '../../lib/live'
 import { foxPack } from './fixtures'
 
 // Replaces the global fetch: live.json answers with `liveUrl`, every other URL goes to `server`.
@@ -52,12 +52,45 @@ describe('live server client', () => {
     expect(fetchMock).toHaveBeenLastCalledWith('http://gpu.example.test/health', expect.anything())
   })
 
-  it('gives up on /health after 2 seconds', async () => {
+  it('gives /health two tries of 6 seconds before saying offline', async () => {
     vi.useFakeTimers()
     fakeFetch('http://gpu.example.test', hang)
-    const result = checkLive()
-    await vi.advanceTimersByTimeAsync(2_000)
+    let done = false
+    const result = checkLive().then((ok) => { done = true; return ok })
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(done).toBe(false) // a slow first answer gets a second chance
+    await vi.advanceTimersByTimeAsync(6_000)
     expect(await result).toBe(false)
+  })
+
+  it('is online when a slow first /health is followed by a quick one', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    fakeFetch('http://gpu.example.test', (url, init) => (++calls === 1 ? hang(url, init) : Promise.resolve(new Response('ok'))))
+    const result = checkLive()
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(await result).toBe(true)
+  })
+
+  it('waits and asks again while the server is busy, and says so', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    fakeFetch('http://gpu.example.test', () => (++calls <= 2
+      ? Promise.resolve(new Response('busy', { status: 503 }))
+      : Promise.resolve(Response.json(foxPack))))
+    const waits: number[] = []
+    const result = generate({ prompt: 'a fox', difficulty: 'medium' }, (wait) => waits.push(wait))
+    await vi.advanceTimersByTimeAsync(2 * BUSY_WAIT_MS)
+    expect(await result).toEqual(foxPack)
+    expect(waits).toEqual([1, 2])
+  })
+
+  it('gives up as busy after a few tries', async () => {
+    vi.useFakeTimers()
+    fakeFetch('http://gpu.example.test', () => Promise.resolve(new Response('busy', { status: 503 })))
+    const result = liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))
+    await vi.advanceTimersByTimeAsync(BUSY_RETRIES * BUSY_WAIT_MS)
+    expect((await result).kind).toBe('busy')
   })
 
   it('returns a checked pack from /generate', async () => {
@@ -72,9 +105,6 @@ describe('live server client', () => {
   it('reports each kind of failure so the UI can pick a friendly message', async () => {
     fakeFetch('', hang)
     expect((await liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))).kind).toBe('offline')
-
-    fakeFetch('http://gpu.example.test', () => Promise.resolve(new Response('busy', { status: 503 })))
-    expect((await liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))).kind).toBe('busy')
 
     fakeFetch('http://gpu.example.test', () => Promise.resolve(new Response('no', { status: 400 })))
     expect((await liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))).kind).toBe('rejected')
