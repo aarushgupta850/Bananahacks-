@@ -108,7 +108,9 @@ def test_choose_anyway_and_simplify_keep_the_big_lines():
     def c(n, score=10.0):
         return Candidate(None, [[(0, 0), (1, 1)]] * n, score)
 
-    assert choose_anyway([c(3, 1.0), c(140, 80.0), c(90, 50.0)]) == 2  # cleanest with enough lines
+    assert choose_anyway([c(3, 1.0), c(140, 80.0), c(90, 50.0)]) == 2  # enough lines, and the fewest
+    assert choose_anyway([c(90, 10.0), c(70, 50.0)]) == 1  # 70 strokes lose less to simplifying than 90
+    assert choose_anyway([c(70, 1050.0), c(90, 50.0)]) == 1  # a colored drawing only if nothing else
     assert choose_anyway([c(0, 1000.0)]) is None  # blank
     strokes = [[(0, 0), (k, 0)] for k in range(1, 101)]  # lengths 1..100
     kept = simplify(strokes, limit=60)
@@ -294,3 +296,18 @@ def test_a_higher_stroke_minimum_refuses_a_drawing_of_a_few_fragments():
     make_pack(**common)  # a handful of strokes passes the usual gate of 6...
     with pytest.raises(build_pack.NoCleanCandidate, match="No candidate had 40-60"):
         make_pack(**common, min_strokes=40)  # ...but not a photo's higher minimum
+
+
+def test_fit_to_page_scales_a_small_subject_up_to_fill_the_page():
+    from pipeline.frame import FIT_MARGIN, fit_to_page
+
+    small = Image.new("RGB", (768, 768), (225, 225, 225))
+    ImageDraw.Draw(small).rectangle((300, 500, 450, 600), outline=INK, width=6)  # 150 x 100, low on the page
+    ink = np.asarray(fit_to_page(small).convert("L")) < 128
+    rows, cols = np.nonzero(ink.any(axis=1))[0], np.nonzero(ink.any(axis=0))[0]
+    assert cols[-1] - cols[0] > 1.7 * 150                    # scaled up (at most 1.8x: more would blur the lines)
+    assert abs((cols[0] + cols[-1]) / 2 - 384) < 4 and abs((rows[0] + rows[-1]) / 2 - 384) < 4  # centered
+    big = Image.new("RGB", (768, 768), (225, 225, 225))
+    ImageDraw.Draw(big).rectangle((40, 60, 720, 700), outline=INK, width=6)
+    assert fit_to_page(big) is big                           # already fills the page
+    assert FIT_MARGIN < 0.1

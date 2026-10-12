@@ -48,7 +48,7 @@ apps that use the GPU.
 - `GET /health` returns `{"ok": true, "gpu": "<name>", "busy": <bool>}`.
 - `POST /generate` with `{"prompt": "a teapot", "difficulty": "medium"}` or `{"imageBase64": "...", ...}`.
 - One job at a time: a second request while one runs gets HTTP 503 ("busy").
-- It answers within 23 seconds or returns 504, because the site stops waiting at 25 seconds.
+- It answers within 35 seconds or returns 504, because the site stops waiting at 38 seconds.
 - Every allowed prompt gets a lesson. If no drawing fits the 60-stroke limit, the cleanest one is
   simplified to its 60 longest lines. A photo is named by OWLv2 and drawn from that name; one it can't name
   gets HTTP 422 with a hint to type what it is.

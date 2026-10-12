@@ -12,8 +12,8 @@ Endpoints:
 - POST /generate {prompt?, imageBase64?, difficulty} -> a Pack whose images are data: URLs.
 - POST /regenerate {prompt, canvasBase64, difficulty} -> "Happy accidents" (behind ?happy=1 in the app): a new
   Pack whose drawing is redrawn around what the user has drawn so far, without the lines they already drew.
-  One job at a time (busy: 503). Answers within 23 s or gives up (504), because the web app stops
-  waiting at 25 s. Bad input: 400, with a message. No clean drawing: 422.
+  One job at a time (busy: 503). Answers within 35 s or gives up (504), because the web app stops
+  waiting at 38 s. Bad input: 400, with a message. No clean drawing: 422.
 
 Safety (see pipeline/safety.py): prompts are 80 characters or less, letters, numbers, spaces and simple
 punctuation, checked against a blocklist that also catches disguised words, and always wrapped in the line-art
@@ -55,7 +55,9 @@ MAX_PROMPT_CHARS = 80  # the same as the input box in SubjectPicker.tsx
 PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, spaces and simple punctuation
 MAX_IMAGE_BYTES = 15 * 1024 * 1024  # phone photos are often 3 to 10 MB
 MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: OWLv2 looks at them at 960 x 960 anyway
-TIMEOUT_S = 23  # the web app (web/src/lib/live.ts) gives up after 25 s, so answer before that
+# A lesson takes about 18-24 s on the RTX 4060 Ti (more when the PC is short of memory). The web app
+# (web/src/lib/live.ts) gives up after 38 s, so answer before that.
+TIMEOUT_S = 35
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}

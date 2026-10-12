@@ -37,7 +37,7 @@ from pipeline import schema  # noqa: E402
 from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import line_art_prompt  # noqa: E402
 from pipeline.quality import line_metrics  # noqa: E402
-from pipeline.frame import remove_frame  # noqa: E402
+from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
 from pipeline.strays import is_cut_off, remove_strays  # noqa: E402
 from pipeline.trace import ink_mask, skeleton_of, trace  # noqa: E402
 
@@ -100,10 +100,12 @@ def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: i
 
 
 def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
-    """When no candidate fits the gate: the cleanest one with enough lines, colored or not (it gets retraced in
-    black anyway), preferring a whole subject, or None if every candidate is blank."""
+    """When no candidate fits the gate: the one with enough lines that loses the fewest when simplified (the
+    fewest strokes: a 112-stroke house trimmed to 25 was unrecognizable), preferring a whole subject and a drawing
+    that isn't colored; or None if every candidate is blank. (A colored one gets retraced in black anyway.)"""
     usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= min_strokes]
-    return min(usable, key=lambda i: (candidates[i].cut_off, candidates[i].score)) if usable else None
+    return min(usable, key=lambda i: (candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE,
+                                      len(candidates[i].strokes))) if usable else None
 
 
 def simplify(strokes: list, limit: int = MAX_STROKES) -> list:
@@ -304,7 +306,7 @@ def make_pack(
 
     `min_strokes` raises the gate's lower end (a drawing of a few scattered fragments is not a drawing of the
     subject). Every draft first has any frame drawn around the picture removed (pipeline/frame.py), then any stray
-    marks around the subject (pipeline/strays.py).
+    marks around the subject (pipeline/strays.py), and is then scaled up to fill the page (frame.fit_to_page).
     `source_note` says how a photo became the subject, in the "How this lesson was made" panel.
 
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
@@ -315,8 +317,10 @@ def make_pack(
         candidates = []
         for i, image in enumerate(generate(first_seed)):
             image = remove_strays(remove_frame(image))
+            cut_off = is_cut_off(image)  # before fitting, which puts space around everything
+            image = fit_to_page(image)
             strokes = trace(image)
-            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], is_cut_off(image)))
+            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off))
             log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}"
                 + (", cut off at the edge" if candidates[-1].cut_off else ""))
         tries.append(candidates)
