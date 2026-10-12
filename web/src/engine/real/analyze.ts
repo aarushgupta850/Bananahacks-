@@ -4,7 +4,7 @@ import type { Analysis, Box, Pack, Part, PartMetric, Point, TimedPoint, UserStro
 import { align, targetPoints } from './align'
 import { config } from './config'
 import {
-  applyTransform, bbox, boxCenter, clamp, diagonal, meanNearest, resample, symmetricChamfer,
+  applyTransform, bbox, boxCenter, clamp, diagonal, length, meanNearest, resample, symmetricChamfer,
 } from './geometry'
 import { isTap } from './match'
 
@@ -279,7 +279,15 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
   })
 
   // 4. Whole-drawing scores.
-  const shapeSimilarity = clamp(1 - symmetricChamfer(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1)
+  // How much of the drawing was drawn: the user's line length against the drawing's own (both in target space).
+  // Missing lines hardly change the average distance below (the lines left out lie close to lines that were
+  // drawn), so without this a copy missing a third of its lines scored 97. At least config.completeInk of the
+  // drawing's length counts as complete; less scales the shape score down in proportion.
+  const drawingLength = pack.strokes.filter((s) => s.tier !== 'construction').reduce((sum, s) => sum + length(s.points), 0)
+  const userLength = aligned.reduce((sum, s) => sum + length(s), 0)
+  const completeness = drawingLength > 0 ? clamp(userLength / (config.completeInk * drawingLength), 0, 1) : 1
+  const closeness = clamp(1 - symmetricChamfer(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1)
+  const shapeSimilarity = closeness * completeness
 
   return {
     parts: usedFallback ? [] : parts,

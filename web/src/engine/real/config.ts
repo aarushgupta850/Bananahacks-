@@ -46,6 +46,8 @@ export const config = {
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
   roundPartRatio: 1.3,      // parts whose long side is < 1.3x their short side have no reliable tilt
+  completeInk: 0.85,        // drawing at least 85% as much line as the reference counts as complete; less scales
+                            // the shape score down (real careful copies draw about 90%, a careless one 28%)
   shapeScale: 0.16,         // mean distance of 16% of the diagonal scores 0 shape similarity (M2: 0.08 was too harsh)
   overstrokeDistance: 4,    // px: a stroke lying within 4 px of an earlier one is a re-stroke
   overstrokeShare: 0.7,     // ...when at least 70% of its points do
