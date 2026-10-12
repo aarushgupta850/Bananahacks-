@@ -1,5 +1,5 @@
 // A line drawn in several strokes is judged as one line: every piece scores against the line it belongs to
-// (including the piece that finishes it), and the score shown is for the line so far.
+// (including the piece that finishes it).
 import { describe, expect, it } from 'vitest'
 import { parsePack } from '../../lib/packs'
 import { createTeacher } from '../real/teacher'

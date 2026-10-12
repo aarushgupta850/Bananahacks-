@@ -6,14 +6,19 @@ export const config = {
   resamplePoints: 64,       // points per stroke when comparing shapes
   guidePoints: 64,          // points per guide when finding which stretch of it a stroke traced
   minStrokeLength: 3,       // px: a stroke shorter than this is a tap, not a line, and is ignored
-  accuracyScale: 0.12,      // a Frechet distance of 12% of the diagonal scores 0 accuracy
+  accuracyScale: 0.07,      // a stroke this far off a long guide (of the diagonal; about 60 px on the fox) scores 0.
+                            // Was 0.12, which gave 90%+ even to strokes wobbling 10 px off the line.
+  accuracyMinScale: 0.03,   // ...a short guide (a toe, an eye) gets less room, down to this (about 25 px)...
+  accuracyGuideShare: 0.4,  // ...namely 40% of the guide's own size (its bounding-box diagonal)
   matchMaxChamfer: 0.2,     // a stroke farther than this (mean distance, of the diagonal) matches no guide
   doneThreshold: 0.5,       // a stroke at this accuracy or better counts toward drawing its guide
   doneCoverage: 0.8,        // a guide is drawn once strokes like that have covered 80% of it (in one stroke or several)
   minAdaptLength: 20,       // px: shorter traced stretches (dots, ticks) don't move the guides
   coverDistance: 0.035,     // a guide point counts as drawn when a stroke passes this close (of the diagonal),
                             // whichever guide the stroke matched, in whatever direction or however many guides it spans
-  stepPatience: 6,          // after this many strokes on one step without finishing it, the lesson moves on
+  redrawMinAccuracy: 0.7,   // a stroke this close to a line finished earlier (accuracy against it)...
+  redrawMaxCurrent: 0.3,    // ...and scoring under this on the guides shown is a redraw of that line, scored against it
+  stepPatience: 6,          // after this many strokes in a row near one step that finish none of its guides, the lesson moves on
   finishWindow: 2,          // a guide finished by the last 2 strokes can still be matched, so the piece that
                             // finishes a line drawn in several strokes is scored against that line
 
@@ -25,7 +30,8 @@ export const config = {
   autoFadeAbove: 0.8,       // ...and gives less help when their mean accuracy is above this
   autoHelpBelow: 0.6,       // ...and more help when it is below this
   autoMinStrokesBetween: 3, // at least 3 strokes between two help-level changes
-  warnSizeRatio: 0.25,      // warn when a stroke is more than 25% bigger or smaller than its guide
+  warnSizeRatio: 0.25,      // warn when a stroke is more than 25% bigger or smaller than its guide...
+  warnMinGuide: 0.12,       // ...for guides at least this big (of the diagonal); shorter ones give no reliable size
 
   // ---------- alignment and measurement (align.ts, analyze.ts) ----------
   alignIterations: 30,      // ICP rounds

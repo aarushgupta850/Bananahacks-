@@ -22,8 +22,8 @@ const LESSON_SECONDS = 120
 const SHOW_ME_MS = 3000
 const TOAST_MS = 4000
 const CHEER_MS = 1600
-// After this many strokes on one step without finishing it, the full guide line shows (even in Hints or
-// Check-in) with a nudge toward "Skip step". The engine itself moves on after a few more.
+// After this many strokes in a row that finish none of the step's lines, the full guide line shows (even in
+// Hints or Check-in) with a nudge toward "Skip step". The engine itself moves on after a few more.
 const STUCK_AFTER = 3
 // How faint the trace of the real drawing is at each help level: it fades with the help, and Check-in has none.
 const TRACE_OPACITY: Record<HelpLevel, number> = { guided: 0.35, hints: 0.22, checkin: 0 }
@@ -116,6 +116,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
   }
 
   function handleStroke(stroke: UserStroke) {
+    // How many of the step's lines are still to draw (showMe only reads the teacher), to tell a stroke that
+    // finished one from a stroke that didn't.
+    const remainingBefore = lesson.teacher.showMe().length
     // The teacher is called here in the event handler, not inside a state update,
     // because React StrictMode runs state updates twice and the teacher would count the stroke twice.
     const next = lesson.teacher.addStroke(stroke)
@@ -126,8 +129,11 @@ export default function Teach({ onBack, onNext }: NavProps) {
     // A quick "Step done" when this stroke finished a step (not on the last one: the panel above says so).
     if (!next.done && next.completedStepIds.length > result.completedStepIds.length) flash('Step done')
     setResult(next)
-    // Stuck on a step: show its whole guide line until the step is done, and point at "Skip step".
-    triesHere.current = next.currentStepId === result.currentStepId && !next.done ? triesHere.current + 1 : 0
+    // Stuck on a step: several strokes in a row that finished none of its lines. Show its whole guide line until
+    // the step is done, and point at "Skip step". (Counting every stroke said "Stuck?" halfway through a step
+    // with four lines drawn perfectly.)
+    const progressed = next.done || next.currentStepId !== result.currentStepId || lesson.teacher.showMe().length < remainingBefore
+    triesHere.current = progressed ? 0 : triesHere.current + 1
     const isStuck = triesHere.current >= STUCK_AFTER
     setStuck(isStuck)
     setShowMe(isStuck && next.helpLevel !== 'guided' ? lesson.teacher.showMe() : null)
