@@ -222,7 +222,9 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
       <p className="muted">Type anything, or upload a photo. Image AI draws it, traces it and turns it into a lesson.</p>
 
       {live.kind === 'generating' ? (
-        <SketchLoader text="Drawing your lesson… this takes about 20 seconds." />
+        <SketchLoader text={photo
+          ? 'Drawing your lesson from your photo… this takes about 40 seconds.'
+          : 'Drawing your lesson… this takes about 20 seconds.'} />
       ) : (
         <form className="make-own-form" onSubmit={submit}>
           <label className="field">

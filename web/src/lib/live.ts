@@ -8,6 +8,8 @@ import { parsePack } from './packs'
 const CONFIG_TIMEOUT_MS = 2_000
 const HEALTH_TIMEOUT_MS = 2_000
 const GENERATE_TIMEOUT_MS = 25_000
+// A photo takes the server longer (it finds and names the subject and redraws it three times), up to 45 s.
+export const PHOTO_TIMEOUT_MS = 50_000
 
 // offline: no server configured or unreachable; timeout: no answer in time; busy: already running a job
 // (HTTP 429/503); rejected: the server refused the request, e.g. a blocked prompt (HTTP 400/422);
@@ -106,7 +108,7 @@ export async function photoAsJpeg(base64: string): Promise<string> {
 export async function generate(request: GenerateRequest): Promise<Pack> {
   if (!request.prompt && !request.imageBase64) throw new LiveError('rejected', 'generate needs a prompt or a photo')
   const imageBase64 = request.imageBase64 ? await photoAsJpeg(request.imageBase64) : undefined
-  return postForPack('/generate', { ...request, imageBase64 })
+  return postForPack('/generate', { ...request, imageBase64 }, imageBase64 ? PHOTO_TIMEOUT_MS : GENERATE_TIMEOUT_MS)
 }
 
 export interface RegenerateRequest {
@@ -123,7 +125,7 @@ export async function regenerate(request: RegenerateRequest): Promise<Pack> {
 }
 
 // POSTs JSON to the live server and returns the checked pack it answers with.
-async function postForPack(path: string, request: object): Promise<Pack> {
+async function postForPack(path: string, request: object, timeoutMs = GENERATE_TIMEOUT_MS): Promise<Pack> {
   const url = await getLiveUrl()
   if (!url) throw new LiveError('offline', 'No live server is configured in live.json')
 
@@ -131,7 +133,7 @@ async function postForPack(path: string, request: object): Promise<Pack> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
-  }, GENERATE_TIMEOUT_MS)
+  }, timeoutMs)
 
   if (response.status === 429 || response.status === 503) throw new LiveError('busy', `The live server is busy (HTTP ${response.status})`)
   if (response.status === 400 || response.status === 422) throw new LiveError('rejected', `The live server refused the request (HTTP ${response.status})`)

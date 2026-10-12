@@ -131,6 +131,15 @@ def test_timeout_answers_504_and_keeps_the_gpu_locked_until_the_build_ends(monke
     assert locked_during and not locked_after
 
 
+def test_a_photo_gets_its_own_longer_time_limit(monkeypatch):
+    monkeypatch.setattr(api, "TIMEOUT_S", 0.1)        # a typed prompt would time out...
+    monkeypatch.setattr(api, "PHOTO_TIMEOUT_S", 2.0)  # ...but a photo may take longer
+    monkeypatch.setattr(api, "BUILD", lambda *args: time.sleep(0.3) or FAKE_PACK)
+    assert status(run(api.generate(api.GenerateRequest(imageBase64=png_base64())))) == 200
+    assert status(run(api.generate(api.GenerateRequest(prompt="a teapot")))) == 504
+    time.sleep(0.4)  # let the timed-out build finish and free the GPU lock
+
+
 def test_no_clean_drawing_is_a_422(monkeypatch):
     def build(*args):
         raise NoCleanCandidate("no candidate fit")
