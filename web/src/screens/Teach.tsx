@@ -332,10 +332,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
         </div>
 
         <aside className="teach-panel" aria-label="Lesson controls">
-          <div className="panel-timer">
-            <CountdownRing remaining={remaining} total={LESSON_SECONDS} />
-            <span className="panel-label">{result.done ? 'Lesson finished' : 'Lesson time left'}</span>
-          </div>
+          <CountdownRing remaining={remaining} total={LESSON_SECONDS} stopped={result.done}
+            label={result.done ? 'Lesson finished' : 'Lesson time left'} />
 
           <div className="panel-block">
             <span className="panel-label">Help level now</span>

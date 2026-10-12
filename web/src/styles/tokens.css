@@ -10,6 +10,8 @@
   --accent-ink: #ffffff;     /* text on the accent color */
   --success: #2e9e6a;
   --warning: #f27a5e;
+  --warning-ink: #a63b22;    /* text in the warning color: 6:1 contrast on the warning tint */
+  --warning-tint: #fef2ee;   /* a faint warning background (the timer's last seconds) */
   --ghost-opacity: 0.3;      /* ghost lines are the accent at 30% */
 
   /* One color per stroke tier (pack inspector, lesson legend). Always paired with a text label. */

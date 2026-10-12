@@ -404,55 +404,115 @@
   }
 }
 
-/* ---------- countdown ring ---------- */
+/* ---------- timer (CountdownRing) ---------- */
 
-.countdown {
+/* A small card: the draining ring with m:ss inside, and what the time is for beside it. */
+.timer {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5) var(--space-2) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transition: border-color var(--transition), background-color var(--transition);
+}
+
+.timer-ring {
   position: relative;
   display: grid;
+  flex: none;
   place-items: center;
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
 }
 
-.countdown svg {
+.timer-ring svg {
   position: absolute;
   inset: 0;
-  transform: rotate(-90deg); /* start the ring at 12 o'clock */
+  transform: rotate(-90deg); /* the ring starts at 12 o'clock */
 }
 
-.countdown circle {
+.timer-ring circle {
   fill: none;
-  stroke-width: 6;
+  stroke-width: 5;
 }
 
-.countdown-track {
+.timer-track {
   stroke: var(--line);
 }
 
-.countdown-fill {
+/* The time ticks once a second; a one-second linear transition makes the ring drain smoothly between ticks. */
+.timer-fill {
   stroke: var(--accent);
   stroke-linecap: round;
-  transition: stroke-dashoffset 250ms linear, stroke var(--transition);
+  transition: stroke-dashoffset 1s linear, stroke var(--transition);
 }
 
-.countdown.is-low .countdown-fill {
-  stroke: var(--warning);
-}
-
-.countdown-number {
+.timer-time {
   font-family: var(--font-heading);
-  font-size: var(--text-lg);
+  font-size: 1.0625rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.timer-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.timer-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.timer-sub {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
-.countdown-note {
-  position: absolute;
-  bottom: -20px;
-  white-space: nowrap;
-  color: var(--ink);
-  font-size: 0.75rem;
-  font-weight: 600;
+/* The last 10 seconds: warning colors and "Hurry!" (the words change too, never color alone). */
+.timer.is-low {
+  border-color: var(--warning);
+  background: var(--warning-tint);
+}
+
+.timer.is-low .timer-fill {
+  stroke: var(--warning);
+}
+
+.timer.is-low .timer-time,
+.timer.is-low .timer-label {
+  color: var(--warning-ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .timer.is-low .timer-ring {
+    animation: timer-pulse 1s ease-in-out infinite;
+  }
+}
+
+@keyframes timer-pulse {
+  50% { transform: scale(1.06); }
+}
+
+/* Inside the lesson panel (already a card), the timer sits flat. */
+.teach-panel .timer {
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.teach-panel .timer.is-low {
+  background: none;
 }
 
 /* ---------- weak spots ---------- */
@@ -719,12 +779,6 @@
 }
 
 /* The ring with a visible name next to it, so the number is never a mystery. */
-.panel-timer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
 .step-progress {
   height: 6px;
   margin-bottom: var(--space-3);
@@ -1360,45 +1414,50 @@ dialog.pipeline-panel {
 .time-picker {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
-  padding: 0;
-  border: none;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .time-picker legend {
-  margin-bottom: var(--space-2);
+  float: left; /* keeps the legend inside the card instead of on its border */
+  width: 100%;
   padding: 0;
   font-weight: 700;
 }
 
-/* The same look as the difficulty buttons: one rounded strip, the chosen part filled dark and bold. */
+/* One rounded strip of equal choices; the chosen one is filled dark AND bold, never shown by color alone. */
 .time-options {
-  display: flex;
-  flex-wrap: wrap;
-  align-self: flex-start;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
   border-radius: var(--radius);
   background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .time-option {
   position: relative; /* holds the hidden radio */
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
-  padding: 0 var(--space-3);
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-2);
   border-radius: var(--radius-sm);
   color: var(--ink-muted);
   font-size: var(--text-sm);
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--transition), color var(--transition);
+  transition: background-color var(--transition), color var(--transition), box-shadow var(--transition);
 }
 
 .time-option:hover {
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -1416,6 +1475,7 @@ dialog.pipeline-panel {
   background: var(--ink);
   color: var(--paper);
   font-weight: 700;
+  box-shadow: 0 1px 2px rgb(28 27 25 / 20%), 0 4px 10px rgb(28 27 25 / 12%);
 }
 
 .time-option:focus-within {
@@ -1431,29 +1491,44 @@ dialog.pipeline-panel {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
+  gap: var(--space-3);
 }
 
-.time-custom input {
-  width: 5.5rem;
-  min-height: 40px;
+/* The number field with "seconds" written inside it on the right. */
+.time-custom-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
   padding: 0 var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-.time-custom input:focus-visible {
-  outline: none;
+.time-custom-field:focus-within {
+  border-color: var(--accent);
   box-shadow: var(--focus-ring);
 }
 
-.time-custom input[aria-invalid='true'] {
-  border: 2px solid var(--warning);
+.time-custom-field.is-problem {
+  border-color: var(--warning);
+}
+
+.time-custom-field input {
+  width: 3.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  outline: none;
 }
 
 .time-hint {
@@ -1464,12 +1539,19 @@ dialog.pipeline-panel {
 }
 
 .time-hint.is-problem {
-  color: var(--ink);
+  color: var(--warning-ink);
   font-weight: 600;
 }
 
 .time-hint.is-problem::before {
   content: '⚠ ';
+}
+
+/* The choice in words, under the strip. */
+.time-summary {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
 /* "Timed: 1 min" / "Untimed" sits right after the subject title; the app name stays on the far right. */
@@ -1522,16 +1604,10 @@ dialog.pipeline-panel {
   pointer-events: none;
 }
 
-/* Phones: two tidy rows of three instead of a row that wraps unevenly. */
-@media (max-width: 480px) {
+/* Narrow screens: two tidy rows of three instead of six squeezed choices. */
+@media (max-width: 560px) {
   .time-options {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    align-self: stretch;
-  }
-
-  .time-option {
-    justify-content: center;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

@@ -63,12 +63,7 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
     >
       <div className="solo-layout">
         <aside className="solo-side">
-          {limit !== null && (
-            <div className="panel-timer">
-              <CountdownRing remaining={remaining} total={limit} />
-              <span className="panel-label">Time left</span>
-            </div>
-          )}
+          {limit !== null && <CountdownRing remaining={remaining} total={limit} />}
           {/* The reference sits beside the canvas, never on it: copying, not tracing. */}
           <figure className="solo-reference">
             <img src={resolveAsset(pack, pack.target)} alt={`${pack.title}: the drawing to copy`} width={768} height={768} />
