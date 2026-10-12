@@ -26,3 +26,23 @@ describe('an unfinished drawing', () => {
     expect(half.total).toBeLessThan(whole.total - 5)
   })
 })
+
+// Scribbles must not score like a drawing. Zigzags over each part scored up to 84 and random scribbles 56-75,
+// above a real careless drawing (25).
+describe('scribbles', () => {
+  const timed = (pts: [number, number][]): UserStroke => ({ points: pts.map(([x, y], j): TimedPoint => [x, y, 0.5, j * 16]) })
+  it.each(packs.map((p) => ({ name: p.id, pack: p })))('score low: $name', ({ pack }) => {
+    // A zigzag filling each part's box.
+    const zigzags = pack.parts.map((p) => {
+      const [x, y, w, h] = p.box
+      return timed(Array.from({ length: 16 }, (_, i): [number, number] => [x + (i % 2) * w, y + (i / 15) * h]))
+    })
+    // Scribbled loops all over the drawing.
+    const loops = Array.from({ length: 8 }, (_, k) => {
+      const [cx, cy, r] = [200 + (k % 4) * 110, 250 + Math.floor(k / 4) * 200, 60]
+      return timed(Array.from({ length: 40 }, (_, i): [number, number] => [cx + r * Math.cos(i / 3), cy + r * Math.sin(i / 3.3)]))
+    })
+    if (zigzags.length > 0) expect(engine.score(engine.analyze(pack, zigzags)).total).toBeLessThan(20)
+    expect(engine.score(engine.analyze(pack, loops)).total).toBeLessThan(35)
+  })
+})

@@ -199,7 +199,14 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
   // 1. Align the whole drawing with the target.
   const target = targetPoints(pack)
   const raw = drawn.map((s) => s.points.map(([x, y]): Point => [x, y]))
-  const { transform, overallScale, overallOffset } = align(raw, target)
+  // Scribbles: a stroke that travels much farther than the size of its own box goes back and forth over the same
+  // area. Real drawn lines and every plan line stay under about 3.3x; scribbles measured 4x to 28x. Heavy scribbles
+  // are ignored like stray marks (a part scribbled in counts as not drawn); lighter ones scale the shape and line
+  // scores down by their share of the ink. Before this, zigzags over each part scored up to 84.
+  const travel = raw.map((s) => length(s) / Math.max(diagonal(bbox(s)), 1))
+  const counts = travel.map((t) => t <= config.scribbleDropRatio)
+  const lines = raw.filter((_, k) => counts[k])
+  const { transform, overallScale, overallOffset } = align(lines.length > 0 ? lines : raw, target)
   const aligned = raw.map((s) => s.map((p) => applyTransform(transform, p)))
   const alignedStrokes: UserStroke[] = drawn.map((s, k) => ({
     points: s.points.map((p, i): TimedPoint => [round2(aligned[k][i][0]), round2(aligned[k][i][1]), p[2], p[3]]),
@@ -207,15 +214,16 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
 
   const targetBox = bbox(target)
   const targetDiagonal = diagonal(targetBox) || pack.size
-  const userAll = aligned.flatMap((s) => resample(s, config.alignPointsPerStroke))
+  const userAll = aligned.filter((_, k) => counts[k]).flatMap((s) => resample(s, config.alignPointsPerStroke))
   const height = targetBox[3] || 1
 
   // 2. Give each stroke to the part whose plan lines it sits closest to. Strokes far from every part are
   // ignored, and so are strokes closest to plan lines that belong to no part.
   const partSets = partPointSets(pack)
   const unlabeled = unlabeledPoints(pack)
-  const byStroke = aligned.map((stroke) => {
+  const byStroke = aligned.map((stroke, k) => {
     const points = resample(stroke, config.alignPointsPerStroke)
+    if (!counts[k]) return { points, part: null, distance: Infinity } // a heavy scribble measures no part
     let bestPart: string | null = null
     let bestDistance = unlabeled.length > 0 ? meanNearest(points, unlabeled) : Infinity
     for (const [partId, partPoints] of partSets) {
@@ -283,16 +291,21 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
   // Missing lines hardly change the average distance below (the lines left out lie close to lines that were
   // drawn), so without this a copy missing a third of its lines scored 97. At least config.completeInk of the
   // drawing's length counts as complete; less scales the shape score down in proportion.
+  // Scribbled ink doesn't count as drawing the lines.
   const drawingLength = pack.strokes.filter((s) => s.tier !== 'construction').reduce((sum, s) => sum + length(s.points), 0)
-  const userLength = aligned.reduce((sum, s) => sum + length(s), 0)
+  const userLength = aligned.reduce((sum, s, k) => sum + (travel[k] <= config.scribbleRatio ? length(s) : 0), 0)
   const completeness = drawingLength > 0 ? clamp(userLength / (config.completeInk * drawingLength), 0, 1) : 1
-  const closeness = clamp(1 - symmetricChamfer(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1)
-  const shapeSimilarity = closeness * completeness
+  const closeness = userAll.length > 0 ? clamp(1 - symmetricChamfer(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1) : 0
+  // The share of the ink that is scribbled (in the user's own scale, so before alignment).
+  const allInk = raw.reduce((sum, s) => sum + length(s), 0)
+  const scribbled = raw.reduce((sum, s, k) => sum + (travel[k] > config.scribbleRatio ? length(s) : 0), 0)
+  const tidy = allInk > 0 ? 1 - scribbled / allInk : 1
+  const shapeSimilarity = closeness * completeness * tidy
 
   return {
     parts: usedFallback ? [] : parts,
     shapeSimilarity: round2(shapeSimilarity),
-    lineConfidence: round2(lineConfidence(aligned)), // aligned, so the 4 px re-stroke distance is in target space
+    lineConfidence: round2(lineConfidence(aligned) * tidy), // aligned, so the 4 px re-stroke distance is in target space
     overallScale: round2(overallScale),
     overallOffset: { dx: round2(overallOffset.dx), dy: round2(overallOffset.dy) },
     alignedStrokes,
