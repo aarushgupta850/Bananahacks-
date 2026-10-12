@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageOps
 
 from pipeline import models
@@ -25,6 +26,11 @@ IMG2IMG_STRENGTH = 0.75  # how much a Happy-accidents redraw may change the canv
 # Photos keep more of their own shape: at 0.75 a side-view F1 car came back as a fighter jet. With 4 Lightning
 # steps, 0.6 runs the last 2, which cleans the photo's lines up without inventing a different object.
 PHOTO_STRENGTH = 0.6
+# A real photo's line map is full of faint texture (grass, fur, shadows, a car park). Redrawn as it is, it came back
+# as a gray photo that traced to almost no strokes, so every real photo failed. Only lines at least this strong
+# (0-1) are kept, and only connected lines covering at least SPECK_PIXELS pixels (at 1024 x 1024).
+LINE_LEVEL = 0.35
+SPECK_PIXELS = 120
 
 _cache: dict[str, object] = {}  # "text" or "photo" -> pipeline, "detector" -> LineartDetector
 
@@ -108,6 +114,21 @@ def photo_lines(photo: str | Path | Image.Image) -> Image.Image:
     return pad_to_square(lines.convert("RGB"), (0, 0, 0)).resize((GEN_SIZE, GEN_SIZE))
 
 
+def clean_photo_lines(lines: Image.Image) -> Image.Image:
+    """The detector's soft line map (white lines on black) as crisp black outlines on white: weak lines (photo
+    texture) and small specks are dropped, and the lines are thickened a little, like drawn lines."""
+    from scipy import ndimage
+
+    strength = np.asarray(lines.convert("L"), dtype=np.float32) / 255.0
+    mask = strength >= LINE_LEVEL
+    labels, count = ndimage.label(mask, structure=np.ones((3, 3)))
+    if count:
+        sizes = ndimage.sum(mask, labels, range(1, count + 1))
+        mask = np.isin(labels, 1 + np.flatnonzero(sizes >= SPECK_PIXELS))
+    mask = ndimage.binary_dilation(mask, iterations=1)
+    return Image.fromarray(np.where(mask, 0, 255).astype(np.uint8), "L")
+
+
 def from_photo(
     photo: str | Path | Image.Image, subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0
 ) -> list[Image.Image]:
@@ -147,12 +168,15 @@ def _img2img(pipe, prompt: str, seed: int, start: Image.Image, strength: float =
 
 
 def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:
-    """The live server's photo path: the photo's line art (black on white) redrawn with img2img. Follows the
-    photo's shapes a little more loosely than from_photo's ControlNet, but fits in the live time limit."""
-    start = ImageOps.invert(photo_lines(photo).convert("L"))  # the detector gives white lines on black
+    """The live server's photo path: the photo's cleaned outlines (black on white) redrawn with img2img, n times,
+    followed by the cleaned outlines themselves (n + 1 images). Follows the photo's shapes a little more loosely
+    than from_photo's ControlNet, but fits in the live time limit. The outlines are a fallback: when no redraw is
+    clean enough, the lesson is still made from the photo's own lines instead of failing."""
+    start = clean_photo_lines(photo_lines(photo))
     pipe = _pipeline("img2img")
     prompt = line_art_prompt(subject, difficulty=difficulty)
-    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH) for i in range(n)]
+    redraws = [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH) for i in range(n)]
+    return [*redraws, start.convert("RGB").resize((TARGET_SIZE, TARGET_SIZE), Image.LANCZOS)]
 
 
 def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:

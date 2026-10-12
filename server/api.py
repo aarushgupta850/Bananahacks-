@@ -55,6 +55,9 @@ PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, space
 MAX_IMAGE_BYTES = 15 * 1024 * 1024  # phone photos are often 3 to 10 MB
 MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: the line-art detector works at 1024 anyway
 TIMEOUT_S = 23  # the web app (web/src/lib/live.ts) gives up after 25 s, so answer before that
+# The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
+# asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
+LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
 
 log = logging.getLogger("ghostlines.live")
@@ -214,8 +217,24 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         generate=generate, detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
         log=log.info, always=True, check_drawing=safety.check_picture,
         rate=True,  # label the lesson by how hard the drawing came out, not by what was asked for
+        limit=LIVE_STROKE_LIMITS[difficulty],
     )
+    if photo is not None:
+        describe_photo_drafts(pack, LIVE_CANDIDATES)
     return with_data_urls(pack, assets)
+
+
+def describe_photo_drafts(pack: dict, n_ai: int) -> None:
+    """A photo's candidates are n_ai AI redraws plus the photo's own cleaned outlines (the last one): says so in
+    the "How this lesson was made" panel, and says which one the lesson uses."""
+    stages = {s["id"]: s for s in pack["pipeline"]}
+    used_outlines = stages["chosen"].get("image") == f"pipeline/candidate-{n_ai}.webp"
+    stages["candidates"]["label"] = f"{n_ai} AI drafts + the photo's outlines"
+    stages["candidates"]["text"] = (f"SDXL-Lightning redrew the photo's outlines {n_ai} times; the last picture is "
+                                    "the outlines themselves, found by the line-art detector.")
+    if used_outlines:
+        stages["chosen"]["text"] = ("No AI redraw was clean enough, so the lesson follows the photo's own outlines. "
+                                    + stages["chosen"]["text"].split(". ", 1)[-1])
 
 
 def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
@@ -241,7 +260,7 @@ def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
         source_kind="prompt", prompt=prompt, subject_words=prompt, seed=secrets.randbelow(100_000),
         generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=LIVE_CANDIDATES, seed=seed),
         detect=lambda image: detect_parts(image, prompt), retries=0, log=log.info, always=True,
-        check_drawing=safety.check_picture, rate=True,
+        check_drawing=safety.check_picture, rate=True, limit=LIVE_STROKE_LIMITS[difficulty],
     )
     return with_data_urls(drop_covered(pack, canvas_ink), assets)
 

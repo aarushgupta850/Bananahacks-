@@ -42,6 +42,9 @@ def blocked_prompt(prompt: str) -> bool:
 UNSAFE_QUERIES = ["a naked person", "a nude body", "exposed breasts", "genitals", "a gun", "a knife", "blood"]
 SAFE_QUERY = "a clothed person"
 THRESHOLD = 0.3
+# Weapons and blood need a surer match: in plain line drawings a raised hand scored 0.30 as "a knife" and a
+# harmless "a person waving" was refused. (Typed prompts naming weapons are already refused by blocked_prompt.)
+STRICTER = {"a gun": 0.45, "a knife": 0.45, "blood": 0.45}
 
 
 class UnsafeContent(Exception):
@@ -62,5 +65,5 @@ def check_picture(image: Image.Image) -> None:
     best = np.max(scores, axis=0)
     safe = best[-1]
     for query, score in zip(UNSAFE_QUERIES, best[:-1]):
-        if score >= THRESHOLD and score > safe:
+        if score >= STRICTER.get(query, THRESHOLD) and score > safe:
             raise UnsafeContent(f"{query} ({score:.2f})")
