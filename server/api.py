@@ -55,16 +55,13 @@ PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, space
 MAX_IMAGE_BYTES = 15 * 1024 * 1024  # phone photos are often 3 to 10 MB
 MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: the line-art detector works at 1024 anyway
 TIMEOUT_S = 23  # the web app (web/src/lib/live.ts) gives up after 25 s, so answer before that
-# A photo takes longer (finding and naming the subject, cleaning its outlines, three redraws), so it gets more time;
-# the web app waits 50 s for a photo.
-PHOTO_TIMEOUT_S = 45
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
-# A photo gets three redraws (from close to the photo to a cleaner line drawing; see generate.PHOTO_STRENGTHS),
-# within its longer time limit. A photo redraw needs at least PHOTO_MIN_STROKES strokes: a car photo's redraw of a
-# dozen scattered fragments passed the usual gate of 6 but wasn't a car.
-PHOTO_CANDIDATES = 3
+# Photos take longer (finding the subject, cleaning its outlines, tracing busy redraws): with 3 drafts a dog photo
+# went past the time limit every time, so a photo gets 2. A photo redraw needs at least PHOTO_MIN_STROKES strokes:
+# a car photo's redraw of a dozen scattered fragments passed the usual gate of 6 but wasn't a car.
+PHOTO_CANDIDATES = 2
 PHOTO_MIN_STROKES = 15
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
 
@@ -212,11 +209,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         photo = ImageOps.exif_transpose(photo).convert("RGB")  # phone photos the right way up
         photo.thumbnail((MAX_PHOTO_SIDE, MAX_PHOTO_SIDE))  # a 12-megapixel photo slows every step down
         safety.check_picture(photo)  # before any drawing is made from it
-        # Outlines from the subject, not the background. Without a prompt the subject is also named ("a dog"), so the
-        # redraw is asked for a dog rather than "the object in the photo".
-        subject_photo, found = gen.crop_to_subject(photo, prompt)
-        if not prompt and found:
-            words = found
+        subject_photo = gen.crop_to_subject(photo, prompt)  # outlines from the subject, not the background
 
         def generate(seed):
             return gen.from_photo_fast(subject_photo, words, difficulty, n=PHOTO_CANDIDATES, seed=seed)
@@ -325,15 +318,11 @@ async def generate(request: GenerateRequest):
         log.info("generate %s rejected: %s", kind, error)
         return JSONResponse({"error": str(error)}, status_code=400)
     return await run_job(f"generate {kind}", prompt, request.difficulty,
-                         lambda: BUILD(prompt, image, request.difficulty), len(image or b""),
-                         timeout=PHOTO_TIMEOUT_S if image else None)
+                         lambda: BUILD(prompt, image, request.difficulty), len(image or b""))
 
 
-async def run_job(name: str, prompt: str | None, difficulty: str, job, image_bytes: int = 0,
-                  timeout: float | None = None):
-    """Runs one GPU job: 503 if one is already running, 504 after `timeout` (TIMEOUT_S unless given), 400/422/500
-    on failures."""
-    timeout = TIMEOUT_S if timeout is None else timeout
+async def run_job(name: str, prompt: str | None, difficulty: str, job, image_bytes: int = 0):
+    """Runs one GPU job: 503 if one is already running, 504 after TIMEOUT_S, 400/422/500 on failures."""
     start = time.perf_counter()
     if _lock.locked():
         log.info("%s %r: busy", name, prompt)
@@ -353,9 +342,9 @@ async def run_job(name: str, prompt: str | None, difficulty: str, job, image_byt
 
     task.add_done_callback(finished)
     try:
-        pack = await asyncio.wait_for(asyncio.shield(task), timeout)
+        pack = await asyncio.wait_for(asyncio.shield(task), TIMEOUT_S)
     except asyncio.TimeoutError:
-        log.info("%s %r (%s): timed out after %d s", name, prompt, difficulty, timeout)
+        log.info("%s %r (%s): timed out after %d s", name, prompt, difficulty, TIMEOUT_S)
         return JSONResponse({"error": "timeout"}, status_code=504)
     except safety.UnsafeContent as error:
         log.info("%s %r: refused by the picture check (%s)", name, prompt, error)

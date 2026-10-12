@@ -26,9 +26,6 @@ IMG2IMG_STRENGTH = 0.75  # how much a Happy-accidents redraw may change the canv
 # Photos keep more of their own shape: at 0.75 a side-view F1 car came back as a fighter jet. With 4 Lightning
 # steps, 0.6 runs the last 2, which cleans the photo's lines up without inventing a different object.
 PHOTO_STRENGTH = 0.6
-# The live photo path redraws a photo several times with rising strength: the first keeps closest to the photo, the
-# last is a cleaner line drawing that follows it more loosely. The cleanest drawing wins (build_pack.choose).
-PHOTO_STRENGTHS = (0.6, 0.75, 0.85)
 # A real photo's line map is full of faint texture (grass, fur, shadows, a car park). Redrawn as it is, it came back
 # as a gray photo that traced to almost no strokes, so every real photo failed. Only lines at least this strong
 # (0-1) are kept, and only connected lines covering at least SPECK_PIXELS pixels (at 1024 x 1024).
@@ -36,12 +33,7 @@ LINE_LEVEL = 0.35
 SPECK_PIXELS = 120
 # The photo is first cropped to its main subject, found by OWLv2 (the prompt if there is one, else these), so the
 # outlines come from the subject and not the background: a dog's lesson was mostly the forest behind it.
-# Specific names come first in this list only for readability; the best-scoring one names the subject.
-SUBJECT_QUERIES = [
-    "a dog", "a cat", "a bird", "a horse", "a fish", "an animal", "a person", "a car", "a bicycle", "a motorcycle",
-    "a truck", "an airplane", "a boat", "a mug", "a cup", "a bottle", "a chair", "a lamp", "a shoe", "a hat",
-    "a guitar", "a ball", "a flower", "a plant", "a tree", "a house", "a building", "a toy", "food", "an object",
-]
+SUBJECT_QUERIES = ["an animal", "a person", "a car", "a vehicle", "a plant", "a building", "food", "an object"]
 SUBJECT_MIN_SCORE = 0.1   # a weaker best match keeps the whole photo
 SUBJECT_MARGIN = 0.08     # room around the subject's box, as a share of its size
 
@@ -142,9 +134,8 @@ def clean_photo_lines(lines: Image.Image) -> Image.Image:
     return Image.fromarray(np.where(mask, 0, 255).astype(np.uint8), "L")
 
 
-def crop_to_subject(photo: Image.Image, subject: str | None) -> tuple[Image.Image, str | None]:
-    """(the photo cropped to its main subject plus a margin, what the subject is called, e.g. "a dog"). The whole
-    photo and None if no subject is found clearly."""
+def crop_to_subject(photo: Image.Image, subject: str | None) -> Image.Image:
+    """The photo cropped to its main subject plus a margin, or the whole photo if no subject is found clearly."""
     import torch
 
     from pipeline.parts import owl
@@ -154,20 +145,18 @@ def crop_to_subject(photo: Image.Image, subject: str | None) -> tuple[Image.Imag
     inputs = processor(text=[queries], images=photo.convert("RGB"), return_tensors="pt").to("cuda")
     with torch.no_grad():
         outputs = model(**inputs)
-    all_scores = outputs.logits[0].sigmoid().cpu().numpy()  # (boxes, queries)
-    scores = all_scores.max(axis=1)  # each box's best query
+    scores = outputs.logits[0].sigmoid().cpu().numpy().max(axis=1)  # each box's best query
     best = int(scores.argmax())
     if scores[best] < SUBJECT_MIN_SCORE:
-        return photo, None
-    name = queries[int(all_scores[best].argmax())]
+        return photo
     # OWLv2 boxes are (cx, cy, w, h), normalized on the photo padded to a square at the bottom and right.
     side = max(photo.size)
     cx, cy, w, h = outputs.pred_boxes[0][best].cpu().numpy() * side
     w, h = w * (1 + 2 * SUBJECT_MARGIN), h * (1 + 2 * SUBJECT_MARGIN)
     box = (max(0, cx - w / 2), max(0, cy - h / 2), min(photo.width, cx + w / 2), min(photo.height, cy + h / 2))
     if box[2] - box[0] < 0.15 * photo.width or box[3] - box[1] < 0.15 * photo.height:
-        return photo, name  # a tiny box is more likely a detail than the subject
-    return photo.crop(tuple(round(v) for v in box)), name
+        return photo  # a tiny box is more likely a detail than the subject
+    return photo.crop(tuple(round(v) for v in box))
 
 
 def from_photo(
@@ -218,10 +207,7 @@ def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium"
     prompt = line_art_prompt(subject, difficulty=difficulty)
     # In gray: a redraw keeps a faint tint of the photo (a blue-gray car), which the cleanliness score counts as a
     # colored drawing and rejects, although the lines themselves were fine.
-    return [
-        _img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTHS[i % len(PHOTO_STRENGTHS)]).convert("L").convert("RGB")
-        for i in range(n)
-    ]
+    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH).convert("L").convert("RGB") for i in range(n)]
 
 
 def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:

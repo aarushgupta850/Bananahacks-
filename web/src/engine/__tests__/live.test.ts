@@ -91,20 +91,6 @@ describe('live server client', () => {
     expect((await result).kind).toBe('timeout')
   })
 
-  it('waits longer for a photo: still waiting at 25 seconds, times out at 50', async () => {
-    vi.useFakeTimers()
-    fakeFetch('http://gpu.example.test', hang)
-    let settled = false
-    const result = liveErrorFrom(generate({ imageBase64: 'aGVsbG8=', difficulty: 'medium' })).then((e) => {
-      settled = true
-      return e
-    })
-    await vi.advanceTimersByTimeAsync(25_000)
-    expect(settled).toBe(false)
-    await vi.advanceTimersByTimeAsync(25_000)
-    expect((await result).kind).toBe('timeout')
-  })
-
   it('sends Happy accidents requests to /regenerate and checks the pack', async () => {
     const fetchMock = fakeFetch('http://gpu.example.test', () => Promise.resolve(Response.json(foxPack)))
     const pack = await regenerate({ prompt: 'a fox', canvasBase64: 'AAAA', difficulty: 'medium' })
