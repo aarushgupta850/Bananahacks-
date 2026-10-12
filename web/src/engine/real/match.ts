@@ -3,7 +3,7 @@
 // construction ellipse) can be started anywhere on it and drawn either way round.
 import type { Point } from '../types'
 import { config } from './config'
-import { clamp, discreteFrechet, isClosed, length, meanNearest, partialFrechet, resample } from './geometry'
+import { bbox, clamp, diagonal, discreteFrechet, isClosed, length, meanNearest, partialFrechet, resample } from './geometry'
 
 export interface MatchCandidate {
   id: string       // the plan stroke's id
@@ -12,11 +12,27 @@ export interface MatchCandidate {
 
 export interface Match {
   ghostId: string
-  accuracy: number     // 0-1, for the stretch of the guide the stroke traced
+  accuracy: number     // 0-1, for the stretch of the guide the stroke traced (see accuracyFor)
   user: Point[]        // the user stroke, resampled
   guide: Point[]       // that stretch of the guide, resampled to pair point by point with `user`
   covered: number[]    // indices into the guide resampled to config.guidePoints that the stroke covered
 }
+
+// How far off a stroke may be before it scores 0, for one guide. A long guide gets a share of the whole
+// drawing's size; a short one (a toe, an eye) gets less, in proportion to its own size, because 20 px off is
+// close for a head outline but plainly wrong for a 30 px toe. Never below a floor, so tiny guides stay drawable.
+export function tolerance(guidePoints: Point[], drawingDiagonal: number): number {
+  const size = diagonal(bbox(guidePoints))
+  return clamp(config.accuracyGuideShare * size, config.accuracyMinScale * drawingDiagonal, config.accuracyScale * drawingDiagonal)
+}
+
+// 1 for a perfect trace, falling in a straight line to 0 at the tolerance.
+export const accuracyFor = (error: number, tol: number) => clamp(1 - error / Math.max(tol, 1e-6), 0, 1)
+
+// How far off a stroke is from the stretch of guide it traced: the mean of its worst distance (Frechet, which also
+// notices a stroke that doubles back or stops short) and its typical distance (the mean distance of its points),
+// so one wobble or a small overshoot at an end doesn't decide the score on its own.
+const strokeError = (frechet: number, user: Point[], stretch: Point[]) => (frechet + meanNearest(user, stretch)) / 2
 
 // The cyclic shift and direction of a closed guide that best line it up with a closed stroke, comparing shapes
 // only (both are centered and scaled to the same size first). A loop drawn bigger, smaller or off to one side
@@ -45,7 +61,7 @@ function bestLoopStart(user: Point[], loop: Point[]): Point[] {
 }
 
 // Where one stroke fits best along one guide: the stretch it traced, in which direction, and how closely.
-function fitAlong(user: Point[], userPoints: Point[], guidePoints: Point[]): { distance: number; stretch: Point[]; covered: number[] } {
+function fitAlong(user: Point[], userPoints: Point[], guidePoints: Point[]): { distance: number; error: number; stretch: Point[]; covered: number[] } {
   const n = config.guidePoints
   const guide = resample(guidePoints, n)
   const closed = isClosed(guidePoints)
@@ -57,7 +73,7 @@ function fitAlong(user: Point[], userPoints: Point[], guidePoints: Point[]): { d
     const fit = partialFrechet(user, [...guide, ...guide.slice(1)]) // also allow the best free start, for accuracy
     const reversedFit = partialFrechet(user, [...guide, ...guide.slice(1)].reverse())
     const distance = Math.min(discreteFrechet(user, stretch), fit.distance, reversedFit.distance)
-    return { distance, stretch, covered: all }
+    return { distance, error: strokeError(distance, user, stretch), stretch, covered: all }
   }
 
   // Otherwise the stroke may trace any stretch of the guide. A closed guide is walked twice round, so a
@@ -80,16 +96,17 @@ function fitAlong(user: Point[], userPoints: Point[], guidePoints: Point[]): { d
   if (best.reversed) stretch.reverse()
   // The search above compares the stroke with the guide's fixed sample points, which costs a little accuracy
   // even for a perfect trace. Comparing it again with the stretch resampled like the stroke removes that.
-  const refined = discreteFrechet(user, resample(stretch, user.length))
+  const evenStretch = resample(stretch, user.length)
+  const distance = Math.min(best.distance, discreteFrechet(user, evenStretch))
   // Which of the guide's own points the stretch went past (a closed guide's index wraps around).
   const covered = new Set<number>()
   for (let i = from; i <= to; i++) covered.add(closed ? i % (n - 1) : i)
-  return { distance: Math.min(best.distance, refined), stretch, covered: [...covered] }
+  return { distance, error: strokeError(distance, user, evenStretch), stretch, covered: [...covered] }
 }
 
 // Tries every candidate guide near the stroke and keeps the closest fit. Returns null when the stroke is near
 // no guide (e.g. a doodle off to the side): that costs the user nothing.
-// accuracy = 1 - frechet / (accuracyScale * drawing diagonal), clamped to 0-1.
+// accuracy = 1 - error / tolerance of that guide, clamped to 0-1 (see strokeError and tolerance).
 export function matchStroke(userPoints: Point[], candidates: MatchCandidate[], drawingDiagonal: number): Match | null {
   if (userPoints.length < 2 || candidates.length === 0 || drawingDiagonal <= 0) return null
   const user = resample(userPoints, config.resamplePoints)
@@ -107,7 +124,7 @@ export function matchStroke(userPoints: Point[], candidates: MatchCandidate[], d
     if (best && fit.distance >= best.distance) continue
     best = {
       ghostId: candidate.id,
-      accuracy: clamp(1 - fit.distance / (config.accuracyScale * drawingDiagonal), 0, 1),
+      accuracy: accuracyFor(fit.error, tolerance(candidate.points, drawingDiagonal)),
       user,
       guide: resample(fit.stretch, config.resamplePoints),
       covered: fit.covered,
