@@ -113,11 +113,14 @@ describe('live server client', () => {
     expect((await liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))).kind).toBe('failed')
   })
 
-  it('times out /generate after 25 seconds', async () => {
+  it('waits 38 seconds for /generate, then times out', async () => {
     vi.useFakeTimers()
     fakeFetch('http://gpu.example.test', hang)
-    const result = liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))
-    await vi.advanceTimersByTimeAsync(25_000)
+    let settled = false
+    const result = liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' })).finally(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(settled).toBe(false) // a slow lesson (the GPU PC can take over 25 s) still arrives
+    await vi.advanceTimersByTimeAsync(8_000)
     expect((await result).kind).toBe('timeout')
   })
 
