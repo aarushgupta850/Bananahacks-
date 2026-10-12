@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageOps
 
 from pipeline import models
@@ -25,6 +26,16 @@ IMG2IMG_STRENGTH = 0.75  # how much a Happy-accidents redraw may change the canv
 # Photos keep more of their own shape: at 0.75 a side-view F1 car came back as a fighter jet. With 4 Lightning
 # steps, 0.6 runs the last 2, which cleans the photo's lines up without inventing a different object.
 PHOTO_STRENGTH = 0.6
+# A real photo's line map is full of faint texture (grass, fur, shadows, a car park). Redrawn as it is, it came back
+# as a gray photo that traced to almost no strokes, so every real photo failed. Only lines at least this strong
+# (0-1) are kept, and only connected lines covering at least SPECK_PIXELS pixels (at 1024 x 1024).
+LINE_LEVEL = 0.35
+SPECK_PIXELS = 120
+# The photo is first cropped to its main subject, found by OWLv2 (the prompt if there is one, else these), so the
+# outlines come from the subject and not the background: a dog's lesson was mostly the forest behind it.
+SUBJECT_QUERIES = ["an animal", "a person", "a car", "a vehicle", "a plant", "a building", "food", "an object"]
+SUBJECT_MIN_SCORE = 0.1   # a weaker best match keeps the whole photo
+SUBJECT_MARGIN = 0.08     # room around the subject's box, as a share of its size
 
 _cache: dict[str, object] = {}  # "text" or "photo" -> pipeline, "detector" -> LineartDetector
 
@@ -108,6 +119,46 @@ def photo_lines(photo: str | Path | Image.Image) -> Image.Image:
     return pad_to_square(lines.convert("RGB"), (0, 0, 0)).resize((GEN_SIZE, GEN_SIZE))
 
 
+def clean_photo_lines(lines: Image.Image) -> Image.Image:
+    """The detector's soft line map (white lines on black) as crisp black outlines on white: weak lines (photo
+    texture) and small specks are dropped, and the lines are thickened a little, like drawn lines."""
+    from scipy import ndimage
+
+    strength = np.asarray(lines.convert("L"), dtype=np.float32) / 255.0
+    mask = strength >= LINE_LEVEL
+    labels, count = ndimage.label(mask, structure=np.ones((3, 3)))
+    if count:
+        sizes = ndimage.sum(mask, labels, range(1, count + 1))
+        mask = np.isin(labels, 1 + np.flatnonzero(sizes >= SPECK_PIXELS))
+    mask = ndimage.binary_dilation(mask, iterations=1)
+    return Image.fromarray(np.where(mask, 0, 255).astype(np.uint8), "L")
+
+
+def crop_to_subject(photo: Image.Image, subject: str | None) -> Image.Image:
+    """The photo cropped to its main subject plus a margin, or the whole photo if no subject is found clearly."""
+    import torch
+
+    from pipeline.parts import owl
+
+    processor, model = owl()
+    queries = [subject, *SUBJECT_QUERIES] if subject else SUBJECT_QUERIES
+    inputs = processor(text=[queries], images=photo.convert("RGB"), return_tensors="pt").to("cuda")
+    with torch.no_grad():
+        outputs = model(**inputs)
+    scores = outputs.logits[0].sigmoid().cpu().numpy().max(axis=1)  # each box's best query
+    best = int(scores.argmax())
+    if scores[best] < SUBJECT_MIN_SCORE:
+        return photo
+    # OWLv2 boxes are (cx, cy, w, h), normalized on the photo padded to a square at the bottom and right.
+    side = max(photo.size)
+    cx, cy, w, h = outputs.pred_boxes[0][best].cpu().numpy() * side
+    w, h = w * (1 + 2 * SUBJECT_MARGIN), h * (1 + 2 * SUBJECT_MARGIN)
+    box = (max(0, cx - w / 2), max(0, cy - h / 2), min(photo.width, cx + w / 2), min(photo.height, cy + h / 2))
+    if box[2] - box[0] < 0.15 * photo.width or box[3] - box[1] < 0.15 * photo.height:
+        return photo  # a tiny box is more likely a detail than the subject
+    return photo.crop(tuple(round(v) for v in box))
+
+
 def from_photo(
     photo: str | Path | Image.Image, subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0
 ) -> list[Image.Image]:
@@ -147,9 +198,11 @@ def _img2img(pipe, prompt: str, seed: int, start: Image.Image, strength: float =
 
 
 def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:
-    """The live server's photo path: the photo's line art (black on white) redrawn with img2img. Follows the
-    photo's shapes a little more loosely than from_photo's ControlNet, but fits in the live time limit."""
-    start = ImageOps.invert(photo_lines(photo).convert("L"))  # the detector gives white lines on black
+    """The live server's photo path: the photo's cleaned outlines (black on white) redrawn with img2img, n times.
+    Follows the photo's shapes a little more loosely than from_photo's ControlNet, but fits in the live time limit.
+    (The cleaned outlines themselves were tried as a fallback lesson: on real photos they were fragments and
+    background, so a photo with no clean redraw is refused with a hint instead.)"""
+    start = clean_photo_lines(photo_lines(photo))
     pipe = _pipeline("img2img")
     prompt = line_art_prompt(subject, difficulty=difficulty)
     return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH) for i in range(n)]

@@ -1,5 +1,8 @@
 """Tests for the pipeline cache in pipeline/generate.py. No GPU: model loading is faked."""
 
+import numpy as np
+from PIL import Image
+
 from pipeline import generate, models
 
 
@@ -46,3 +49,19 @@ def test_img2img_is_built_on_the_text_pipeline_and_switches_hooks(monkeypatch):
     generate._pipeline("img2img")
     assert loads == [False]  # never reloaded
     assert readied == [img2img, generate._cache["text"], img2img]  # hooks follow whichever pipeline runs
+
+
+def test_clean_photo_lines_keeps_outlines_and_drops_texture_and_specks():
+    from pipeline.generate import clean_photo_lines
+
+    soft = np.zeros((1024, 1024), np.uint8)
+    yy, xx = np.mgrid[:1024, :1024]
+    ring = np.abs(np.hypot(xx - 512, yy - 512) - 300) < 3
+    soft[ring] = 220                                    # a strong outline
+    rng = np.random.default_rng(0)
+    soft[rng.random((1024, 1024)) < 0.2] = 60           # faint texture everywhere (grass, fur)
+    soft[100:104, 100:104] = 230                        # a bright speck
+    out = np.asarray(clean_photo_lines(Image.fromarray(soft)))
+    assert out[ring].mean() < 50                        # the outline is kept, black
+    assert (out[~ring] < 128).mean() < 0.02             # texture is gone (only the thickened outline remains)
+    assert out[100:104, 100:104].min() == 255           # the speck is gone

@@ -1,3 +1,4 @@
+import io
 """Tests for the pack schema and the pack builder, with fake drawings instead of the GPU models."""
 
 import json
@@ -221,8 +222,28 @@ def test_always_builds_a_pack_from_a_busy_drawing_and_runs_the_safety_check():
 def test_rate_difficulty_counts_the_strokes_the_user_has_to_draw():
     from build_pack import rate_difficulty
 
-    assert [rate_difficulty(n) for n in (6, 20, 21, 53, 60, 61, 140)] == [
-        "simple", "simple", "medium", "medium", "medium", "detailed", "detailed"]
+    assert [rate_difficulty(n) for n in (6, 25, 26, 50, 51, 140)] == [
+        "simple", "simple", "medium", "medium", "detailed", "detailed"]
+
+
+def test_a_simple_lesson_keeps_few_strokes_and_its_reference_shows_just_those():
+    from build_pack import make_pack
+
+    busy = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(busy)
+    for k in range(90):  # 90 separate short lines
+        x, y = 40 + (k % 10) * 70, 40 + (k // 10) * 75
+        draw.line([(x, y), (x + 30 + k % 7 * 3, y + 20)], fill=INK, width=6)
+    pack, assets = make_pack(pack_id="live-busy-simple", subject="busy", title="Busy", difficulty="simple",
+                             source_kind="prompt", prompt="busy", subject_words="busy", seed=0,
+                             generate=lambda seed: [busy] * 3, detect=lambda image: [], retries=0,
+                             log=lambda *a: None, always=True, rate=True, limit=25)
+    assert len([s for s in pack["strokes"] if s["tier"] != "construction"]) <= 25
+    assert pack["difficulty"] == "simple"
+    # The reference is drawn from the kept strokes: far less ink than the 90-line picture.
+    ink = (np.asarray(Image.open(io.BytesIO(assets["target.png"])).convert("L")) < 128).mean()
+    original = (np.asarray(busy.convert("L")) < 128).mean()
+    assert ink < 0.5 * original
 
 
 def test_a_rated_pack_with_few_strokes_says_simple_even_when_detailed_was_asked_for():
