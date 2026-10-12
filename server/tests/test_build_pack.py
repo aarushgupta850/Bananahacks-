@@ -311,3 +311,27 @@ def test_fit_to_page_scales_a_small_subject_up_to_fill_the_page():
     ImageDraw.Draw(big).rectangle((40, 60, 720, 700), outline=INK, width=6)
     assert fit_to_page(big) is big                           # already fills the page
     assert FIT_MARGIN < 0.1
+
+
+def test_simplify_keeps_the_features_inside_detail_parts():
+    from build_pack import simplify
+
+    outline = [(100.0, 100.0), (600.0, 100.0), (600.0, 600.0)]   # 1000 px: always kept
+    fur = [(150.0, 500.0), (150.0, 550.0)]                       # 50 px, outside the head
+    nose = [(300.0, 300.0), (330.0, 300.0)]                      # 30 px, inside the head
+    head = [250, 250, 150, 150]
+    assert simplify([outline, fur, nose], 2) == [outline, fur]   # by length alone the nose would go...
+    assert simplify([outline, fur, nose], 2, [head]) == [outline, nose]  # ...but inside the head it counts more
+
+
+def test_without_strokes_keeps_a_short_piece_joining_two_kept_lines():
+    from build_pack import without_strokes
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.line([(100, 300), (300, 300)], fill=INK, width=9)    # kept
+    draw.line([(330, 300), (600, 300)], fill=INK, width=9)    # kept
+    draw.line([(300, 300), (330, 300)], fill=INK, width=9)    # dropped, but it joins the two (a knee)
+    out = np.asarray(without_strokes(drawing, kept=[[(100, 300), (300, 300)], [(330, 300), (600, 300)]],
+                                     dropped=[[(300, 300), (330, 300)]]).convert("L"))
+    assert (out[298:303, 300:331] < 128).all()               # no gap in the line

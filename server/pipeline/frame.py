@@ -3,8 +3,9 @@
 SDXL often draws line art as if on a card: one or two rectangles hugging the edges of the image, around the
 subject (a basketball came back inside a double frame). A frame is not part of the subject, would become
 strokes the user has to copy, and squeezes the subject into the middle. It is found as long, nearly straight
-lines close to the edges, on at least three sides (a single line along one edge may be the ground under a
-house, so that alone is kept), and everything from the edge to the innermost frame line is erased.
+lines close to the edges, on at least three sides or on two opposite ones (a single line along one edge may be
+the ground under a house, so that alone is kept), and everything from the edge to the innermost frame line is
+erased.
 
 fit_to_page then frames the subject itself: a drawing that fills only part of the page (a car a third as wide as
 the page) is cropped around its ink and scaled up, so every lesson's subject fills the page the same way.
@@ -21,7 +22,7 @@ EDGE_BAND = 0.12    # a frame line lies within this share of the image size from
 LINE_SHARE = 0.6    # ...and runs along at least this share of that edge
 WOBBLE_PX = 3       # hand-drawn frame lines wander a little: ink this close to a row (or column) counts on it
 CLEAR_PX = 4        # also erase this many pixels inside the innermost frame line (its far edge, anti-aliasing)
-MIN_SIDES = 3       # a frame has lines along at least this many of the four edges
+MIN_SIDES = 3       # a frame has lines along at least this many of the four edges (or along two opposite ones)
 FIT_MARGIN = 0.07   # fit_to_page: the space left around the subject, as a share of the page
 FIT_MAX_SCALE = 1.8  # ...and it is scaled up at most this much (more would blur its lines)
 
@@ -49,7 +50,8 @@ def remove_frame(image: Image.Image) -> Image.Image:
     left = _innermost(cols, band_w, from_end=False)
     right = _innermost(cols, band_w, from_end=True)
     sides = [s for s in (top, bottom, left, right) if s is not None]
-    if len(sides) < MIN_SIDES:
+    opposite = (top is not None and bottom is not None) or (left is not None and right is not None)
+    if len(sides) < MIN_SIDES and not opposite:
         return image
     out = np.asarray(rgb).copy()
     reach = WOBBLE_PX + CLEAR_PX

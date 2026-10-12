@@ -46,7 +46,7 @@ NEAR_PX = 16            # pieces with gaps this small between them belong togeth
 INSIDE_SHARE = 0.5      # a piece with at least this share of its ink inside the subject's outline belongs to it
 MAX_STRAY_SHARE = 0.15  # strays are small extras: if they add up to more of the ink than this, they are the drawing
 # Cut off.
-EDGE_PX = 3       # ink this close to the image's edge means the subject runs off the page
+EDGE_PX = 6       # ink this close to the image's edge means the subject runs off the page
 CUT_OFF_PX = 40   # at least this many ink pixels along the edge: the subject is cut off, not just touching it
 
 

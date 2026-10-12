@@ -108,13 +108,24 @@ def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -
                                       len(candidates[i].strokes))) if usable else None
 
 
-def simplify(strokes: list, limit: int = MAX_STROKES) -> list:
-    """The `limit` longest strokes, in their original order: a busy drawing keeps its big lines and loses the
-    smallest details, so it fits a lesson."""
+DETAIL_BOOST = 3.0  # simplify: a stroke inside a detail part (an eye, the nose, a door) counts as this much longer
+WHOLE_PARTS = {"body", "wall"}  # parts that cover the whole subject (as pipeline.parts.WHOLE_OBJECT): no boost
+
+
+def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = ()) -> list:
+    """The `limit` most important strokes, in their original order. Importance is length, except that a stroke
+    centered inside a detail part (detail_boxes, each [x, y, w, h]: the head, an eye, a door) counts DETAIL_BOOST
+    times its length. So a busy drawing keeps its big lines and its features, and loses texture and stray bits.
+    (By length alone, a cat lost its nose and mouth, and a house its porch windows.)"""
     def length(stroke) -> float:
         return sum(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]))
 
-    keep = set(sorted(range(len(strokes)), key=lambda i: length(strokes[i]), reverse=True)[:limit])
+    def importance(stroke) -> float:
+        cx, cy = sum(p[0] for p in stroke) / len(stroke), sum(p[1] for p in stroke) / len(stroke)
+        detail = any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in detail_boxes)
+        return length(stroke) * (DETAIL_BOOST if detail else 1.0)
+
+    keep = set(sorted(range(len(strokes)), key=lambda i: importance(strokes[i]), reverse=True)[:limit])
     return [s for i, s in enumerate(strokes) if i in keep]
 
 
@@ -132,13 +143,18 @@ def rate_difficulty(n_strokes: int) -> str:
 
 KEEP_NEAR_PX = 3     # without_strokes: drawn pixels this close to a kept stroke stay (where a dropped line meets it)
 LINE_REACH_PX = 12   # ...and a dropped stroke's line reaches this far from its center line (thick lines, soft edges)
+BRIDGE_PX = 40       # a dropped stroke at most this long with both ends on kept lines stays drawn (a knee, a corner)
+FAINT_LEVEL = 12     # anything this much darker than the page counts as drawn (the faint edges of a line included)
 
 
 def without_strokes(image: Image.Image, kept: list, dropped: list) -> Image.Image:
     """The AI drawing with the dropped strokes' lines painted over in the page's color, for a lesson that keeps only
     some of the drawing's strokes. The reference then shows exactly what the lesson teaches, still drawn the way the
     AI drew it. (Re-drawing the kept strokes themselves looked broken and sketchy: uniform lines with gaps wherever
-    a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line."""
+    a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line. A short dropped stroke
+    joining two kept lines (a knee, the corner of a window) stays drawn, or the outline would show a gap."""
+    import math
+
     import numpy as np
     from scipy import ndimage
 
@@ -150,10 +166,20 @@ def without_strokes(image: Image.Image, kept: list, dropped: list) -> Image.Imag
         return np.asarray(canvas, dtype=bool)
 
     to_kept = ndimage.distance_transform_edt(~lines(kept))
-    to_dropped = ndimage.distance_transform_edt(~lines(dropped))
+
+    def on_kept(point) -> bool:
+        x, y = min(max(int(point[0]), 0), SIZE - 1), min(max(int(point[1]), 0), SIZE - 1)
+        return to_kept[y, x] <= KEEP_NEAR_PX + 3
+
+    def bridge(stroke) -> bool:
+        length = sum(math.dist(a, b) for a, b in zip(stroke, stroke[1:]))
+        return length <= BRIDGE_PX and on_kept(stroke[0]) and on_kept(stroke[-1])
+
+    to_dropped = ndimage.distance_transform_edt(~lines([s for s in dropped if not bridge(s)]))
     rgb = image.convert("RGB").resize((SIZE, SIZE))
     pixels = np.asarray(rgb).copy()
-    drawn = np.asarray(rgb.convert("L")) < 200
+    gray = np.asarray(rgb.convert("L"))
+    drawn = gray < np.median(gray) - FAINT_LEVEL  # the page is most of the picture
     erase = drawn & (to_dropped < to_kept) & (to_kept > KEEP_NEAR_PX) & (to_dropped <= LINE_REACH_PX)
     pixels[erase] = np.median(pixels[~drawn], axis=0).astype(np.uint8) if (~drawn).any() else 255
     return Image.fromarray(pixels, "RGB")
@@ -342,16 +368,17 @@ def make_pack(
     n_traced = len(best.strokes)
     if check_drawing is not None:
         check_drawing(best.image)
+    parts = detect(best.image)
     simplified = len(best.strokes) > limit
     dropped = []  # the strokes a simplified lesson leaves out
     if simplified:
-        kept = simplify(best.strokes, limit)
+        details = [p["box"] for p in parts if p["id"].split("_")[0] not in WHOLE_PARTS]
+        kept = simplify(best.strokes, limit, details)
         kept_ids = {id(stroke) for stroke in kept}
         dropped = [stroke for stroke in best.strokes if id(stroke) not in kept_ids]
         best = Candidate(best.image, kept, best.score, best.cut_off)
     if rate:
         difficulty = rate_difficulty(len(best.strokes))  # what the user will draw (the reference shows just these)
-    parts = detect(best.image)
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
                          n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note)
