@@ -3,7 +3,7 @@
 // touch for free; they are styled as pills. "Custom" reveals a number field (10-600 seconds).
 import { useState } from 'react'
 import {
-  choiceLabel, CUSTOM_MAX_SECONDS, CUSTOM_MIN_SECONDS, parseCustomSeconds, PRESET_SECONDS,
+  choiceLabel, CUSTOM_MAX_SECONDS, CUSTOM_MIN_SECONDS, parseCustomSeconds, PRESET_SECONDS, withinPhrase,
 } from './timeLimit'
 
 interface TimeLimitPickerProps {
@@ -58,28 +58,37 @@ export default function TimeLimitPicker({ value, onChange, onValidityChange, loc
       </div>
       {custom && (
         <div className="time-custom">
-          <input
-            id="custom-seconds"
-            type="number"
-            inputMode="numeric"
-            min={CUSTOM_MIN_SECONDS}
-            max={CUSTOM_MAX_SECONDS}
-            step={1}
-            value={customText}
-            placeholder="90"
-            aria-label={`Seconds, from ${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}`}
-            aria-invalid={customText !== '' && !customValid}
-            aria-describedby="custom-seconds-hint"
-            onChange={(e) => typeCustom(e.target.value)}
-          />
-          <span aria-hidden="true">seconds</span>
+          {/* A plain text field (no browser spinner) with "seconds" written inside it. */}
+          <span className={customText !== '' && !customValid ? 'time-custom-field is-problem' : 'time-custom-field'}>
+            <input
+              id="custom-seconds"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={3}
+              value={customText}
+              placeholder="90"
+              aria-label={`Seconds, from ${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}`}
+              aria-invalid={customText !== '' && !customValid}
+              aria-describedby="custom-seconds-hint"
+              onChange={(e) => typeCustom(e.target.value)}
+            />
+            <span aria-hidden="true">seconds</span>
+          </span>
           <span id="custom-seconds-hint" className={customText !== '' && !customValid ? 'time-hint is-problem' : 'time-hint'} role="status">
-            {customText !== '' && !customValid ? `Pick ${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}.` : `${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}`}
+            {customText !== '' && !customValid ? `Pick a whole number from ${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS}.` : `${CUSTOM_MIN_SECONDS} to ${CUSTOM_MAX_SECONDS} seconds`}
           </span>
         </div>
       )}
-      <p className="time-hint">
-        {locked ? 'Locked: your retest gets the same time, so it stays fair.' : 'You get the same time for the test and the retest, so it\'s fair.'}
+      {/* What the choice means, in words, for both rounds. */}
+      <p className="time-summary">
+        {locked
+          ? 'Locked: your retest gets the same time as your test, so it stays fair.'
+          : custom && !customValid
+            ? 'Type how many seconds you want.'
+            : value === null
+              ? 'No clock: take as long as you like, in the test and the retest.'
+              : `You copy it ${withinPhrase(value)}, and get the same time again in the retest.`}
       </p>
     </fieldset>
   )
