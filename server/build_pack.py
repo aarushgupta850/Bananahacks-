@@ -44,6 +44,7 @@ DIFFICULTIES = ["simple", "medium", "detailed"]  # must match Difficulty in web/
 N_CANDIDATES = 4
 RETRY_SEED_OFFSET = 100  # the retry uses seeds this far from the first try's
 MIN_STROKES, MAX_STROKES = 6, 60  # the quality gate (server/CLAUDE.md)
+SIMPLE_MAX_STROKES = 20  # rate_difficulty: a drawing with at most this many strokes is "simple"
 REJECTED_SCORE = 1000  # quality.py adds 1000 for a colored or blank drawing
 MAX_IMAGE_BYTES = 300 * 1024  # pipeline images must be 300 KB or less
 SIZE = 768
@@ -106,6 +107,16 @@ def simplify(strokes: list, limit: int = MAX_STROKES) -> list:
 
     keep = set(sorted(range(len(strokes)), key=lambda i: length(strokes[i]), reverse=True)[:limit])
     return [s for i, s in enumerate(strokes) if i in keep]
+
+
+def rate_difficulty(n_strokes: int) -> str:
+    """How hard a drawing really is, from how many strokes the traced drawing has (the lines the user sees in the
+    reference, counted before simplify() trims them). Up to 20 is simple, up to the 60-stroke gate is medium (every
+    shipped medium pack has 53 or fewer), and more is detailed. The live server labels its packs with this rather
+    than the difficulty the user asked for, because the AI can draw a busy subject (an F1 car) however it was asked."""
+    if n_strokes <= SIMPLE_MAX_STROKES:
+        return "simple"
+    return "medium" if n_strokes <= MAX_STROKES else "detailed"
 
 
 # ---------------------------------------------------------------- images
@@ -270,12 +281,14 @@ def update_index(index_path: Path, subject: str, title: str, difficulty: str, pa
 def make_pack(
     *, pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
-    always: bool = False, check_drawing=None,
+    always: bool = False, check_drawing=None, rate: bool = False,
 ) -> tuple[dict, dict[str, bytes]]:
     """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
     by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits, unless
     `always` (the live server): then the cleanest drawing is used and simplified to the stroke limit.
     `check_drawing(image)`, if given, may raise to refuse the chosen drawing (the live server's safety check).
+    With `rate` (the live server), the pack's difficulty is rate_difficulty() of the chosen drawing, not `difficulty`
+    (which still goes into the prompt). Offline packs keep the difficulty they were built for.
 
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
     prompt_text = line_art_prompt(subject_words, difficulty=difficulty)
@@ -303,6 +316,9 @@ def make_pack(
         )
 
     best = candidates[chosen]
+    n_traced = len(best.strokes)  # counted before simplifying: the reference shows every one of them
+    if rate:
+        difficulty = rate_difficulty(n_traced)
     if check_drawing is not None:
         check_drawing(best.image)
     if len(best.strokes) > MAX_STROKES:
@@ -310,7 +326,7 @@ def make_pack(
     parts = detect(best.image)
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
-                         len(best.strokes), parts, plan, n_candidates=len(candidates))
+                         n_traced, parts, plan, n_candidates=len(candidates))
     target = clean_drawing(best.image)
     assets = {
         "target.png": png_bytes(target),
