@@ -37,6 +37,7 @@ from pipeline import schema  # noqa: E402
 from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import line_art_prompt  # noqa: E402
 from pipeline.quality import line_metrics  # noqa: E402
+from pipeline.frame import remove_frame  # noqa: E402
 from pipeline.trace import ink_mask, skeleton_of, trace  # noqa: E402
 
 SUBJECTS_DIR = SERVER_DIR.parent / "web" / "public" / "subjects"
@@ -81,22 +82,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 # ---------------------------------------------------------------- choosing a candidate
 
 
-def choose(candidates: list[Candidate]) -> int | None:
+def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
     """Index of the cleanest candidate (lowest quality score) inside the stroke gate, or None. Ties go to fewer
     strokes. (Fewest strokes first, as before, kept drawings with dashed or broken lines over cleaner ones.)"""
     usable = [
         i for i, c in enumerate(candidates)
-        if MIN_STROKES <= len(c.strokes) <= MAX_STROKES and c.score < REJECTED_SCORE
+        if min_strokes <= len(c.strokes) <= MAX_STROKES and c.score < REJECTED_SCORE
     ]
     if not usable:
         return None
     return min(usable, key=lambda i: (candidates[i].score, len(candidates[i].strokes)))
 
 
-def choose_anyway(candidates: list[Candidate]) -> int | None:
+def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
     """When no candidate fits the gate: the cleanest one with enough lines, colored or not (it gets retraced in
     black anyway), or None if every candidate is blank."""
-    usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= MIN_STROKES]
+    usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= min_strokes]
     return min(usable, key=lambda i: candidates[i].score) if usable else None
 
 
@@ -282,6 +283,7 @@ def make_pack(
     *, pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
     always: bool = False, check_drawing=None, rate: bool = False, limit: int = MAX_STROKES,
+    min_strokes: int = MIN_STROKES,
 ) -> tuple[dict, dict[str, bytes]]:
     """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
     by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits, unless
@@ -293,6 +295,9 @@ def make_pack(
     with more is simplified to its longest strokes, and its reference is then drawn from exactly those strokes, so
     what the user copies is what the lesson teaches (and a "simple" lesson really is simple).
 
+    `min_strokes` raises the gate's lower end (the live photo path: a redraw of a few scattered fragments is not
+    a drawing of the subject). Every draft first has any frame drawn around the picture removed (pipeline/frame.py).
+
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
     prompt_text = line_art_prompt(subject_words, difficulty=difficulty)
     tries = []
@@ -300,21 +305,22 @@ def make_pack(
         first_seed = seed + attempt * RETRY_SEED_OFFSET
         candidates = []
         for i, image in enumerate(generate(first_seed)):
+            image = remove_frame(image)
             strokes = trace(image)
             candidates.append(Candidate(image, strokes, line_metrics(image)["score"]))
             log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}")
         tries.append(candidates)
-        chosen = choose(candidates)
+        chosen = choose(candidates, min_strokes)
         if chosen is not None:
             break
     else:
-        chosen = choose_anyway(candidates) if always else None
+        chosen = choose_anyway(candidates, min_strokes) if always else None
         if chosen is not None:
-            log(f"  no candidate fit {MIN_STROKES}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
+            log(f"  no candidate fit {min_strokes}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
     if chosen is None:
         counts = "; ".join(", ".join(str(len(c.strokes)) for c in t) for t in tries)
         raise NoCleanCandidate(
-            f"No candidate had {MIN_STROKES}-{MAX_STROKES} strokes and a clean score (stroke counts: {counts}). "
+            f"No candidate had {min_strokes}-{MAX_STROKES} strokes and a clean score (stroke counts: {counts}). "
             "Try another --seed or a simpler --prompt."
         )
 

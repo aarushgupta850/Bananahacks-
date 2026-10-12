@@ -268,3 +268,15 @@ def test_clean_drawing_whitens_an_uneven_page_and_keeps_the_ink_black():
     assert out.shape == (768, 768)
     assert out[100, 50] == 255 and out[100, 700] == 255  # the page is white on both the dark and the light side
     assert out[384, 400] < 40  # the ink stays black
+
+
+def test_a_higher_stroke_minimum_refuses_a_drawing_of_a_few_fragments():
+    from build_pack import make_pack
+
+    common = dict(pack_id="live-photo-medium", subject="photo", title="Your photo", difficulty="medium",
+                  source_kind="photo", prompt=None, subject_words="the object in the photo", seed=0,
+                  generate=lambda seed: [cat_drawing()] * 2, detect=lambda image: FAKE_PARTS, retries=0,
+                  log=lambda *a: None)
+    make_pack(**common)  # a handful of strokes passes the usual gate of 6...
+    with pytest.raises(build_pack.NoCleanCandidate, match="No candidate had 40-60"):
+        make_pack(**common, min_strokes=40)  # ...but not a photo's higher minimum

@@ -205,7 +205,9 @@ def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium"
     start = clean_photo_lines(photo_lines(photo))
     pipe = _pipeline("img2img")
     prompt = line_art_prompt(subject, difficulty=difficulty)
-    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH) for i in range(n)]
+    # In gray: a redraw keeps a faint tint of the photo (a blue-gray car), which the cleanliness score counts as a
+    # colored drawing and rejects, although the lines themselves were fine.
+    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH).convert("L").convert("RGB") for i in range(n)]
 
 
 def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:

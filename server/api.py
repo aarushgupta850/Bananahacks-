@@ -58,6 +58,11 @@ TIMEOUT_S = 23  # the web app (web/src/lib/live.ts) gives up after 25 s, so answ
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
+# Photos take longer (finding the subject, cleaning its outlines, tracing busy redraws): with 3 drafts a dog photo
+# went past the time limit every time, so a photo gets 2. A photo redraw needs at least PHOTO_MIN_STROKES strokes:
+# a car photo's redraw of a dozen scattered fragments passed the usual gate of 6 but wasn't a car.
+PHOTO_CANDIDATES = 2
+PHOTO_MIN_STROKES = 15
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
 
 log = logging.getLogger("ghostlines.live")
@@ -186,7 +191,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
     """Builds a pack with the same pipeline as build_pack.py, in memory. Needs the GPU."""
     from PIL import Image
 
-    from build_pack import make_pack
+    from build_pack import MIN_STROKES, make_pack
     from pipeline import models
 
     models.setup_hf_env()  # before the Hugging Face libraries load
@@ -207,7 +212,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         subject_photo = gen.crop_to_subject(photo, prompt)  # outlines from the subject, not the background
 
         def generate(seed):
-            return gen.from_photo_fast(subject_photo, words, difficulty, n=LIVE_CANDIDATES, seed=seed)
+            return gen.from_photo_fast(subject_photo, words, difficulty, n=PHOTO_CANDIDATES, seed=seed)
     else:
         def generate(seed):
             return gen.from_prompt(words, difficulty, n=LIVE_CANDIDATES, seed=seed)
@@ -221,6 +226,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         rate=True,  # label the lesson by how hard the drawing came out, not by what was asked for
         limit=LIVE_STROKE_LIMITS[difficulty],
         always=photo is None,  # a typed subject always gets a lesson; a photo with no clean drawing gets a hint
+        min_strokes=PHOTO_MIN_STROKES if photo is not None else MIN_STROKES,
     )
     return with_data_urls(pack, assets)
 
