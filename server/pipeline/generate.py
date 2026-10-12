@@ -159,19 +159,6 @@ def crop_to_subject(photo: Image.Image, subject: str | None) -> Image.Image:
     return photo.crop(tuple(round(v) for v in box))
 
 
-def subject_score(image: Image.Image, subject: str) -> float:
-    """How sure OWLv2 is that the drawing shows `subject` (e.g. "a basketball"): its best box's score, 0-1."""
-    import torch
-
-    from pipeline.parts import owl
-
-    processor, model = owl()
-    inputs = processor(text=[[subject]], images=image.convert("RGB"), return_tensors="pt").to("cuda")
-    with torch.no_grad():
-        outputs = model(**inputs)
-    return float(outputs.logits[0].sigmoid().max().cpu())
-
-
 def from_photo(
     photo: str | Path | Image.Image, subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0
 ) -> list[Image.Image]:

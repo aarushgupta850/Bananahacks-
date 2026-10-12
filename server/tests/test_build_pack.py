@@ -270,19 +270,13 @@ def test_clean_drawing_whitens_an_uneven_page_and_keeps_the_ink_black():
     assert out[384, 400] < 40  # the ink stays black
 
 
-def test_the_draft_that_most_clearly_shows_the_subject_wins_over_a_slightly_cleaner_one():
+def test_a_higher_stroke_minimum_refuses_a_drawing_of_a_few_fragments():
     from build_pack import make_pack
 
-    four_legs, three_legs = cat_drawing(4), cat_drawing(3)  # on cleanliness alone the three-legged cat wins
-    sure = {id(four_legs): 0.6, id(three_legs): 0.1}         # but OWLv2 barely sees a cat in it
-
-    def build(relevance):
-        pack, _ = make_pack(pack_id="cat-medium", subject="cat", title="Cat", difficulty="medium",
-                            source_kind="prompt", prompt="a cat", subject_words="a cat", seed=0,
-                            generate=lambda seed: [four_legs, three_legs], detect=lambda image: FAKE_PARTS,
-                            retries=0, log=lambda *a: None, relevance=relevance)
-        return {s["id"]: s for s in pack["pipeline"]}["chosen"]["image"]
-
-    assert build(None) == "pipeline/candidate-1.webp"
-    # remove_frame returns the same image object when there is no frame, so the ids still match.
-    assert build(lambda image: sure[id(image)]) == "pipeline/candidate-0.webp"
+    common = dict(pack_id="live-photo-medium", subject="photo", title="Your photo", difficulty="medium",
+                  source_kind="photo", prompt=None, subject_words="the object in the photo", seed=0,
+                  generate=lambda seed: [cat_drawing()] * 2, detect=lambda image: FAKE_PARTS, retries=0,
+                  log=lambda *a: None)
+    make_pack(**common)  # a handful of strokes passes the usual gate of 6...
+    with pytest.raises(build_pack.NoCleanCandidate, match="No candidate had 40-60"):
+        make_pack(**common, min_strokes=40)  # ...but not a photo's higher minimum
