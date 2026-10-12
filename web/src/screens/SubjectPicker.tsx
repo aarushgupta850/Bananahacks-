@@ -42,6 +42,8 @@ const LIVE_MESSAGES: Record<LiveErrorKind, string> = {
   failed: "Something went wrong making that lesson. Try again, or pick a ready-made subject above.",
 }
 
+const PHOTO_REJECTED = "We couldn't turn that photo into a clean drawing. Try one object on a plain background, or type what it is."
+
 export default function SubjectPicker({ onNext }: { onNext: () => void }) {
   const { session, update } = useSession()
   const [index, setIndex] = useState<IndexState>({ kind: 'loading' })
@@ -203,7 +205,9 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
     } catch (error) {
       console.error(error)
       const kind: LiveErrorKind = error instanceof LiveError ? error.kind : 'failed'
-      setLive(kind === 'offline' ? { kind: 'offline' } : { kind: 'problem', message: LIVE_MESSAGES[kind] })
+      // A refused photo is usually a busy one (a background, several objects), so say what helps.
+      const message = photo && kind === 'rejected' ? PHOTO_REJECTED : LIVE_MESSAGES[kind]
+      setLive(kind === 'offline' ? { kind: 'offline' } : { kind: 'problem', message })
     }
   }
 
