@@ -37,6 +37,7 @@ from pipeline import schema  # noqa: E402
 from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import line_art_prompt  # noqa: E402
 from pipeline.quality import line_metrics  # noqa: E402
+from pipeline.frame import remove_frame  # noqa: E402
 from pipeline.trace import ink_mask, skeleton_of, trace  # noqa: E402
 
 SUBJECTS_DIR = SERVER_DIR.parent / "web" / "public" / "subjects"
@@ -47,6 +48,10 @@ MIN_STROKES, MAX_STROKES = 6, 60  # the quality gate (server/CLAUDE.md)
 SIMPLE_MAX_STROKES = 25  # rate_difficulty: a drawing with at most this many strokes is "simple"...
 MEDIUM_MAX_STROKES = 50  # ...at most this many "medium", more "detailed"
 REJECTED_SCORE = 1000  # quality.py adds 1000 for a colored or blank drawing
+# With a relevance check (the live server: how sure OWLv2 is that a draft shows the subject, 0-1), each draft's
+# score also gets this much per point it is less sure than about the best draft: a clean drawing that isn't
+# clearly the subject loses to a nearly as clean one that is. (Clean drafts score about 30-150.)
+RELEVANCE_WEIGHT = 200
 MAX_IMAGE_BYTES = 300 * 1024  # pipeline images must be 300 KB or less
 SIZE = 768
 
@@ -281,7 +286,7 @@ def update_index(index_path: Path, subject: str, title: str, difficulty: str, pa
 def make_pack(
     *, pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
-    always: bool = False, check_drawing=None, rate: bool = False, limit: int = MAX_STROKES,
+    always: bool = False, check_drawing=None, rate: bool = False, limit: int = MAX_STROKES, relevance=None,
 ) -> tuple[dict, dict[str, bytes]]:
     """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
     by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits, unless
@@ -293,6 +298,9 @@ def make_pack(
     with more is simplified to its longest strokes, and its reference is then drawn from exactly those strokes, so
     what the user copies is what the lesson teaches (and a "simple" lesson really is simple).
 
+    `relevance(image)`, if given, says how clearly a draft shows the subject (0-1); see RELEVANCE_WEIGHT.
+    Every draft first has any frame drawn around the picture removed (pipeline/frame.py).
+
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
     prompt_text = line_art_prompt(subject_words, difficulty=difficulty)
     tries = []
@@ -300,9 +308,15 @@ def make_pack(
         first_seed = seed + attempt * RETRY_SEED_OFFSET
         candidates = []
         for i, image in enumerate(generate(first_seed)):
+            image = remove_frame(image)
             strokes = trace(image)
             candidates.append(Candidate(image, strokes, line_metrics(image)["score"]))
             log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}")
+        if relevance is not None and candidates:
+            sure = [relevance(c.image) for c in candidates]
+            for c, r in zip(candidates, sure):
+                c.score += RELEVANCE_WEIGHT * (max(sure) - r)
+            log("  subject relevance: " + ", ".join(f"{r:.2f}" for r in sure))
         tries.append(candidates)
         chosen = choose(candidates)
         if chosen is not None:

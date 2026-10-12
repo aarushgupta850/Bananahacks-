@@ -159,6 +159,19 @@ def crop_to_subject(photo: Image.Image, subject: str | None) -> Image.Image:
     return photo.crop(tuple(round(v) for v in box))
 
 
+def subject_score(image: Image.Image, subject: str) -> float:
+    """How sure OWLv2 is that the drawing shows `subject` (e.g. "a basketball"): its best box's score, 0-1."""
+    import torch
+
+    from pipeline.parts import owl
+
+    processor, model = owl()
+    inputs = processor(text=[[subject]], images=image.convert("RGB"), return_tensors="pt").to("cuda")
+    with torch.no_grad():
+        outputs = model(**inputs)
+    return float(outputs.logits[0].sigmoid().max().cpu())
+
+
 def from_photo(
     photo: str | Path | Image.Image, subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0
 ) -> list[Image.Image]:
@@ -205,7 +218,9 @@ def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium"
     start = clean_photo_lines(photo_lines(photo))
     pipe = _pipeline("img2img")
     prompt = line_art_prompt(subject, difficulty=difficulty)
-    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH) for i in range(n)]
+    # In gray: a redraw keeps a faint tint of the photo (a blue-gray car), which the cleanliness score counts as a
+    # colored drawing and rejects, although the lines themselves were fine.
+    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH).convert("L").convert("RGB") for i in range(n)]
 
 
 def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:

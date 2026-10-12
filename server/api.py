@@ -221,6 +221,8 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         rate=True,  # label the lesson by how hard the drawing came out, not by what was asked for
         limit=LIVE_STROKE_LIMITS[difficulty],
         always=photo is None,  # a typed subject always gets a lesson; a photo with no clean drawing gets a hint
+        # Prefer the draft that most clearly shows the subject (only when there are words for it).
+        relevance=(lambda image: gen.subject_score(image, words)) if prompt else None,
     )
     return with_data_urls(pack, assets)
 
@@ -249,6 +251,7 @@ def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
         generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=LIVE_CANDIDATES, seed=seed),
         detect=lambda image: detect_parts(image, prompt), retries=0, log=log.info, always=True,
         check_drawing=safety.check_picture, rate=True, limit=LIVE_STROKE_LIMITS[difficulty],
+        relevance=lambda image: gen.subject_score(image, prompt),
     )
     return with_data_urls(drop_covered(pack, canvas_ink), assets)
 
