@@ -6,7 +6,14 @@ import type { Difficulty, Pack } from '../engine/types'
 import { parsePack } from './packs'
 
 const CONFIG_TIMEOUT_MS = 2_000
-const HEALTH_TIMEOUT_MS = 2_000
+// Through the free tunnel, and while the server is busy making someone else's lesson, /health can take a few
+// seconds: with a 2 s limit the app wrongly said "offline" while the server was up. Two tries of 6 s each.
+const HEALTH_TIMEOUT_MS = 6_000
+const HEALTH_TRIES = 2
+// The server makes one lesson at a time and answers "busy" (503) to anyone else. Instead of giving up at once,
+// the app waits and asks again, a few times (a lesson takes about 20 s).
+export const BUSY_RETRIES = 4
+export const BUSY_WAIT_MS = 6_000
 const GENERATE_TIMEOUT_MS = 25_000
 
 // offline: no server configured or unreachable; timeout: no answer in time; busy: already running a job
@@ -58,15 +65,32 @@ export async function getLiveUrl(): Promise<string> {
   }
 }
 
-// True when the live server answers GET /health within 2 s. Never throws.
+// True when the live server answers GET /health (two tries of 6 s each). Never throws.
 export async function checkLive(): Promise<boolean> {
-  try {
-    const url = await getLiveUrl()
-    if (!url) return false
-    const response = await fetchWithTimeout(`${url}/health`, {}, HEALTH_TIMEOUT_MS)
-    return response.ok
-  } catch {
-    return false
+  const url = await getLiveUrl()
+  if (!url) return false
+  for (let attempt = 0; attempt < HEALTH_TRIES; attempt++) {
+    try {
+      const response = await fetchWithTimeout(`${url}/health`, {}, HEALTH_TIMEOUT_MS)
+      if (response.ok) return true
+    } catch {
+      // try again
+    }
+  }
+  return false
+}
+
+// Sends a request, and while the server answers "busy", waits BUSY_WAIT_MS and sends it again (at most
+// BUSY_RETRIES more times). onBusy is told each time it has to wait (to show "you're next").
+async function retryWhileBusy<T>(send: () => Promise<T>, onBusy?: (wait: number) => void): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send()
+    } catch (error) {
+      if (!(error instanceof LiveError) || error.kind !== 'busy' || attempt >= BUSY_RETRIES) throw error
+      onBusy?.(attempt + 1)
+      await new Promise((resolve) => setTimeout(resolve, BUSY_WAIT_MS))
+    }
   }
 }
 
@@ -103,10 +127,10 @@ export async function photoAsJpeg(base64: string): Promise<string> {
 }
 
 // Asks the live server to build a pack from a prompt or a photo (base64). Takes up to 25 s.
-export async function generate(request: GenerateRequest): Promise<Pack> {
+export async function generate(request: GenerateRequest, onBusy?: (wait: number) => void): Promise<Pack> {
   if (!request.prompt && !request.imageBase64) throw new LiveError('rejected', 'generate needs a prompt or a photo')
   const imageBase64 = request.imageBase64 ? await photoAsJpeg(request.imageBase64) : undefined
-  return postForPack('/generate', { ...request, imageBase64 })
+  return retryWhileBusy(() => postForPack('/generate', { ...request, imageBase64 }), onBusy)
 }
 
 export interface RegenerateRequest {
