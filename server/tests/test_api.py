@@ -138,6 +138,9 @@ def test_no_clean_drawing_is_a_422(monkeypatch):
     monkeypatch.setattr(api, "BUILD", build)
     response = run(api.generate(api.GenerateRequest(prompt="a teapot")))
     assert status(response) == 422 and "simpler subject" in body(response)["error"]
+    # A photo with no clean drawing gets a hint about photos instead.
+    response = run(api.generate(api.GenerateRequest(imageBase64=png_base64())))
+    assert status(response) == 422 and "plain background" in body(response)["error"]
 
 
 def test_pack_images_become_data_urls():

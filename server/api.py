@@ -204,8 +204,10 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         photo = ImageOps.exif_transpose(photo).convert("RGB")  # phone photos the right way up
         photo.thumbnail((MAX_PHOTO_SIDE, MAX_PHOTO_SIDE))  # a 12-megapixel photo slows every step down
         safety.check_picture(photo)  # before any drawing is made from it
+        subject_photo = gen.crop_to_subject(photo, prompt)  # outlines from the subject, not the background
+
         def generate(seed):
-            return gen.from_photo_fast(photo, words, difficulty, n=LIVE_CANDIDATES, seed=seed)
+            return gen.from_photo_fast(subject_photo, words, difficulty, n=LIVE_CANDIDATES, seed=seed)
     else:
         def generate(seed):
             return gen.from_prompt(words, difficulty, n=LIVE_CANDIDATES, seed=seed)
@@ -215,26 +217,12 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         source_kind="photo" if photo is not None else "prompt", prompt=prompt, subject_words=words,
         seed=secrets.randbelow(100_000),  # a new drawing every time
         generate=generate, detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
-        log=log.info, always=True, check_drawing=safety.check_picture,
+        log=log.info, check_drawing=safety.check_picture,
         rate=True,  # label the lesson by how hard the drawing came out, not by what was asked for
         limit=LIVE_STROKE_LIMITS[difficulty],
+        always=photo is None,  # a typed subject always gets a lesson; a photo with no clean drawing gets a hint
     )
-    if photo is not None:
-        describe_photo_drafts(pack, LIVE_CANDIDATES)
     return with_data_urls(pack, assets)
-
-
-def describe_photo_drafts(pack: dict, n_ai: int) -> None:
-    """A photo's candidates are n_ai AI redraws plus the photo's own cleaned outlines (the last one): says so in
-    the "How this lesson was made" panel, and says which one the lesson uses."""
-    stages = {s["id"]: s for s in pack["pipeline"]}
-    used_outlines = stages["chosen"].get("image") == f"pipeline/candidate-{n_ai}.webp"
-    stages["candidates"]["label"] = f"{n_ai} AI drafts + the photo's outlines"
-    stages["candidates"]["text"] = (f"SDXL-Lightning redrew the photo's outlines {n_ai} times; the last picture is "
-                                    "the outlines themselves, found by the line-art detector.")
-    if used_outlines:
-        stages["chosen"]["text"] = ("No AI redraw was clean enough, so the lesson follows the photo's own outlines. "
-                                    + stages["chosen"]["text"].split(". ", 1)[-1])
 
 
 def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
@@ -357,7 +345,8 @@ async def run_job(name: str, prompt: str | None, difficulty: str, job, image_byt
         return JSONResponse({"error": REFUSED}, status_code=400)
     except NoCleanCandidate as error:
         log.info("%s %r: no clean drawing (%s)", name, prompt, error)
-        return JSONResponse({"error": "Couldn't make a clean drawing of that. Try a simpler subject."}, status_code=422)
+        hint = ("Try a photo of one object on a plain background." if image_bytes else "Try a simpler subject.")
+        return JSONResponse({"error": f"Couldn't make a clean drawing of that. {hint}"}, status_code=422)
     except Exception:  # noqa: BLE001 - log it, tell the app it failed
         log.exception("%s %r failed", name, prompt)
         return JSONResponse({"error": "failed"}, status_code=500)
