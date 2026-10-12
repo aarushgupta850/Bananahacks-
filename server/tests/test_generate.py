@@ -1,7 +1,6 @@
-"""Tests for the pipeline cache in pipeline/generate.py. No GPU: model loading is faked."""
+"""Tests for pipeline/generate.py: the pipeline cache and naming what a photo shows. No GPU: models are faked."""
 
 import numpy as np
-from PIL import Image
 
 from pipeline import generate, models
 
@@ -51,17 +50,29 @@ def test_img2img_is_built_on_the_text_pipeline_and_switches_hooks(monkeypatch):
     assert readied == [img2img, generate._cache["text"], img2img]  # hooks follow whichever pipeline runs
 
 
-def test_clean_photo_lines_keeps_outlines_and_drops_texture_and_specks():
-    from pipeline.generate import clean_photo_lines
+def test_a_photo_is_named_after_its_big_subject_not_a_small_detail():
+    from pipeline.generate import best_subject
 
-    soft = np.zeros((1024, 1024), np.uint8)
-    yy, xx = np.mgrid[:1024, :1024]
-    ring = np.abs(np.hypot(xx - 512, yy - 512) - 300) < 3
-    soft[ring] = 220                                    # a strong outline
-    rng = np.random.default_rng(0)
-    soft[rng.random((1024, 1024)) < 0.2] = 60           # faint texture everywhere (grass, fur)
-    soft[100:104, 100:104] = 230                        # a bright speck
-    out = np.asarray(clean_photo_lines(Image.fromarray(soft)))
-    assert out[ring].mean() < 50                        # the outline is kept, black
-    assert (out[~ring] < 128).mean() < 0.02             # texture is gone (only the thickened outline remains)
-    assert out[100:104, 100:104].min() == 255           # the speck is gone
+    # Two boxes on a 1000 x 800 photo: a big one around the dog, a tiny one around a bottle on a shelf.
+    boxes = np.array([[0.5, 0.45, 0.6, 0.5], [0.9, 0.1, 0.05, 0.08]])
+    scores = np.array([[0.35, 0.02],    # the big box: dog 0.35, bottle 0.02
+                       [0.01, 0.60]])   # the tiny box: the bottle scores higher, but it isn't the subject
+    assert best_subject(scores, boxes, (1000, 800)) == (0, 0.35)
+
+
+def test_a_photo_of_nothing_recognizable_has_no_name_and_small_photos_still_count():
+    from pipeline.generate import NAME_MIN_SCORE, best_subject
+
+    boxes = np.array([[0.5, 0.5, 0.6, 0.6]])
+    assert best_subject(np.array([[NAME_MIN_SCORE / 2, 0.03]]), boxes, (800, 800)) is None
+    # If every box is small (a subject far away), the small boxes are used rather than nothing.
+    small = np.array([[0.5, 0.5, 0.08, 0.08]])
+    assert best_subject(np.array([[0.05, 0.4]]), small, (800, 800)) == (1, 0.4)
+
+
+def test_every_photo_subject_is_an_allowed_prompt_and_listed_once():
+    from pipeline import safety
+    from pipeline.generate import PHOTO_SUBJECTS
+
+    assert len(PHOTO_SUBJECTS) == len(set(PHOTO_SUBJECTS))
+    assert not [s for s in PHOTO_SUBJECTS if safety.blocked_prompt(s)]

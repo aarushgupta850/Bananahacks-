@@ -7,7 +7,6 @@ Set-Location (Split-Path -Parent $server) # the repo root, so .env (HF_HOME) is 
 # Load the models and build one throwaway pack before taking requests, so the first visitor
 # doesn't wait for model loading. /health reports busy until this is done (about 30 s).
 $env:GHOSTLINES_WARMUP = "1"
-# Keep the text and photo pipelines both loaded: the photo one shares the text one's weights (only the ControlNet,
-# about 2.5 GB of RAM, is extra), so a photo request right after a text one doesn't wait for a reload.
-$env:GHOSTLINES_KEEP_BOTH_PIPELINES = "1"
+# Also log every request, with the time, to server\out\live.log (the window only keeps its last few screens).
+$env:GHOSTLINES_LOG = "1"
 uvicorn api:app --app-dir server --host 127.0.0.1 --port 8000

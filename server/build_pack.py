@@ -210,13 +210,15 @@ def webp_bytes(image: Image.Image) -> bytes:
 
 def pipeline_stages(
     source_kind: str, prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict,
-    n_candidates: int = N_CANDIDATES,
+    n_candidates: int = N_CANDIDATES, source_note: str | None = None,
 ) -> list[dict]:
-    """The "How this lesson was made" stages, in the order the contract requires."""
+    """The "How this lesson was made" stages, in the order the contract requires. `source_note` replaces the
+    photo stage's first sentence (the live server: the photo was named, not traced)."""
     candidate_paths = [f"pipeline/candidate-{i}.webp" for i in range(n_candidates)]
     if source_kind == "photo":
+        note = source_note or "The photo's lines guided the drawing."
         source = {"id": "source", "label": "Photo", "image": "pipeline/source.webp",
-                  "text": f"The photo's lines guided the drawing. Prompt: {prompt_text}"}
+                  "text": f"{note} Prompt: {prompt_text}"}
     else:
         source = {"id": "source", "label": "Prompt", "text": prompt_text}
     part_names = ", ".join(p["label"].lower() for p in parts)
@@ -239,6 +241,7 @@ def pipeline_stages(
 def assemble_pack(
     pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict, n_candidates: int = N_CANDIDATES,
+    source_note: str | None = None,
 ) -> dict:
     """pack.json as a dict, checked against the schema (raises if it doesn't match types.ts)."""
     pack = {
@@ -253,7 +256,8 @@ def assemble_pack(
         "parts": parts,
         "strokes": plan["strokes"],
         "steps": plan["steps"],
-        "pipeline": pipeline_stages(source_kind, prompt_text, chosen, n_strokes, parts, plan, n_candidates),
+        "pipeline": pipeline_stages(source_kind, prompt_text, chosen, n_strokes, parts, plan, n_candidates,
+                                    source_note),
     }
     schema.Pack.model_validate(pack)
     return pack
@@ -283,7 +287,7 @@ def make_pack(
     *, pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
     always: bool = False, check_drawing=None, rate: bool = False, limit: int = MAX_STROKES,
-    min_strokes: int = MIN_STROKES,
+    min_strokes: int = MIN_STROKES, source_note: str | None = None,
 ) -> tuple[dict, dict[str, bytes]]:
     """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
     by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits, unless
@@ -295,8 +299,9 @@ def make_pack(
     with more is simplified to its longest strokes, and its reference is then drawn from exactly those strokes, so
     what the user copies is what the lesson teaches (and a "simple" lesson really is simple).
 
-    `min_strokes` raises the gate's lower end (the live photo path: a redraw of a few scattered fragments is not
-    a drawing of the subject). Every draft first has any frame drawn around the picture removed (pipeline/frame.py).
+    `min_strokes` raises the gate's lower end (a drawing of a few scattered fragments is not a drawing of the
+    subject). Every draft first has any frame drawn around the picture removed (pipeline/frame.py).
+    `source_note` says how a photo became the subject, in the "How this lesson was made" panel.
 
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
     prompt_text = line_art_prompt(subject_words, difficulty=difficulty)
@@ -336,7 +341,7 @@ def make_pack(
     parts = detect(best.image)
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
-                         n_traced, parts, plan, n_candidates=len(candidates))
+                         n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note)
     target = render_target(best.strokes) if simplified else clean_drawing(best.image)
     assets = {
         "target.png": png_bytes(target),
