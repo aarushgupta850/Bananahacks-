@@ -17,7 +17,7 @@
 }
 
 .teach-layout {
-  --canvas-max: min(640px, max(320px, calc(100svh - 410px)));
+  --canvas-max: min(640px, max(320px, calc(100svh - 426px))); /* 16 px more than before for the fixed step box */
 }
 
 /* Drawing screens: a smaller title, so more of the window goes to the canvas. */
@@ -663,22 +663,39 @@
 }
 
 .teach-step {
-  display: flex;
-  flex-wrap: wrap;
+  /* A FIXED height, never "at least": the step text changes after strokes (a new step, "Stuck?", "Lesson
+     complete"), and a box that grew by a line pushed the canvas down mid-lesson, so the drawing seemed to
+     jump. One line for "Step 3 of 9 + name" (cut with ... when too long) and up to 3 lines of tip. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1.5rem 3.9375rem; /* 3 lines of 0.875rem text at line-height 1.5 */
   align-items: baseline;
   column-gap: var(--space-3);
-  min-height: 4.5rem; /* room for a 2-line tip, so the canvas doesn't jump between steps */
+  height: 5.4375rem;
+  overflow: hidden;
 }
 
 .teach-step h2 {
+  overflow: hidden;
   font-size: var(--text-lg);
+  line-height: 1.5rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .teach-step p {
-  flex-basis: 100%;
+  display: -webkit-box;
+  grid-column: 1 / -1;
+  align-self: start;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 .step-count {
+  white-space: nowrap;
   color: var(--accent);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -815,7 +832,14 @@
   font-weight: 700;
   pointer-events: none;
   transform: translateX(-50%);
-  animation: card-in 200ms ease-out;
+  /* Its own keyframes: the shared card-in animates transform to "none", which dropped the -50% centring for
+     the 200 ms and made the chip slide sideways when it ended. */
+  animation: cheer-in 200ms ease-out;
+}
+
+@keyframes cheer-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translateX(-50%); }
 }
 
 .mode-hint {
@@ -1633,7 +1657,9 @@ dialog.pipeline-panel {
 
 .trace-move {
   transform-origin: 0 0;
-  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1); /* the same ease-out as the guides' glide */
+  /* The guides glide 300 ms with a cubic ease-out (GhostLayer); this is the same curve, so the trace and the
+     guides move as one. It only ever plays during calibration (the first strokes), then nothing moves. */
+  transition: transform 300ms cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 .trace-layer {
