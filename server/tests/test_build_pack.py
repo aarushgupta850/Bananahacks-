@@ -100,6 +100,8 @@ def test_choose_prefers_a_whole_subject_then_one_that_fits_the_lesson_as_drawn()
     # For a simple lesson (25 strokes), a clean 40-stroke draft would lose 15 lines; a 22-stroke one keeps all.
     assert choose([c(40, 5.0), c(22, 9.0)], limit=25) == 1
     assert choose([c(40, 5.0), c(22, 9.0)]) == 0  # with the usual limit both fit, so the cleanest wins
+    # But a crisp draft just over the limit (it loses 4 short lines of 54) beats a faint, sketchy one that fits.
+    assert choose([c(54, 33.5), c(48, 86.0)], limit=50) == 0
 
 
 def test_choose_anyway_and_simplify_keep_the_big_lines():
@@ -379,3 +381,76 @@ def test_clean_drawing_turns_gray_fills_and_halos_white_and_keeps_lines_black():
     out = np.asarray(clean_drawing(drawing))
     assert out[385, 385] == 255 and out[200, 384] == 255 and out[150, 384] == 255  # fill, disc and its edge: white
     assert out[303, 385] < 60                                            # the outline stays black
+
+
+def test_lesson_only_keeps_what_the_lesson_shows_and_erases_the_rest():
+    from build_pack import lesson_only
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    outline = [(150, 150), (600, 150), (600, 600), (150, 600), (150, 150)]
+    draw.line(outline, fill=INK, width=9)                                  # taught
+    draw.rectangle((300, 250, 340, 500), fill=INK)                         # a solid black bar: taught by its rim
+    bar_rim = [(304, 254), (336, 254), (336, 496), (304, 496), (304, 254)]
+    draw.ellipse((400, 290, 440, 310), fill=(150, 150, 150))               # an eye drawn as a gray almond
+    almond = [(400 + 20 + 20 * np.cos(a), 300 + 10 * np.sin(a)) for a in np.linspace(0, 2 * np.pi, 16)]
+    draw.ellipse((442, 392, 458, 408), fill=INK)                           # a solid dot eye
+    dot = [(450 + 4 * np.cos(a), 400 + 4 * np.sin(a)) for a in np.linspace(0, 2 * np.pi, 12)]
+    draw.line([(200, 650), (550, 650)], fill=(150, 150, 150), width=5)     # a faint sketch line: not taught
+    draw.line([(650, 100), (690, 100)], fill=INK, width=6)                 # a separate scrap: not taught
+    out = np.asarray(lesson_only(drawing, [outline, bar_rim, almond, dot]).convert("L"))
+    assert (out[146:155, 150:600] < 128).mean() > 0.95                     # the outline stays
+    assert (out[260:490, 310:330] < 128).all()                             # the whole bar stays black
+    assert out[300, 420] < 170 and out[400, 450] < 128                     # both eyes stay
+    assert (out[640:660, 200:550] < 200).sum() == 0                        # the faint line is gone...
+    assert (out[90:110, 645:695] < 200).sum() == 0                         # ...and so is the scrap
+    assert abs(int(out[650, 300]) - 220) <= 1                              # painted in the page's own gray
+    clean = Image.new("RGB", (768, 768), (220, 220, 220))
+    ImageDraw.Draw(clean).line(outline, fill=INK, width=9)
+    assert lesson_only(clean, [outline]) is clean                          # nothing to erase: unchanged
+
+
+def test_simplify_keeps_the_whole_outline_of_a_busy_drawing():
+    from build_pack import outline_band, simplify
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    corners = [(150, 150), (600, 150), (600, 600), (150, 600), (150, 150)]
+    outline = []  # the square's outline as 8 strokes of 225 px
+    for (x1, y1), (x2, y2) in zip(corners, corners[1:]):
+        mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+        outline += [[(x1, y1), (mx, my)], [(mx, my), (x2, y2)]]
+    texture = [[(220 + 60 * k, 250), (220 + 60 * k, 500)] for k in range(6)]  # 6 inner lines of 250 px
+    for stroke in outline + texture:
+        draw.line(stroke, fill=INK, width=8)
+    strokes = outline + texture
+    by_length = simplify(strokes, 8)
+    assert sum(s in outline for s in by_length) == 2               # by length alone the outline would break...
+    kept = simplify(strokes, 8, outline=outline_band(drawing))
+    assert all(s in kept for s in outline)                         # ...but along the outer edge it counts more
+
+
+def test_choose_prefers_a_draft_without_a_ring_around_the_subject():
+    ringed = Candidate(None, [[(0, 0), (1, 1)]] * 30, 20.0, ringed=True)
+    plain = Candidate(None, [[(0, 0), (1, 1)]] * 30, 60.0)
+    assert choose([ringed, plain]) == 1
+    # The live server can use a draft over the 60-stroke gate (simplified), so the gate doesn't force the ring.
+    from build_pack import choose_anyway
+    inside_gate = Candidate(None, [[(0, 0), (1, 1)]] * 58, 36.0, ringed=True)
+    over_gate = Candidate(None, [[(0, 0), (1, 1)]] * 69, 45.0)
+    assert choose([inside_gate, over_gate], limit=50) == 0 and choose_anyway([inside_gate, over_gate], limit=50) == 1
+
+
+def test_feature_boxes_find_solid_eyes_but_not_thin_marks():
+    from build_pack import feature_boxes
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.ellipse((300, 300, 330, 330), fill=INK)                  # a solid eye...
+    draw.ellipse((310, 306, 318, 314), fill=(250, 250, 250))      # ...with a white highlight
+    draw.line([(500, 300), (530, 330)], fill=INK, width=3)       # a thin tick of fur
+    draw.line([(100, 600), (400, 600)], fill=INK, width=8)       # a long line
+    boxes = feature_boxes(drawing)
+    assert len(boxes) == 1
+    x, y, w, h = boxes[0]
+    assert x <= 300 and y <= 300 and x + w >= 330 and y + h >= 330

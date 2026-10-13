@@ -71,3 +71,20 @@ def test_a_drawing_made_of_separate_marks_is_left_alone():
         cv2.line(c, (x, y), (x + 30, y + 10), INK, 6, AA)
     image = Image.fromarray(c)
     assert remove_strays(image) is image
+
+
+def test_a_ring_joined_to_the_subject_is_spotted_from_the_traced_strokes():
+    from pipeline.strays import has_ring
+    from pipeline.trace import trace
+
+    ringed = cat(page())
+    cv2.circle(ringed, (384, 384), 330, INK, 6, AA)
+    cv2.line(ringed, (230, 580), (230, 712), INK, 8, AA)  # a leg reaching down to the ring: they are joined
+    assert has_ring(trace(Image.fromarray(ringed)))
+    assert not has_ring(trace(Image.fromarray(cat(page()))))
+    # A big round subject low on the page (a turtle's shell) fits a big circle too, but not one around the page.
+    shell = page()
+    cv2.ellipse(shell, (384, 560), (300, 300), 0, 180, 360, INK, 8, AA)
+    cv2.line(shell, (84, 560), (684, 560), INK, 8, AA)
+    assert not has_ring(trace(Image.fromarray(shell)))
+    assert not has_ring([])

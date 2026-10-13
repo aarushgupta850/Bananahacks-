@@ -144,6 +144,16 @@ def trace(image: Image.Image) -> list[list[tuple[float, float]]]:
     return result
 
 
+def points_along(stroke, step: float = 4.0) -> list[tuple[float, float]]:
+    """Points every `step` px along a stroke of (x, y) points. A traced stroke keeps only its corners, so a long
+    straight line has just two points: measuring along it needs points in between."""
+    points = [tuple(stroke[0])]
+    for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]):
+        n = max(1, int(math.dist((x1, y1), (x2, y2)) // step))
+        points += [(x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n) for k in range(1, n + 1)]
+    return points
+
+
 # ---------------------------------------------------------------- step 4-5: pixel graph -> pieces
 
 

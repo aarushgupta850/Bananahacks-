@@ -61,7 +61,8 @@ TIMEOUT_S = 35
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
-LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
+LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 16 s of generation instead of 22
+LIVE_REDRAW_CANDIDATES = 3  # Happy accidents (img2img)
 
 log = logging.getLogger("ghostlines.live")
 log.setLevel(logging.INFO)  # whatever level the root logger has, our request lines are always written
@@ -285,7 +286,7 @@ def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
     pack, assets = make_pack(
         pack_id=f"live-{slug}-{difficulty}", subject=slug, title=prompt[:1].upper() + prompt[1:], difficulty=difficulty,
         source_kind="prompt", prompt=prompt, subject_words=prompt, seed=secrets.randbelow(100_000),
-        generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=LIVE_CANDIDATES, seed=seed),
+        generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=LIVE_REDRAW_CANDIDATES, seed=seed),
         detect=lambda image: detect_parts(image, prompt), retries=0, log=log.info, always=True,
         check_drawing=safety.check_picture, rate=True, limit=LIVE_STROKE_LIMITS[difficulty],
     )
