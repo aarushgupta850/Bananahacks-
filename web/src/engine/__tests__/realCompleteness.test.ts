@@ -18,9 +18,14 @@ const copy = (pack: Pack, keep: (i: number) => boolean): UserStroke[] => pack.st
 describe('an unfinished drawing', () => {
   it.each(packs.map((p) => ({ name: p.id, pack: p })))('scores clearly lower than a finished one: $name', ({ pack }) => {
     const whole = engine.score(engine.analyze(pack, copy(pack, () => true)))
-    // Every other line left out.
+    // Every other line left out, taking the lines longest first, so about half of the drawing's length goes
+    // missing in every pack. (Every other line in pack order left out only 20% of mug-medium's length: its
+    // long lines happen to sit at even positions, and the short odd ones retrace parts of them.)
     const strokes = pack.strokes.filter((s) => s.tier !== 'construction')
-    const half = engine.score(engine.analyze(pack, copy(pack, (i) => i % 2 === 0 && strokes.length > 2)))
+    const len = (pts: [number, number][]) => pts.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0)
+    const byLength = strokes.map((s, i) => ({ i, length: len(s.points) })).sort((a, b) => b.length - a.length)
+    const kept = new Set(byLength.filter((_, rank) => rank % 2 === 0).map((s) => s.i))
+    const half = engine.score(engine.analyze(pack, copy(pack, (i) => kept.has(i) && strokes.length > 2)))
     expect(whole.total).toBeGreaterThanOrEqual(95)
     expect(half.shape).toBeLessThan(whole.shape - 0.15)
     expect(half.total).toBeLessThan(whole.total - 5)

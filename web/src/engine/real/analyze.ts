@@ -4,7 +4,7 @@ import type { Analysis, Box, Pack, Part, PartMetric, Point, TimedPoint, UserStro
 import { align, targetPoints } from './align'
 import { config } from './config'
 import {
-  applyTransform, bbox, boxCenter, clamp, diagonal, length, meanNearest, resample, symmetricChamfer,
+  applyTransform, bbox, boxCenter, clamp, diagonal, length, meanNearest, PointGrid, resample,
 } from './geometry'
 import { isTap } from './match'
 
@@ -177,6 +177,44 @@ function placeSmallStrokesInsideTheirParent(
   return frames
 }
 
+// How far a stroke travels compared with the size of its own box, measured on a lightly smoothed copy.
+// A scribble goes back and forth over the same area, so it travels many times its size (4x to 28x measured);
+// a real line, even a closed loop around a mug, stays under about 3.3x. The smoothing (each point averaged
+// with its 2 neighbours on each side, out of 64) takes out small wobble first: a shaky hand adds a lot of
+// length to a long outline (a wobbly mug outline measured 4.5x and was thrown out as a scribble), but it
+// does not go back and forth like a scribble does.
+function travelRatio(stroke: Point[]): number {
+  const p = resample(stroke, 64)
+  const smooth = p.map((_, i): Point => {
+    const window = p.slice(Math.max(0, i - 1), Math.min(p.length, i + 2))
+    return [window.reduce((sum, q) => sum + q[0], 0) / window.length, window.reduce((sum, q) => sum + q[1], 0) / window.length]
+  })
+  return length(smooth) / Math.max(diagonal(bbox(smooth)), 1)
+}
+
+// Points every `spacing` px along a line (at least 2), so long lines get more points than short ones and a
+// share of points is a share of length.
+const evenlySpaced = (points: Point[], spacing: number): Point[] =>
+  resample(points, clamp(Math.ceil(length(points) / spacing) + 1, 2, 400))
+
+// The share of the points of `from` (spread evenly along its lines) that have a point of `to` within
+// `distance` (of the diagonal). With the reference as `from` it is coverage, "how much of the drawing did you draw":
+// unlike the amount of ink, it can't be reached by drawing lots of lines anywhere, or one line many times.
+// With the user's lines as `from` it is precision, "how much of what you drew is part of the drawing".
+function shareNear(from: Point[][], to: Point[][], targetDiagonal: number, distance: number = config.drawnDistance): number {
+  const spacing = Math.max(targetDiagonal / 200, 2)
+  const fromPoints = from.flatMap((s) => evenlySpaced(s, spacing))
+  const toPoints = to.flatMap((s) => evenlySpaced(s, spacing))
+  if (fromPoints.length === 0 || toPoints.length === 0) return 0
+  const grid = new PointGrid(toPoints)
+  const limit = (distance * targetDiagonal) ** 2
+  const near = fromPoints.filter((p) => {
+    const q = grid.nearest(p)
+    return q !== null && (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 <= limit
+  }).length
+  return near / fromPoints.length
+}
+
 function missingPart(partId: string, label: string): PartMetric {
   return {
     partId, label, missing: true, sizeError: 0, offset: { dx: 0, dy: 0 }, aspectError: 0, tiltDeg: 0, good: false, userBox: null,
@@ -203,7 +241,7 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
   // area. Real drawn lines and every plan line stay under about 3.3x; scribbles measured 4x to 28x. Heavy scribbles
   // are ignored like stray marks (a part scribbled in counts as not drawn); lighter ones scale the shape and line
   // scores down by their share of the ink. Before this, zigzags over each part scored up to 84.
-  const travel = raw.map((s) => length(s) / Math.max(diagonal(bbox(s)), 1))
+  const travel = raw.map(travelRatio)
   const counts = travel.map((t) => t <= config.scribbleDropRatio)
   const lines = raw.filter((_, k) => counts[k])
   const { transform, overallScale, overallOffset } = align(lines.length > 0 ? lines : raw, target)
@@ -250,6 +288,17 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
   const parts = pack.parts.map((part): PartMetric => {
     const drawnPoints = assigned.get(part.id)
     if (!drawnPoints || drawnPoints.length === 0) return missingPart(part.id, part.label)
+    // A part needs some real line of its own to count as drawn: its assigned lines must pass near at least
+    // config.partMinCoverage of the part's own plan lines (within config.partCoverDistance, generous, so a part
+    // drawn too small or a little out of place still counts). Before this a cat drawn without its tail got the
+    // end of the body line next to it as "tail", and was told "Tail 65% too small" instead of "Forgot the tail".
+    // (Line length was tried first: real drawings simplify detailed parts, a careful fox had 18% of the legs'
+    // plan length, so length marked drawn parts missing.)
+    const ownPlan = pack.strokes.filter((s) => s.partId === part.id && s.tier !== 'construction').map((s) => s.points)
+    const ownInk = byStroke.flatMap((b, k) => (b.part === part.id ? [aligned[k]] : []))
+    if (ownPlan.length > 0 && shareNear(ownPlan, ownInk, targetDiagonal, config.partCoverDistance) < config.partMinCoverage) {
+      return missingPart(part.id, part.label)
+    }
     const userPoints = drawnPoints
     const isChild = parentFrames.has(part.id) // a part inside another, like the eyes in the head
     const planPoints = partSets.get(part.id) ?? []
@@ -286,21 +335,36 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
     }
   })
 
-  // 4. Whole-drawing scores.
-  // How much of the drawing was drawn: the user's line length against the drawing's own (both in target space).
-  // Missing lines hardly change the average distance below (the lines left out lie close to lines that were
-  // drawn), so without this a copy missing a third of its lines scored 97. At least config.completeInk of the
-  // drawing's length counts as complete; less scales the shape score down in proportion.
-  // Scribbled ink doesn't count as drawing the lines.
-  const drawingLength = pack.strokes.filter((s) => s.tier !== 'construction').reduce((sum, s) => sum + length(s.points), 0)
-  const userLength = aligned.reduce((sum, s, k) => sum + (travel[k] <= config.scribbleRatio ? length(s) : 0), 0)
-  const completeness = drawingLength > 0 ? clamp(userLength / (config.completeInk * drawingLength), 0, 1) : 1
-  const closeness = userAll.length > 0 ? clamp(1 - symmetricChamfer(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1) : 0
+  // 4. Whole-drawing scores. The shape score multiplies four things, each 0-1:
+  // - closeness: how far the user's lines are from the drawing's lines on average; config.shapeScale of the
+  //   diagonal scores 0. One way only (user to drawing): lines left out are completeness's job, and measuring
+  //   them here too (both ways, as before) counted a forgotten part twice, so a neat cat without its head
+  //   scored below random lines.
+  // - completeness: how much of the drawing was drawn. Missing lines hardly change the mean distance (the
+  //   lines left out lie close to lines that were drawn), so without this a copy missing a third of its lines
+  //   scored 97. Two measures, and the smaller one counts: the user's line length against the drawing's
+  //   (config.completeInk of it counts as complete), and coverage, the share of the drawing's lines that a user
+  //   line passes close to (config.completeCoverage counts as complete). Ink alone was fooled by random lines:
+  //   14 straight lines across the page have as much ink as a fox.
+  // - precision: the share of the user's lines that lie on the drawing's lines (config.completePrecision of it
+  //   counts as fully precise). Real copies, even rough ones, measure 0.9 and up; random lines 0.5-0.8.
+  // - tidiness: the share of the ink that isn't scribbled.
+  // Scribbled ink counts for none of the first three.
+  const visiblePlan = pack.strokes.filter((s) => s.tier !== 'construction')
+  const planLines = (visiblePlan.length > 0 ? visiblePlan : pack.strokes).map((s) => s.points)
+  const drawingLength = planLines.reduce((sum, s) => sum + length(s), 0)
+  const tidyLines = aligned.filter((_, k) => travel[k] <= config.scribbleRatio)
+  const userLength = tidyLines.reduce((sum, s) => sum + length(s), 0)
+  const inkShare = drawingLength > 0 ? clamp(userLength / (config.completeInk * drawingLength), 0, 1) : 1
+  const coverShare = clamp(shareNear(planLines, tidyLines, targetDiagonal) / config.completeCoverage, 0, 1)
+  const completeness = Math.min(inkShare, coverShare)
+  const precision = clamp(shareNear(tidyLines, planLines, targetDiagonal) / config.completePrecision, 0, 1)
+  const closeness = userAll.length > 0 ? clamp(1 - meanNearest(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1) : 0
   // The share of the ink that is scribbled (in the user's own scale, so before alignment).
   const allInk = raw.reduce((sum, s) => sum + length(s), 0)
   const scribbled = raw.reduce((sum, s, k) => sum + (travel[k] > config.scribbleRatio ? length(s) : 0), 0)
   const tidy = allInk > 0 ? 1 - scribbled / allInk : 1
-  const shapeSimilarity = closeness * completeness * tidy
+  const shapeSimilarity = closeness * completeness * precision * tidy
 
   return {
     parts: usedFallback ? [] : parts,

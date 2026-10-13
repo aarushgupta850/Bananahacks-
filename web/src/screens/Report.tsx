@@ -10,7 +10,7 @@ import { loadIndex, loadPack, resolveAsset } from '../lib/packs'
 import { usePack, useSession } from '../session'
 import PipelinePanel from './PipelinePanel'
 import PlaceholderScreen from './PlaceholderScreen'
-import { describeModeHistory, describeScale, formatChange, harderDifficulty } from './reportText'
+import { changeWords, describeModeHistory, describeScale, emptyRoundNote, formatChange, harderDifficulty } from './reportText'
 import { timingLabel } from './timeLimit'
 
 const LEVEL_UP_SCORE = 75 // "Level up" shows when the retest total is at least this
@@ -142,6 +142,11 @@ function ReportBody({ pack, test, retest, overlay, setOverlay, onStartPack }: Bo
         <Scores before={testScore} after={retestScore} />
       </div>
 
+      {/* A round with nothing drawn (Skip, or the timer ran out) scores 0: say why, so a 0 never looks like a bug. */}
+      {emptyRoundNote(test.alignedStrokes.length === 0, retest.alignedStrokes.length === 0) && (
+        <p className="notice" role="status">{emptyRoundNote(test.alignedStrokes.length === 0, retest.alignedStrokes.length === 0)}</p>
+      )}
+
       <label className="overlay-toggle">
         <input type="checkbox" checked={overlay} onChange={(e) => setOverlay(e.target.checked)} />
         Show part boxes (yours solid, the target's dashed)
@@ -154,7 +159,7 @@ function ReportBody({ pack, test, retest, overlay, setOverlay, onStartPack }: Bo
           <ul className="coach-list">
             {coaching.fix.map((item, i) => (
               <li key={i} className={`coach-item is-${item.status}`}>
-                <span className="coach-status">{item.status === 'improved' ? '✓ Improved' : '… Not yet'}</span>
+                <span className="coach-status">{coachLabel(item.status, item.text)}</span>
                 {item.text}
               </li>
             ))}
@@ -190,6 +195,14 @@ function ReportBody({ pack, test, retest, overlay, setOverlay, onStartPack }: Bo
       {downloadProblem && <p className="notice" role="status">The image didn't save. Try again, or take a screenshot instead.</p>}
     </div>
   )
+}
+
+// The status words above each "What to fix" line. Text, not only color, carries the meaning.
+// The engine starts a problem the test didn't have with "New this time:", which gets its own label.
+function coachLabel(status: 'improved' | 'not-yet' | 'good', text: string): string {
+  if (status === 'improved') return '✓ Improved'
+  if (text.startsWith('New this time')) return '! New'
+  return '… Not yet'
 }
 
 // ---------- drawings with optional part boxes ----------
@@ -262,38 +275,46 @@ function Scores({ before, after }: { before: Score; after: Score }) {
   return (
     <div className="scores">
       <div className="score-totals">
-        <div className="score-box">
-          <span className="score-label">Test</span>
-          <span className="score-number">{shownBefore}</span>
+        {/* The numbers count up; the labels give screen readers the final value straight away. */}
+        <div className="score-box" role="img" aria-label={`Test score: ${before.total} out of 100`}>
+          <span className="score-label" aria-hidden="true">Test</span>
+          <span className="score-number" aria-hidden="true">{shownBefore}</span>
         </div>
         <span className="score-arrow" aria-hidden="true">→</span>
-        <div className="score-box">
-          <span className="score-label">Retest</span>
-          <span className="score-number">{shown}</span>
+        <div className="score-box" role="img" aria-label={`Retest score: ${after.total} out of 100`}>
+          <span className="score-label" aria-hidden="true">Retest</span>
+          <span className="score-number is-retest" aria-hidden="true">{shown}</span>
         </div>
-        <div className={improved ? 'change-badge is-up' : 'change-badge'} aria-label={`Change: ${change} points`}>
-          {change}
-          <span className="change-word">{improved ? 'points better' : 'points'}</span>
+        <div className={improved ? 'change-badge is-up' : 'change-badge'} role="img"
+          aria-label={`Change: ${change} ${changeWords(before.total, after.total)}`}>
+          <span aria-hidden="true">{change}</span>
+          <span className="change-word" aria-hidden="true">{changeWords(before.total, after.total)}</span>
         </div>
       </div>
-      <dl className="score-bars">
-        <ScoreBar name="Proportion" before={before.proportion} after={after.proportion} />
-        <ScoreBar name="Shape" before={before.shape} after={after.shape} />
-        <ScoreBar name="Line" before={before.line} after={after.line} />
-      </dl>
+      <div className="score-breakdown">
+        <dl className="score-bars">
+          <ScoreBar name="Proportion" hint="part sizes and places" before={before.proportion} after={after.proportion} />
+          <ScoreBar name="Shape" hint="lines on the target's lines" before={before.shape} after={after.shape} />
+          <ScoreBar name="Line" hint="smooth, single strokes" before={before.line} after={after.line} />
+        </dl>
+        <p className="score-note">
+          Scores are out of 100. Proportion counts most, then shape, then line. Proportion and line only count in
+          full once your drawing matches the target's shape. Drawing bigger, smaller or off-center never costs points.
+        </p>
+      </div>
     </div>
   )
 }
 
 // Two thin bars per measure, test above retest, each labeled with its engine value as a percentage.
-function ScoreBar({ name, before, after }: { name: string; before: number; after: number }) {
+function ScoreBar({ name, hint, before, after }: { name: string; hint: string; before: number; after: number }) {
   const pct = (n: number) => Math.round(n * 100)
   return (
     <div className="score-bar">
-      <dt>{name}</dt>
+      <dt>{name}<span className="bar-hint">{hint}</span></dt>
       <dd>
-        <span className="bar-row"><span className="bar-tag">Test</span><span className="bar"><span className="bar-fill is-before" style={{ width: `${pct(before)}%` }} /></span><span className="bar-value">{pct(before)}%</span></span>
-        <span className="bar-row"><span className="bar-tag">Retest</span><span className="bar"><span className="bar-fill" style={{ width: `${pct(after)}%` }} /></span><span className="bar-value">{pct(after)}%</span></span>
+        <span className="bar-row"><span className="bar-tag">Test</span><span className="bar" aria-hidden="true"><span className="bar-fill is-before" style={{ width: `${pct(before)}%` }} /></span><span className="bar-value">{pct(before)}%</span></span>
+        <span className="bar-row"><span className="bar-tag">Retest</span><span className="bar" aria-hidden="true"><span className="bar-fill" style={{ width: `${pct(after)}%` }} /></span><span className="bar-value">{pct(after)}%</span></span>
       </dd>
     </div>
   )
