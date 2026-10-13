@@ -128,3 +128,38 @@ Notes:
   (`?happy=1`) still uses SDXL img2img, so SDXL loads only if someone uses it.
 - The GPU is still needed for OWLv2 (parts, naming photos, the safety check).
 
+## Gemini: naming photos and checking drafts (free, optional)
+
+With a Google Gemini API key, the live server uses Gemini as its eyes (`server/pipeline/gemini.py`):
+
+- **Naming photos.** Gemini says what an uploaded photo shows ("a monkey", "a person"), then the lesson is drawn
+  from that name. Without it, OWLv2 picks from a fixed list of about 90 subjects (so a monkey came back as "a bear",
+  and a person as "a t-shirt"). If Gemini doesn't answer in 20 s, OWLv2 names the photo as before.
+- **Checking drafts.** Gemini looks at every draft and says whether it shows the subject and whether it has extra
+  marks (arcs, rings, ground lines, scenery). Bad drafts count as less clean when one is chosen, and when no draft is
+  good and there is time, the AI is asked to draw again once (`make_pack`, `RETRY_HINT` in `api.py`).
+
+Separately, and always on (no key needed): long stray arcs and ground lines joined to the subject (the big arc over a
+car) are found and erased from every draft before it is traced (`server/pipeline/stray_lines.py`).
+
+To turn Gemini on, add the key to `.env` in the repo root (never commit it; the repo is public) and restart
+`run_live.ps1`:
+```
+GEMINI_API_KEY=...
+```
+
+| Setting | Default | What it does |
+|---|---|---|
+| `GEMINI_API_KEY` | (none) | Turns Gemini on |
+| `GHOSTLINES_GEMINI` | on with a key | `0` turns it off without removing the key |
+| `GHOSTLINES_GEMINI_MODELS` | `gemini-3.5-flash,gemini-3.1-flash-lite,gemini-3-flash-preview` | Models tried in turn |
+
+Notes:
+- The free tier is enough: reading pictures is free (Gemini's image models are not, so it doesn't draw). The free
+  models are often busy (HTTP 503) or over their daily quota (429); the server then tries the next one, and after
+  20 s carries on without Gemini. The log (`server/out/live.log`) says what happened.
+- A lesson takes 5-10 s longer with the check, and about twice as long when the AI is asked to draw again, so the
+  server now waits up to 75 s (the app 80 s).
+- Tested on Oct 13 against the real API: it named an astronaut, a coffee cup, a cat, a rocket and a monkey
+  correctly, flagged the car's arc and the fox's and cat's background rings, and passed the clean drafts.
+

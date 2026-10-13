@@ -62,3 +62,17 @@ def test_lines_along_two_opposite_edges_are_a_frame():
     out = ink(remove_frame(image))
     assert not out[:45].any() and not out[-45:].any()
     assert out[250:521, 250:521].any()
+
+
+def test_fit_to_page_moves_a_page_wide_subject_to_the_middle_without_blurring_it():
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    from pipeline.frame import fit_to_page
+
+    page = Image.new("RGB", (768, 768), (255, 255, 255))
+    ImageDraw.Draw(page).rectangle([20, 560, 748, 740], outline=(0, 0, 0), width=6)  # wide, at the bottom
+    fitted = np.asarray(fit_to_page(page).convert("L")) < 128
+    rows = np.nonzero(fitted.any(axis=1))[0]
+    assert abs((rows[0] + rows[-1]) / 2 - 384) <= 2  # now in the middle
+    assert fitted.sum() == (np.asarray(page.convert("L")) < 128).sum()  # moved, not resampled

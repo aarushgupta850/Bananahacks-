@@ -25,6 +25,7 @@ CLEAR_PX = 4        # also erase this many pixels inside the innermost frame lin
 MIN_SIDES = 3       # a frame has lines along at least this many of the four edges (or along two opposite ones)
 FIT_MARGIN = 0.07   # fit_to_page: the space left around the subject, as a share of the page
 FIT_MAX_SCALE = 1.8  # ...and it is scaled up at most this much (more would blur its lines)
+CENTER_SLACK = 0.05  # a subject whose middle is at most this share of the page off center is left where it is
 
 
 def _innermost(coverage: np.ndarray, band: int, from_end: bool) -> int | None:
@@ -68,7 +69,9 @@ def remove_frame(image: Image.Image) -> Image.Image:
 
 def fit_to_page(image: Image.Image) -> Image.Image:
     """The drawing cropped around its ink (plus FIT_MARGIN) and scaled up to fill the page, keeping its shape.
-    Returns the image unchanged when the subject already fills the page, or when there is no ink."""
+    A subject that already fills the page's width or height is only moved to the middle (a wide car left at the
+    bottom of the page once the arc above it was erased: stray_lines.py). Returns the image unchanged when the subject
+    already fills the page and is centered, or when there is no ink."""
     rgb = image.convert("RGB")
     ink = np.asarray(rgb.convert("L")) < INK_LEVEL
     if not ink.any():
@@ -77,10 +80,13 @@ def fit_to_page(image: Image.Image) -> Image.Image:
     height, width = ink.shape
     side = max(rows[-1] - rows[0] + 1, cols[-1] - cols[0] + 1) / (1 - 2 * FIT_MARGIN)  # the square to keep
     scale = min(width / side, FIT_MAX_SCALE)
-    if scale < 1.05:
-        return image
-    side = width / scale
     cy, cx = (rows[0] + rows[-1]) / 2, (cols[0] + cols[-1]) / 2
+    if scale < 1.05:
+        if abs(cx - width / 2) <= CENTER_SLACK * width and abs(cy - height / 2) <= CENTER_SLACK * height:
+            return image
+        scale = 1.0
+        cx, cy = round(cx), round(cy)  # whole pixels: moved, not resampled, so the lines stay sharp
+    side = width / scale
     # The square around the subject may reach past the page's edge: the page's own color fills in there.
     page = np.median(np.asarray(rgb)[~ndimage.binary_dilation(ink, iterations=2)], axis=0)
     padded = Image.new("RGB", (width * 3, height * 3), tuple(int(v) for v in page))

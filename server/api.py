@@ -12,15 +12,17 @@ Endpoints:
 - POST /generate {prompt?, imageBase64?, difficulty} -> a Pack whose images are data: URLs.
 - POST /regenerate {prompt, canvasBase64, difficulty} -> "Happy accidents" (behind ?happy=1 in the app): a new
   Pack whose drawing is redrawn around what the user has drawn so far, without the lines they already drew.
-  One job at a time (busy: 503). Answers within 35 s (75 s with OpenAI drawing) or gives up (504), because the
-  web app stops waiting at 80 s. Bad input: 400, with a message. No clean drawing: 422.
+  One job at a time (busy: 503). Answers within 75 s or gives up (504), because the web app stops waiting at
+  80 s. Bad input: 400, with a message. No clean drawing: 422.
 
 Safety (see pipeline/safety.py): prompts are 80 characters or less, letters, numbers, spaces and simple
 punctuation, checked against a blocklist that also catches disguised words, and always wrapped in the line-art
 prompt. Photos are 15 MB or less, JPEG, PNG or WebP, and both the photo and the chosen drawing are checked for
 nudity and weapons with OWLv2. Requests are logged, but photos are never stored.
 Any allowed prompt gets a lesson: if no drawing fits the stroke limit, the cleanest one is simplified. A photo is
-named by OWLv2 ("a mug") and drawn from that name; a photo it can't name gets a hint instead (422).
+named by Gemini ("a monkey"; pipeline/gemini.py, with GEMINI_API_KEY) or else OWLv2 ("a mug") and drawn from that
+name; a photo neither can name gets a hint instead (422). With Gemini, the drafts are also reviewed before one is
+chosen, and drawn again once if none is good.
 """
 
 from __future__ import annotations
@@ -55,11 +57,16 @@ MAX_PROMPT_CHARS = 80  # the same as the input box in SubjectPicker.tsx
 PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, spaces and simple punctuation
 MAX_IMAGE_BYTES = 15 * 1024 * 1024  # phone photos are often 3 to 10 MB
 MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: OWLv2 looks at them at 960 x 960 anyway
-# A lesson takes about 18-24 s on the RTX 4060 Ti (more when the PC is short of memory). OpenAI's image model
-# (GHOSTLINES_IMAGE_MODEL=openai) can take longer, about 20-40 s a picture. The web app (web/src/lib/live.ts) gives
-# up after 80 s, so answer before that.
-TIMEOUT_S = 35
+# A lesson takes about 18-24 s on the RTX 4060 Ti (more when the PC is short of memory), plus 5-10 s when Gemini
+# reviews the drafts, and about twice that when no draft was good and the AI is asked to draw again
+# (build_pack.make_pack).
+# OpenAI's image model (GHOSTLINES_IMAGE_MODEL=openai) can take longer, about 20-40 s a picture. The web app
+# (web/src/lib/live.ts) gives up after 80 s, so answer before that.
+TIMEOUT_S = 75
 OPENAI_TIMEOUT_S = 75
+# A second round of drafts is only started if it should end this long before the timeout: after the drafts, the
+# parts are found and the lesson is built (a few seconds).
+FINISH_MARGIN_S = 12
 
 
 def timeout_s() -> int:
@@ -75,7 +82,7 @@ LIVE_REDRAW_CANDIDATES = 3  # Happy accidents (img2img)
 
 def live_candidates() -> int:
     """Drafts per live lesson: GHOSTLINES_LIVE_CANDIDATES when set, else LIVE_CANDIDATES with the 4-step model and
-    2 with the 8-step one (each 8-step draft takes about twice as long, and the app waits only 38 s). OpenAI: 2,
+    2 with the 8-step one (each 8-step draft takes about twice as long). OpenAI: 2,
     because each picture costs money (they are drawn at the same time, so more wouldn't be slower)."""
     if os.environ.get("GHOSTLINES_LIVE_CANDIDATES"):
         return max(1, int(os.environ["GHOSTLINES_LIVE_CANDIDATES"]))
@@ -244,9 +251,13 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
     """Builds a pack with the same pipeline as build_pack.py, in memory. Needs the GPU.
 
     A photo is not redrawn: redraws of real photos traced into hundreds of broken strokes, so nearly every photo
-    was refused. Instead OWLv2 names what the photo shows (gen.name_subject, e.g. "a mug") and the lesson is drawn
-    from that name, exactly like a typed subject. A name typed with the photo is used as it is."""
+    was refused. Instead Gemini names what the photo shows (e.g. "a monkey"), or OWLv2 when Gemini is off or doesn't
+    answer (gen.name_subject, from a fixed list), and the lesson is drawn from that name, exactly like a typed
+    subject. A name typed with the photo is used as it is. With Gemini on, it also reviews the drafts (make_pack)."""
     from PIL import Image
+
+    from pipeline import gemini
+    started = time.monotonic()
 
     from build_pack import make_pack
     from pipeline import models
@@ -266,11 +277,13 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         if prompt:
             note = f"You named your photo \"{prompt}\", and the AI drew that."
         else:
-            prompt = gen.name_subject(photo)
+            prompt, who = name_photo(photo), "Gemini"
+            if prompt is None:  # Gemini is off or didn't answer
+                prompt, who = gen.name_subject(photo), "OWLv2"
             if prompt is None:
-                raise UnknownPhoto("OWLv2 matched none of the photo subjects well enough")
-            log.info("  photo recognized as %r", prompt)
-            note = f"OWLv2 recognized your photo as {prompt}, and the AI drew {prompt} from scratch."
+                raise UnknownPhoto(f"{who} couldn't name the photo's subject")
+            log.info("  photo recognized by %s as %r", who, prompt)
+            note = f"{who} recognized your photo as {prompt}, and the AI drew {prompt} from scratch."
     words = prompt
     slug = re.sub(r"[^a-z0-9-]", "", subject_slug(words)) or "drawing"
     pack, assets = make_pack(
@@ -284,8 +297,39 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         limit=LIVE_STROKE_LIMITS[difficulty],
         always=True,  # every allowed subject gets a lesson: a busy drawing is simplified to the stroke limit
         source_note=note,
+        # Gemini reviews the drafts; when none is good, the AI is asked again with a hint, if there is time.
+        review=(lambda images: gemini.review(images, words)) if gemini.enabled() else None,
+        regenerate=lambda seed: gen.from_prompt(f"{words}, {RETRY_HINT}", difficulty, n=live_candidates(), seed=seed),
+        finish_by=started + timeout_s() - FINISH_MARGIN_S,
     )
     return with_data_urls(pack, assets)
+
+
+# Added to the subject when the AI is asked to draw again because no draft was good: most bad drafts have extra
+# marks around the subject (arcs, rings, ground lines). Said positively, as SDXL can't follow "no ..." (prompts.py).
+RETRY_HINT = "alone on blank white paper"
+
+
+def name_photo(photo) -> str | None:
+    """Gemini's name for the photo's subject (a checked prompt like "a monkey"), or None when Gemini is off or didn't
+    answer. Raises safety.UnsafeContent if Gemini says the photo isn't safe or its name isn't an allowed prompt, and
+    UnknownPhoto if it sees no clear subject."""
+    from pipeline import gemini
+
+    if not gemini.enabled():
+        return None
+    named = gemini.name_photo(photo)
+    if named is None:
+        log.info("  gemini didn't name the photo; asking OWLv2")
+        return None
+    if not named.safe:
+        raise safety.UnsafeContent("Gemini says the photo isn't safe")
+    if named.subject is None:
+        raise UnknownPhoto("Gemini saw no clear subject")
+    try:
+        return check_prompt(named.subject)
+    except InputError as error:
+        raise safety.UnsafeContent(f"Gemini's name {named.subject!r} isn't an allowed prompt") from error
 
 
 def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
