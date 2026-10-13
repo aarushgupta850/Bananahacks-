@@ -107,7 +107,8 @@ def _generate(pipe, prompt: str, seed: int, **extra) -> Image.Image:
 
 
 def _generate_batch(pipe, prompt: str, seeds: list[int]) -> list[Image.Image]:
-    """One drawing per seed, all from one pipeline call: each starts from its own seed's noise, as when drawn alone."""
+    """One drawing per seed, all from one pipeline call: each starts from its own seed's noise, as when drawn alone
+    (the pixels differ a little from drawing them one by one). Used by scripts/collect_drafts.py to time it."""
     import torch
 
     pipe.vae.enable_slicing()  # decode the drawings one at a time: decoding them together needs far more memory
@@ -125,18 +126,11 @@ def _generate_batch(pipe, prompt: str, seeds: list[int]) -> list[Image.Image]:
 
 def from_prompt(subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0) -> list[Image.Image]:
     """n candidate drawings of `subject`, 768 x 768, using seeds seed, seed+1, ... so a build can be repeated.
-    They are drawn in one batch: on the live PC (8 GB card, CPU offload) 3 drafts took 9-11 s instead of 16-17 s one
-    by one, because each model moves onto the GPU once instead of once per draft, for 0.3 GB more GPU memory. If the
-    GPU runs out of memory anyway, they are drawn one by one."""
-    import torch
-
+    They are drawn one by one. (In one batch, 3 drafts took 9-11 s instead of 16-17 s in a test script, but in the
+    live server, with OWLv2 also on the 8 GB card, a batch of 4 overflowed into shared memory and took 30 s.)"""
     pipe = _pipeline("text")
     prompt = line_art_prompt(subject, difficulty=difficulty)
-    try:
-        return _generate_batch(pipe, prompt, [seed + i for i in range(n)])
-    except torch.cuda.OutOfMemoryError:
-        torch.cuda.empty_cache()
-        return [_generate(pipe, prompt, seed + i) for i in range(n)]
+    return [_generate(pipe, prompt, seed + i) for i in range(n)]
 
 
 def pad_to_square(image: Image.Image, fill: tuple[int, int, int]) -> Image.Image:

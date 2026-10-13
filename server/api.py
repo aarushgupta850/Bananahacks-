@@ -61,10 +61,8 @@ TIMEOUT_S = 35
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
-# Drafts per live lesson. Drawn in one batch (generate.from_prompt), 4 take about as long as 3 did one by one, and
-# each extra draft is another chance at a clean, whole drawing without a ring around it.
-LIVE_CANDIDATES = 4
-LIVE_REDRAW_CANDIDATES = 3  # Happy accidents redraws with img2img one draft at a time: 3 keep it inside the time limit
+LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 16 s of generation instead of 22
+LIVE_REDRAW_CANDIDATES = 3  # Happy accidents (img2img)
 
 log = logging.getLogger("ghostlines.live")
 log.setLevel(logging.INFO)  # whatever level the root logger has, our request lines are always written

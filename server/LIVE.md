@@ -49,8 +49,8 @@ apps that use the GPU.
 - `POST /generate` with `{"prompt": "a teapot", "difficulty": "medium"}` or `{"imageBase64": "...", ...}`.
 - One job at a time: a second request while one runs gets HTTP 503 ("busy").
 - It answers within 35 seconds or returns 504, because the site stops waiting at 38 seconds.
-- Every allowed prompt gets a lesson. SDXL-Lightning draws 4 drafts in one batch (3 took 9-11 s that way, against 16-17 s one by one), and the
-  one that will make the cleanest lesson wins: it counts how much of each drawing trimming to the difficulty's
+- Every allowed prompt gets a lesson. SDXL-Lightning draws 3 drafts one by one (in one batch, 4 overflowed the
+  8 GB card and timed out), and the one that will make the cleanest lesson wins: it counts how much of each drawing trimming to the difficulty's
   stroke limit would remove, and avoids a draft with a ring drawn around the subject. Trimming keeps the outline,
   small parts like windows whole, and features like eyes. The reference then shows only the lines the lesson
   teaches: faint sketch lines and scraps too small to trace are painted out. A photo is named by OWLv2 and drawn from that name; one it can't name
