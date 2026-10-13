@@ -30,6 +30,8 @@ controlnet-aux
 # bitsandbytes loads the T5 text encoder in 4 bits. SDXL-Lightning needs neither.
 gguf
 bitsandbytes
+# Only for GHOSTLINES_LORA: diffusers' load_lora_weights needs peft to load a style LoRA into SDXL.
+peft
 
 # Tests
 pytest
