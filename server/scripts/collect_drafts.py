@@ -41,6 +41,9 @@ VARIANT_SUBJECTS = ["a cat", "a dog", "an owl", "a horse", "a turtle", "a dragon
                     "a house"]
 TRIED_VARIANTS = ["icon_plain", "icon_contrast"]  # compared with the live prompt (prompts.CHOSEN)
 DRAW_SEEDS = [0, 100]  # medium subjects are drawn twice: seeds 0-2 and 100-102
+# --round 2: the most promising variant on every subject once (seed 0), and a bolder one on the variant subjects and
+# the simple ones, where drafts are furthest over the stroke limit.
+ROUND2 = {"icon_plain": "all", "icon_bold": "few"}
 
 
 def slug(text: str) -> str:
@@ -53,6 +56,17 @@ def jobs(extra: list[str], chosen: str) -> list[tuple[str, str, str, int]]:
     todo += [(chosen, s, "simple", 0) for s in SIMPLE]
     todo += [(chosen, s, "detailed", 0) for s in DETAILED]
     todo += [(v, s, "medium", 0) for v in TRIED_VARIANTS for s in VARIANT_SUBJECTS]
+    return todo
+
+
+def round2_jobs(extra: list[str]) -> list[tuple[str, str, str, int]]:
+    todo = []
+    for variant, which in ROUND2.items():
+        medium = MEDIUM + extra if which == "all" else VARIANT_SUBJECTS
+        todo += [(variant, s, "medium", 0) for s in medium]
+        todo += [(variant, s, "simple", 0) for s in SIMPLE]
+        if which == "all":
+            todo += [(variant, s, "detailed", 0) for s in DETAILED]
     return todo
 
 
@@ -82,7 +96,7 @@ def batch_test(pipe, results: dict) -> None:
 
     from pipeline.prompts import line_art_prompt
 
-    pipe.enable_vae_slicing()  # decode the batch one image at a time, or the VAE can run out of memory
+    pipe.vae.enable_slicing()  # decode the batch one image at a time, or the VAE can run out of memory
     rows = []
     for subject in ["a cat", "a car", "a house"]:
         prompt = line_art_prompt(subject)
@@ -115,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=SERVER_DIR / "out" / "drafts")
     parser.add_argument("--extra", default="", help="more medium subjects, comma separated (e.g. from live.log)")
     parser.add_argument("--batch-test", action="store_true", help="also time batched drafts against one by one")
+    parser.add_argument("--round", type=int, default=1, choices=[1, 2], help="2: the second set of prompt variants")
     args = parser.parse_args(argv)
 
     models.setup_hf_env()  # offline mode and HF_HOME, before the Hugging Face libraries load
@@ -125,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     results_path = args.out / "results.json"
     results = json.loads(results_path.read_text()) if results_path.exists() else {"lessons": {}}
     extra = [s.strip() for s in args.extra.split(",") if s.strip()]
-    todo = jobs(extra, CHOSEN)
+    todo = jobs(extra, CHOSEN) if args.round == 1 else round2_jobs(extra)
     pipe = gen._pipeline("text")
     started = time.perf_counter()
     for n, (variant, subject, difficulty, seed) in enumerate(todo, start=1):

@@ -59,6 +59,13 @@ VARIANTS = {
         "lines, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white "
         "background"
     ),
+    # "icon_plain" pushed further toward few, big shapes: on Oct 13 even "simple" drafts traced into about 72 strokes,
+    # far over a simple lesson's 25, so trimming them left broken, unfinished-looking drawings. Very thick lines leave
+    # no room for fine texture.
+    "icon_bold": (
+        "simple bold cartoon line icon of {subject}, full body, very thick uniform black outline, a few large "
+        "closed shapes, white inside, minimal details, flat vector style, isolated on plain white background"
+    ),
     # "icon_whole" asking for pure black on pure white, against faint gray lines and gray fills. Tried on Oct 13.
     "icon_contrast": (
         "minimalist line icon of {subject}, full body, pure black lines on pure white, high contrast, "
