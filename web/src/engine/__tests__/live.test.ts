@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BUSY_RETRIES, BUSY_WAIT_MS, checkLive, generate, getLiveUrl, LiveError, regenerate } from '../../lib/live'
+import {
+  BUSY_RETRIES, BUSY_WAIT_MS, checkLive, generate, getLiveUrl, LiveError, PHOTO_OPEN_TIMEOUT_MS, PHOTO_TOO_BIG, PHOTO_TOO_SLOW, PHOTO_UNREADABLE,
+  preparePhoto, regenerate,
+} from '../../lib/live'
 import { foxPack } from './fixtures'
 
 // Replaces the global fetch: live.json answers with `liveUrl`, every other URL goes to `server`.
@@ -131,5 +134,47 @@ describe('live server client', () => {
     const [url, init] = fetchMock.mock.calls.at(-1)!
     expect(url).toBe('http://gpu.example.test/regenerate')
     expect(JSON.parse(String(init?.body))).toEqual({ prompt: 'a fox', canvasBase64: 'AAAA', difficulty: 'medium' })
+  })
+
+  it("passes on the server's own reason for refusing, when it is written for users", async () => {
+    const reason = "Couldn't tell what's in that photo. Try one object on a plain background, or type what it is."
+    fakeFetch('http://gpu.example.test', () => Promise.resolve(Response.json({ error: reason }, { status: 422 })))
+    const error = await liveErrorFrom(generate({ imageBase64: 'AAAA', difficulty: 'medium' }))
+    expect(error.kind).toBe('rejected')
+    expect(error.userMessage).toBe(reason)
+  })
+
+  it('leaves out a refusal reason that is only a word, or not JSON at all', async () => {
+    fakeFetch('http://gpu.example.test', () => Promise.resolve(Response.json({ error: 'failed' }, { status: 400 })))
+    expect((await liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))).userMessage).toBeUndefined()
+    fakeFetch('http://gpu.example.test', () => Promise.resolve(new Response('<html>Bad request</html>', { status: 400 })))
+    expect((await liveErrorFrom(generate({ prompt: 'a fox', difficulty: 'medium' }))).userMessage).toBeUndefined()
+  })
+})
+
+describe('getting a chosen photo ready', () => {
+  it('says an empty file or one the browser cannot open is unreadable', async () => {
+    const empty = await liveErrorFrom(preparePhoto(new File([], 'empty.jpg', { type: 'image/jpeg' })))
+    expect(empty.userMessage).toBe(PHOTO_UNREADABLE)
+    // Tests run outside a browser, where nothing can be decoded: the same as a HEIC photo in Chrome.
+    const heic = await liveErrorFrom(preparePhoto(new File([new Uint8Array([1, 2, 3])], 'IMG_0001.HEIC', { type: 'image/heic' })))
+    expect(heic.kind).toBe('rejected')
+    expect(heic.userMessage).toBe(PHOTO_UNREADABLE)
+  })
+
+  it('says a huge file is too big, without opening it', async () => {
+    const huge = { name: 'huge.jpg', type: 'image/jpeg', size: 61 * 1024 * 1024 } as File
+    expect((await liveErrorFrom(preparePhoto(huge))).userMessage).toBe(PHOTO_TOO_BIG)
+  })
+
+  it('gives up with a message when the browser stalls opening a photo, instead of "Opening photo…" forever', async () => {
+    vi.useFakeTimers()
+    // An image that never finishes decoding.
+    vi.stubGlobal('Image', class { src = ''; decode() { return new Promise(() => {}) } })
+    const result = liveErrorFrom(preparePhoto(new File([new Uint8Array([1, 2, 3])], 'slow.jpg', { type: 'image/jpeg' })))
+    await vi.advanceTimersByTimeAsync(PHOTO_OPEN_TIMEOUT_MS)
+    const error = await result
+    expect(error.kind).toBe('timeout')
+    expect(error.userMessage).toBe(PHOTO_TOO_SLOW)
   })
 })

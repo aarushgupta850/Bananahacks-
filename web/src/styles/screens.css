@@ -1805,6 +1805,22 @@ dialog.pipeline-panel {
   opacity: 0.5;
 }
 
+.photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The chosen photo, small, so it is clear what will be sent. */
+.photo-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+
 .photo-name {
   max-width: 14rem;
   overflow: hidden;

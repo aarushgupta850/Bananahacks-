@@ -4,7 +4,7 @@ import type { Analysis, Box, Pack, Part, PartMetric, Point, TimedPoint, UserStro
 import { align, targetPoints } from './align'
 import { config } from './config'
 import {
-  applyTransform, bbox, boxCenter, clamp, diagonal, length, meanNearest, PointGrid, resample,
+  applyTransform, bbox, boxCenter, clamp, diagonal, length, meanNearest, PointGrid, resample, symmetricChamfer,
 } from './geometry'
 import { isTap } from './match'
 
@@ -177,6 +177,88 @@ function placeSmallStrokesInsideTheirParent(
   return frames
 }
 
+// How well a user stroke matches one plan stroke as a shape, plus how far apart they are. The stroke is moved
+// onto the plan stroke's center and scaled to its size (within config.rescueScaleRange) before comparing, so a
+// handle drawn 30 px to the side and a bit small still matches the handle, and does not match the mug's body.
+// shape: symmetric mean distance after that, as a share of the plan stroke's size. offset: distance between
+// the two centers, as a share of the drawing's diagonal.
+function shapeFit(points: Point[], plan: Point[], targetDiagonal: number): { shape: number; offset: number } {
+  const userBox = bbox(points)
+  const planBox = bbox(plan)
+  const planSize = Math.max(diagonal(planBox), 1)
+  const k = clamp(planSize / Math.max(diagonal(userBox), 1), config.rescueScaleRange[0], config.rescueScaleRange[1])
+  const [ux, uy] = boxCenter(userBox)
+  const [px, py] = boxCenter(planBox)
+  const moved = points.map(([x, y]): Point => [px + (x - ux) * k, py + (y - uy) * k])
+  return { shape: symmetricChamfer(moved, plan) / planSize, offset: Math.hypot(ux - px, uy - py) / targetDiagonal }
+}
+
+// Step 2c. Gives a part that got no strokes back the strokes that are clearly its own. Step 2 hands each stroke
+// to the part whose lines are nearest on average, which favours big outlines: a mug handle drawn 30 px out, a
+// chimney a little high or a mouth a little low sits nearer the body, roof or chin line than its own, so the
+// part got nothing and the user read "Forgot the handle" for a handle they drew (probe: 8 in 30 slightly
+// imperfect mugs). Here a stroke moves to a part that has no strokes when it matches one of that part's plan
+// strokes as a shape (shapeFit), close by, and clearly better than it matches the part it was given to.
+// A stroke can be the only one its part got (a chimney's top line given to the roof, whose own lines went to the
+// wall). It still moves when it clearly fits the empty part better, and then the part it left gets its own turn,
+// so the passes repeat until nothing moves. Moves only ever go to a clearly better fit, so they can't go back
+// and forth.
+function rescueMissingParts(
+  pack: Pack, byStroke: { points: Point[]; part: string | null; distance: number }[], targetDiagonal: number,
+): void {
+  const partIds = new Set(pack.parts.map((p) => p.id))
+  const visible = pack.strokes.filter((s) => s.tier !== 'construction')
+  const plans = new Map<string | null, Point[][]>() // each part's plan lines (null: lines of no part), made once
+  const planOf = (partId: string | null) => {
+    if (!plans.has(partId)) {
+      plans.set(partId, visible
+        .filter((s) => (partId === null ? s.partId === null || !partIds.has(s.partId) : s.partId === partId))
+        .map((s) => resample(s.points, config.alignPointsPerStroke)))
+    }
+    return plans.get(partId)!
+  }
+  // How well a stroke fits a set of plan strokes, among those within the shape and distance limits: score is the
+  // best shape + offset (lower is better), shape the closest shape. Both Infinity when none is within the limits.
+  const fit = (points: Point[], plan: Point[][]) => {
+    let score = Infinity
+    let shape = Infinity
+    for (const s of plan) {
+      const f = shapeFit(points, s, targetDiagonal)
+      if (f.shape > config.rescueMaxShape || f.offset > config.rescueMaxOffset) continue
+      score = Math.min(score, f.shape + f.offset)
+      shape = Math.min(shape, f.shape)
+    }
+    return { score, shape }
+  }
+  for (let pass = 0; pass < config.rescuePasses; pass++) {
+    let moved = false
+    for (const part of pack.parts) {
+      if (byStroke.some((b) => b.part === part.id)) continue
+      const plan = planOf(part.id)
+      if (plan.length === 0) continue
+      for (const b of byStroke) {
+        if (b.distance === Infinity || b.part === part.id) continue // a heavy scribble measures no part
+        const mine = fit(b.points, plan)
+        if (mine.score === Infinity) continue
+        const current = fit(b.points, planOf(b.part)).score
+        // A near tie is not enough: a forgotten pair of ears must not borrow a head stroke that fits them a bit
+        // better by chance. A stroke that fits nothing of its own part needs a very close shape (scaled up, a
+        // tiny mark looks like any small shape); then how far it was drawn from its place doesn't count against
+        // it, within the distance limit (a handle drawn 90 px out, but a perfect handle). A near-exact copy of one
+        // of the part's lines only has to fit better: a fish's top fin also looks a bit like a body line.
+        const clearly = current === Infinity
+          ? mine.shape <= config.rescueAloneMaxShape
+          : mine.score <= config.rescueClearWin * current || (mine.shape <= config.rescueExactShape && mine.score < current)
+        if (clearly) {
+          b.part = part.id
+          moved = true
+        }
+      }
+    }
+    if (!moved) break
+  }
+}
+
 // How far a stroke travels compared with the size of its own box, measured on a lightly smoothed copy.
 // A scribble goes back and forth over the same area, so it travels many times its size (4x to 28x measured);
 // a real line, even a closed loop around a mug, stays under about 3.3x. The smoothing (each point averaged
@@ -278,6 +360,7 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
     }
   })
   const parentFrames = placeSmallStrokesInsideTheirParent(pack, partSets, byStroke, targetDiagonal)
+  rescueMissingParts(pack, byStroke, targetDiagonal)
   const assigned = new Map<string, Point[]>()
   for (const { points, part } of byStroke) {
     if (part) assigned.set(part, [...(assigned.get(part) ?? []), ...points])
