@@ -8,6 +8,8 @@ import { useRef, useState, type PointerEvent } from 'react'
 import type { Point, TimedPoint, UserStroke } from '../engine/types'
 import { ERASER_RADIUS, eraseAlong } from './erase'
 import { isPalm, PEN_SIZES, strokeToPath, TARGET_SIZE, toTargetPoint, type PenSize } from './geometry'
+import type { PinchStart } from './zoom'
+import { useZoom } from './zoomContext'
 import './canvas.css'
 
 export type Tool = 'pen' | 'eraser'
@@ -55,6 +57,50 @@ export default function DrawingCanvas({
   const [eraserAt, setEraserAt] = useState<Point | null>(null)
   const isEraser = tool === 'eraser'
 
+  // Two fingers zoom and move the canvas (inside a ZoomStack). Every finger on the canvas is tracked; when a second
+  // one lands, the line the first finger had started is thrown away (it was the start of a pinch, not a line).
+  const zoom = useZoom()
+  const fingers = useRef(new Map<number, [number, number]>()) // pointerId -> where it is (clientX, clientY)
+  const pinch = useRef<PinchStart | null>(null)
+
+  // Tracks a finger; returns true when it belongs to a pinch, so it must not draw or erase.
+  function pinchDown(e: PointerEvent<SVGSVGElement>): boolean {
+    if (!zoom || e.pointerType !== 'touch') return false
+    fingers.current.set(e.pointerId, [e.clientX, e.clientY])
+    if (fingers.current.size < 2) return pinch.current !== null // a finger left over from a pinch doesn't draw
+    if (!pinch.current) {
+      // The second finger: drop the half-drawn line (or eraser drag, which isn't applied until it ends).
+      current.current = null
+      setLivePoints(null)
+      erasing.current = null
+      setErasedPreview(null)
+      setEraserAt(null)
+      const [a, b] = [...fingers.current.values()]
+      pinch.current = zoom.startPinch(a, b)
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    return true
+  }
+
+  function pinchMove(e: PointerEvent<SVGSVGElement>): boolean {
+    if (!fingers.current.has(e.pointerId)) return false
+    fingers.current.set(e.pointerId, [e.clientX, e.clientY])
+    if (!pinch.current || !zoom) return false
+    if (fingers.current.size >= 2) {
+      const [a, b] = [...fingers.current.values()]
+      zoom.movePinch(pinch.current, a, b)
+    }
+    return true
+  }
+
+  // A finger lifted. The pinch ends when fewer than two are left; the last finger still doesn't draw until it lifts.
+  function pinchEnd(e: PointerEvent<SVGSVGElement>): boolean {
+    if (!fingers.current.delete(e.pointerId)) return false
+    if (!pinch.current) return false
+    if (fingers.current.size === 0) pinch.current = null
+    return true
+  }
+
   function pointAt(e: PointerEvent<SVGSVGElement>, start: number): TimedPoint {
     const [x, y] = toTargetPoint(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())
     return [x, y, pressureOf(e), Math.round(e.timeStamp - start)]
@@ -72,6 +118,7 @@ export default function DrawingCanvas({
 
   function handlePointerDown(e: PointerEvent<SVGSVGElement>) {
     if (e.pointerType === 'pen') penSeen.current = true
+    if (pinchDown(e)) return
     if (isPalm(e.pointerType, penSeen.current)) return
     // Only the main button, and only one stroke (or eraser drag) at a time (a second finger is ignored).
     if (e.button !== 0 || current.current || erasing.current) return
@@ -88,6 +135,7 @@ export default function DrawingCanvas({
   }
 
   function handlePointerMove(e: PointerEvent<SVGSVGElement>) {
+    if (pinchMove(e)) return
     if (isEraser) {
       handleEraserMove(e)
       return
@@ -127,6 +175,7 @@ export default function DrawingCanvas({
   }
 
   function handlePointerEnd(e: PointerEvent<SVGSVGElement>) {
+    if (pinchEnd(e)) return
     const gesture = erasing.current
     if (gesture) {
       if (e.pointerId !== gesture.pointerId) return

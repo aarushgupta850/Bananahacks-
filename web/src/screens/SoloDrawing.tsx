@@ -7,6 +7,7 @@ import DrawingCanvas, { type Tool } from '../canvas/DrawingCanvas'
 import ExportStrokesButton from '../canvas/ExportStrokesButton'
 import type { PenSize } from '../canvas/geometry'
 import { useStrokeHistory } from '../canvas/useStrokeHistory'
+import ZoomStack from '../canvas/ZoomStack'
 import { engine } from '../engine'
 import type { UserStroke } from '../engine/types'
 import { resolveAsset } from '../lib/packs'
@@ -76,7 +77,7 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
           </figure>
         </aside>
         <div className="canvas-column">
-          <div className="canvas-stack">
+          <ZoomStack>
             <DrawingCanvas
               strokes={strokes}
               onStroke={history.push}
@@ -85,7 +86,7 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
               tool={tool}
               label={`${TEXT[round].title} canvas. Copy the reference here.`}
             />
-          </div>
+          </ZoomStack>
           <CanvasToolbar
             penSize={penSize}
             onPenSize={setPenSize}

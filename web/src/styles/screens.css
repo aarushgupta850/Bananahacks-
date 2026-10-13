@@ -1475,6 +1475,36 @@ dialog.pipeline-panel {
 }
 
 
+/* ---------- "Draw a new one" (Reference screen, live AI lessons only) ---------- */
+
+/* Same card look as the time picker below it, so the side column reads as one set of choices. */
+.redraw-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.redraw-card p {
+  margin: 0;
+}
+
+.redraw-note {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* While a new drawing is made, the loader takes the drawing's place at the same size, so nothing jumps. */
+.reference-redrawing {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+}
+
 /* ---------- time limit picker (Reference screen) ---------- */
 
 .reference-side {

@@ -7,6 +7,7 @@ import CanvasToolbar from '../canvas/CanvasToolbar'
 import { strokesToPngBase64 } from '../canvas/canvasPng'
 import DrawingCanvas, { type Tool } from '../canvas/DrawingCanvas'
 import GhostLayer from '../canvas/GhostLayer'
+import ZoomStack from '../canvas/ZoomStack'
 import { strokeToPath, PEN_SIZES, TARGET_SIZE, toSvgPoints, type PenSize } from '../canvas/geometry'
 import { useStrokeHistory } from '../canvas/useStrokeHistory'
 import { engine } from '../engine'
@@ -343,7 +344,16 @@ export default function Teach({ onBack, onNext }: NavProps) {
             aria-valuemin={0} aria-valuemax={lesson.steps.length} aria-valuenow={stepsDone}>
             <div className="step-progress-fill" style={{ width: `${(stepsDone / Math.max(1, lesson.steps.length)) * 100}%` }} />
           </div>
-          <div className="canvas-stack">
+          {/* Everything drawn zooms together (two fingers, or a trackpad pinch); the messages on top stay put. */}
+          <ZoomStack overlay={<>
+            {redrawing && <p className="teach-redrawing" role="status">Working your line into the drawing…</p>}
+            {cheer && !result.done && <p key={cheer.id} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>{cheer.text}</p>}
+            {toast && !result.done && (
+              <p className={toastKind === 'happy' ? 'teach-toast is-happy' : 'teach-toast'} role="status">
+                <span aria-hidden="true">{toastKind === 'happy' ? '✨ ' : '⚠ '}</span>{toast}
+              </p>
+            )}
+          </>}>
             {/* Under everything: a faint trace of the real drawing, revealed part by part as the lesson goes on. */}
             <svg className="trace-layer" viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`} aria-hidden="true"
               style={{ opacity: TRACE_OPACITY[result.done ? 'guided' : result.helpLevel] }}>
@@ -361,14 +371,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
               label="Lesson canvas. Draw over the ghost lines." />
             {fadingGhosts && <div className="ghost-swap is-out"><GhostLayer ghosts={fadingGhosts} /></div>}
             <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} ink={strokes} /></div>
-            {redrawing && <p className="teach-redrawing" role="status">Working your line into the drawing…</p>}
-            {cheer && !result.done && <p key={cheer.id} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>{cheer.text}</p>}
-            {toast && !result.done && (
-              <p className={toastKind === 'happy' ? 'teach-toast is-happy' : 'teach-toast'} role="status">
-                <span aria-hidden="true">{toastKind === 'happy' ? '✨ ' : '⚠ '}</span>{toast}
-              </p>
-            )}
-          </div>
+          </ZoomStack>
           {/* Undo, the eraser and Clear only tidy the ink here: the teacher has already checked those strokes,
               so none of them is sent to the teacher or recorded for the replay. */}
           <CanvasToolbar

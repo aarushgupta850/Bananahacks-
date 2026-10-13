@@ -10,6 +10,7 @@ import CanvasToolbar from './CanvasToolbar'
 import DrawingCanvas, { type Tool } from './DrawingCanvas'
 import ExportStrokesButton from './ExportStrokesButton'
 import GhostLayer from './GhostLayer'
+import ZoomStack from './ZoomStack'
 import ReplayPlayer from './ReplayPlayer'
 import type { PenSize } from './geometry'
 import { useStrokeHistory } from './useStrokeHistory'
@@ -74,10 +75,10 @@ function Demo({ pack }: { pack: Pack }) {
       </header>
       <div className="demo-layout">
         <div className="canvas-column">
-          <div className="canvas-stack">
+          <ZoomStack>
             <DrawingCanvas strokes={strokes} onStroke={handleStroke} onErase={history.replace} penSize={penSize} tool={tool} />
             <GhostLayer ghosts={ghosts} />
-          </div>
+          </ZoomStack>
           <CanvasToolbar
             penSize={penSize}
             onPenSize={setPenSize}
