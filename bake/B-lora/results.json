@@ -1,0 +1,158 @@
+{
+ "summary": {
+  "config": {
+   "GHOSTLINES_LIGHTNING_STEPS": "8",
+   "GHOSTLINES_LORA": "artificialguybr/ColoringBookRedmond-V2:ColoringBookRedmond-ColoringBook-ColoringBookAF.safetensors",
+   "GHOSTLINES_LORA_WORDS": "ColoringBookAF, Coloring Book",
+   "GHOSTLINES_PREFER_SYMMETRY": "1",
+   "GHOSTLINES_PROMPT": "icon_even",
+   "GHOSTLINES_LIVE_CANDIDATES": "2"
+  },
+  "lessons": 20,
+  "errors": 0,
+  "median_s": 21.6,
+  "max_s": 42.7
+ },
+ "results": [
+  {
+   "subject": "a cat",
+   "seconds": 18.1,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a dog",
+   "seconds": 17.4,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a horse",
+   "seconds": 19.5,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "an owl",
+   "seconds": 18.9,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a lion",
+   "seconds": 36.6,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a dragon",
+   "seconds": 21.1,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a unicorn",
+   "seconds": 21.6,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a robot",
+   "seconds": 22.2,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a car",
+   "seconds": 40.5,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a bicycle",
+   "seconds": 18.1,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "an airplane",
+   "seconds": 41.4,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a sneaker",
+   "seconds": 21.6,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a basketball",
+   "seconds": 36.7,
+   "strokes": 37,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a house",
+   "seconds": 20.1,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a castle",
+   "seconds": 42.7,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a tree",
+   "seconds": 38.4,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a guitar",
+   "seconds": 37.5,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a turtle",
+   "seconds": 20.7,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a rocket",
+   "seconds": 18.2,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a teapot",
+   "seconds": 17.1,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  }
+ ]
+}

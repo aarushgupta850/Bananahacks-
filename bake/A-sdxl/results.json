@@ -1,0 +1,156 @@
+{
+ "summary": {
+  "config": {
+   "GHOSTLINES_LIGHTNING_STEPS": "8",
+   "GHOSTLINES_PREFER_SYMMETRY": "1",
+   "GHOSTLINES_PROMPT": "icon_even",
+   "GHOSTLINES_LIVE_CANDIDATES": "2"
+  },
+  "lessons": 20,
+  "errors": 0,
+  "median_s": 19.3,
+  "max_s": 36.5
+ },
+ "results": [
+  {
+   "subject": "a cat",
+   "seconds": 36.5,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a dog",
+   "seconds": 33.2,
+   "strokes": 18,
+   "rated": "simple",
+   "drafts": 2
+  },
+  {
+   "subject": "a horse",
+   "seconds": 28.2,
+   "strokes": 43,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "an owl",
+   "seconds": 22.6,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a lion",
+   "seconds": 19.8,
+   "strokes": 48,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a dragon",
+   "seconds": 19.0,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a unicorn",
+   "seconds": 18.2,
+   "strokes": 41,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a robot",
+   "seconds": 19.3,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a car",
+   "seconds": 20.9,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a bicycle",
+   "seconds": 22.3,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "an airplane",
+   "seconds": 16.7,
+   "strokes": 30,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a sneaker",
+   "seconds": 16.6,
+   "strokes": 34,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a basketball",
+   "seconds": 32.8,
+   "strokes": 16,
+   "rated": "simple",
+   "drafts": 4
+  },
+  {
+   "subject": "a house",
+   "seconds": 17.4,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a castle",
+   "seconds": 16.5,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a tree",
+   "seconds": 17.5,
+   "strokes": 50,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a guitar",
+   "seconds": 16.6,
+   "strokes": 37,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a turtle",
+   "seconds": 17.0,
+   "strokes": 37,
+   "rated": "medium",
+   "drafts": 2
+  },
+  {
+   "subject": "a rocket",
+   "seconds": 34.0,
+   "strokes": 28,
+   "rated": "medium",
+   "drafts": 4
+  },
+  {
+   "subject": "a teapot",
+   "seconds": 16.5,
+   "strokes": 16,
+   "rated": "simple",
+   "drafts": 2
+  }
+ ]
+}

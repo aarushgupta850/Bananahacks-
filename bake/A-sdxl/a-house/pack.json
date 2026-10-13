@@ -1,0 +1,2719 @@
+{
+ "id": "live-house-medium",
+ "subject": "house",
+ "title": "A house",
+ "difficulty": "medium",
+ "size": 768,
+ "source": {
+  "kind": "prompt",
+  "prompt": "a house"
+ },
+ "parts": [
+  {
+   "id": "roof",
+   "label": "Roof",
+   "box": [
+    102,
+    54,
+    593,
+    310
+   ]
+  },
+  {
+   "id": "wall",
+   "label": "Wall",
+   "box": [
+    132,
+    352,
+    512,
+    283
+   ]
+  },
+  {
+   "id": "door",
+   "label": "Door",
+   "box": [
+    380,
+    463,
+    60,
+    141
+   ]
+  },
+  {
+   "id": "window_left",
+   "label": "Left window",
+   "box": [
+    226,
+    438,
+    51,
+    117
+   ]
+  },
+  {
+   "id": "window_right",
+   "label": "Right window",
+   "box": [
+    373,
+    196,
+    59,
+    91
+   ]
+  },
+  {
+   "id": "chimney",
+   "label": "Chimney",
+   "box": [
+    572,
+    136,
+    42,
+    132
+   ]
+  }
+ ],
+ "strokes": [
+  {
+   "id": "c-wall",
+   "points": [
+    [
+     132,
+     352
+    ],
+    [
+     644,
+     352
+    ],
+    [
+     644,
+     635
+    ],
+    [
+     132,
+     635
+    ],
+    [
+     132,
+     352
+    ]
+   ],
+   "tier": "construction",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     132,
+     352
+    ],
+    [
+     644,
+     352
+    ],
+    [
+     644,
+     635
+    ],
+    [
+     132,
+     635
+    ]
+   ]
+  },
+  {
+   "id": "s-2",
+   "points": [
+    [
+     642,
+     623
+    ],
+    [
+     639,
+     618
+    ],
+    [
+     639,
+     565
+    ],
+    [
+     636,
+     563
+    ],
+    [
+     637,
+     352
+    ]
+   ],
+   "tier": "outline",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     642,
+     623
+    ],
+    [
+     637,
+     352
+    ],
+    [
+     636,
+     563
+    ],
+    [
+     639,
+     565
+    ]
+   ]
+  },
+  {
+   "id": "s-3",
+   "points": [
+    [
+     602,
+     259
+    ],
+    [
+     604,
+     255
+    ],
+    [
+     596,
+     248
+    ],
+    [
+     590,
+     249
+    ],
+    [
+     577,
+     236
+    ],
+    [
+     572,
+     227
+    ],
+    [
+     564,
+     221
+    ],
+    [
+     439,
+     85
+    ],
+    [
+     408,
+     54
+    ],
+    [
+     405,
+     54
+    ],
+    [
+     343,
+     114
+    ],
+    [
+     111,
+     355
+    ],
+    [
+     110,
+     358
+    ],
+    [
+     112,
+     360
+    ],
+    [
+     124,
+     361
+    ],
+    [
+     131,
+     359
+    ],
+    [
+     143,
+     369
+    ],
+    [
+     149,
+     370
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     602,
+     259
+    ],
+    [
+     149,
+     370
+    ],
+    [
+     604,
+     255
+    ],
+    [
+     110,
+     358
+    ],
+    [
+     131,
+     359
+    ],
+    [
+     590,
+     249
+    ],
+    [
+     596,
+     248
+    ]
+   ]
+  },
+  {
+   "id": "s-4",
+   "points": [
+    [
+     591,
+     250
+    ],
+    [
+     598,
+     259
+    ],
+    [
+     611,
+     264
+    ],
+    [
+     612,
+     270
+    ],
+    [
+     616,
+     275
+    ],
+    [
+     681,
+     345
+    ],
+    [
+     690,
+     358
+    ],
+    [
+     688,
+     362
+    ],
+    [
+     675,
+     361
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     591,
+     250
+    ],
+    [
+     675,
+     361
+    ],
+    [
+     688,
+     362
+    ],
+    [
+     690,
+     358
+    ],
+    [
+     611,
+     264
+    ]
+   ]
+  },
+  {
+   "id": "s-5",
+   "points": [
+    [
+     587,
+     139
+    ],
+    [
+     573,
+     140
+    ],
+    [
+     571,
+     226
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     587,
+     139
+    ],
+    [
+     571,
+     226
+    ],
+    [
+     573,
+     140
+    ]
+   ]
+  },
+  {
+   "id": "s-6",
+   "points": [
+    [
+     588,
+     139
+    ],
+    [
+     607,
+     139
+    ],
+    [
+     611,
+     142
+    ],
+    [
+     612,
+     246
+    ],
+    [
+     610,
+     263
+    ]
+   ],
+   "tier": "outline",
+   "partId": "chimney",
+   "keyPoints": [
+    [
+     588,
+     139
+    ],
+    [
+     610,
+     263
+    ],
+    [
+     611,
+     142
+    ]
+   ]
+  },
+  {
+   "id": "s-7",
+   "points": [
+    [
+     327,
+     640
+    ],
+    [
+     331,
+     651
+    ],
+    [
+     470,
+     651
+    ],
+    [
+     473,
+     640
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     327,
+     640
+    ],
+    [
+     473,
+     640
+    ],
+    [
+     470,
+     651
+    ],
+    [
+     331,
+     651
+    ]
+   ]
+  },
+  {
+   "id": "s-8",
+   "points": [
+    [
+     132,
+     619
+    ],
+    [
+     28,
+     618
+    ],
+    [
+     31,
+     601
+    ],
+    [
+     37,
+     594
+    ],
+    [
+     56,
+     590
+    ],
+    [
+     71,
+     590
+    ],
+    [
+     73,
+     558
+    ],
+    [
+     84,
+     548
+    ],
+    [
+     96,
+     549
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     132,
+     619
+    ],
+    [
+     96,
+     549
+    ],
+    [
+     28,
+     618
+    ],
+    [
+     71,
+     590
+    ],
+    [
+     84,
+     548
+    ]
+   ]
+  },
+  {
+   "id": "s-9",
+   "points": [
+    [
+     648,
+     618
+    ],
+    [
+     728,
+     619
+    ],
+    [
+     736,
+     617
+    ],
+    [
+     734,
+     606
+    ],
+    [
+     723,
+     592
+    ],
+    [
+     713,
+     588
+    ],
+    [
+     703,
+     588
+    ],
+    [
+     704,
+     565
+    ],
+    [
+     701,
+     560
+    ],
+    [
+     695,
+     555
+    ],
+    [
+     674,
+     555
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     648,
+     618
+    ],
+    [
+     674,
+     555
+    ],
+    [
+     703,
+     588
+    ],
+    [
+     736,
+     617
+    ]
+   ]
+  },
+  {
+   "id": "s-10",
+   "points": [
+    [
+     436,
+     370
+    ],
+    [
+     198,
+     371
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     436,
+     370
+    ],
+    [
+     198,
+     371
+    ]
+   ]
+  },
+  {
+   "id": "s-11",
+   "points": [
+    [
+     545,
+     440
+    ],
+    [
+     279,
+     440
+    ],
+    [
+     274,
+     428
+    ],
+    [
+     214,
+     429
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     545,
+     440
+    ],
+    [
+     214,
+     429
+    ],
+    [
+     274,
+     428
+    ],
+    [
+     279,
+     440
+    ]
+   ]
+  },
+  {
+   "id": "s-12",
+   "points": [
+    [
+     214,
+     429
+    ],
+    [
+     213,
+     415
+    ],
+    [
+     215,
+     413
+    ],
+    [
+     581,
+     413
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     214,
+     429
+    ],
+    [
+     581,
+     413
+    ],
+    [
+     213,
+     415
+    ],
+    [
+     215,
+     413
+    ]
+   ]
+  },
+  {
+   "id": "s-13",
+   "points": [
+    [
+     319,
+     496
+    ],
+    [
+     326,
+     494
+    ],
+    [
+     331,
+     461
+    ],
+    [
+     435,
+     460
+    ],
+    [
+     462,
+     462
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     319,
+     496
+    ],
+    [
+     462,
+     462
+    ],
+    [
+     331,
+     461
+    ],
+    [
+     326,
+     494
+    ]
+   ]
+  },
+  {
+   "id": "s-14",
+   "points": [
+    [
+     275,
+     562
+    ],
+    [
+     274,
+     453
+    ],
+    [
+     262,
+     443
+    ],
+    [
+     257,
+     443
+    ],
+    [
+     250,
+     449
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     275,
+     562
+    ],
+    [
+     250,
+     449
+    ],
+    [
+     274,
+     453
+    ]
+   ]
+  },
+  {
+   "id": "s-15",
+   "points": [
+    [
+     378,
+     462
+    ],
+    [
+     378,
+     603
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     378,
+     462
+    ],
+    [
+     378,
+     603
+    ]
+   ]
+  },
+  {
+   "id": "s-16",
+   "points": [
+    [
+     368,
+     462
+    ],
+    [
+     368,
+     604
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     368,
+     462
+    ],
+    [
+     368,
+     604
+    ]
+   ]
+  },
+  {
+   "id": "s-17",
+   "points": [
+    [
+     424,
+     603
+    ],
+    [
+     424,
+     546
+    ],
+    [
+     422,
+     539
+    ],
+    [
+     424,
+     535
+    ],
+    [
+     425,
+     502
+    ],
+    [
+     424,
+     462
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     424,
+     603
+    ],
+    [
+     424,
+     462
+    ]
+   ]
+  },
+  {
+   "id": "s-18",
+   "points": [
+    [
+     346,
+     462
+    ],
+    [
+     347,
+     604
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     346,
+     462
+    ],
+    [
+     347,
+     604
+    ]
+   ]
+  },
+  {
+   "id": "s-19",
+   "points": [
+    [
+     226,
+     562
+    ],
+    [
+     227,
+     457
+    ],
+    [
+     244,
+     445
+    ],
+    [
+     250,
+     449
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     226,
+     562
+    ],
+    [
+     250,
+     449
+    ],
+    [
+     244,
+     445
+    ],
+    [
+     227,
+     457
+    ]
+   ]
+  },
+  {
+   "id": "s-20",
+   "points": [
+    [
+     462,
+     603
+    ],
+    [
+     461,
+     566
+    ],
+    [
+     465,
+     562
+    ],
+    [
+     466,
+     508
+    ],
+    [
+     466,
+     464
+    ],
+    [
+     463,
+     462
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     462,
+     603
+    ],
+    [
+     463,
+     462
+    ],
+    [
+     466,
+     464
+    ],
+    [
+     461,
+     566
+    ]
+   ]
+  },
+  {
+   "id": "s-21",
+   "points": [
+    [
+     558,
+     415
+    ],
+    [
+     555,
+     431
+    ],
+    [
+     546,
+     440
+    ],
+    [
+     545,
+     447
+    ],
+    [
+     545,
+     563
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     558,
+     415
+    ],
+    [
+     545,
+     563
+    ],
+    [
+     545,
+     447
+    ]
+   ]
+  },
+  {
+   "id": "s-22",
+   "points": [
+    [
+     499,
+     550
+    ],
+    [
+     532,
+     549
+    ],
+    [
+     531,
+     465
+    ],
+    [
+     518,
+     455
+    ],
+    [
+     514,
+     456
+    ],
+    [
+     514,
+     549
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     499,
+     550
+    ],
+    [
+     514,
+     549
+    ],
+    [
+     532,
+     549
+    ],
+    [
+     514,
+     456
+    ],
+    [
+     531,
+     465
+    ],
+    [
+     518,
+     455
+    ]
+   ]
+  },
+  {
+   "id": "s-23",
+   "points": [
+    [
+     322,
+     604
+    ],
+    [
+     321,
+     575
+    ],
+    [
+     326,
+     564
+    ],
+    [
+     318,
+     562
+    ],
+    [
+     318,
+     440
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     322,
+     604
+    ],
+    [
+     318,
+     440
+    ],
+    [
+     326,
+     564
+    ],
+    [
+     318,
+     562
+    ]
+   ]
+  },
+  {
+   "id": "s-24",
+   "points": [
+    [
+     589,
+     638
+    ],
+    [
+     588,
+     619
+    ],
+    [
+     584,
+     604
+    ],
+    [
+     582,
+     372
+    ],
+    [
+     579,
+     370
+    ],
+    [
+     442,
+     371
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     589,
+     638
+    ],
+    [
+     442,
+     371
+    ],
+    [
+     582,
+     372
+    ]
+   ]
+  },
+  {
+   "id": "s-25",
+   "points": [
+    [
+     583,
+     604
+    ],
+    [
+     371,
+     604
+    ],
+    [
+     350,
+     606
+    ],
+    [
+     314,
+     604
+    ],
+    [
+     205,
+     604
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     583,
+     604
+    ],
+    [
+     205,
+     604
+    ]
+   ]
+  },
+  {
+   "id": "s-26",
+   "points": [
+    [
+     175,
+     625
+    ],
+    [
+     175,
+     371
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     175,
+     625
+    ],
+    [
+     175,
+     371
+    ]
+   ]
+  },
+  {
+   "id": "s-27",
+   "points": [
+    [
+     151,
+     565
+    ],
+    [
+     150,
+     352
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     151,
+     565
+    ],
+    [
+     150,
+     352
+    ]
+   ]
+  },
+  {
+   "id": "s-28",
+   "points": [
+    [
+     203,
+     617
+    ],
+    [
+     340,
+     617
+    ],
+    [
+     350,
+     619
+    ],
+    [
+     585,
+     617
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     203,
+     617
+    ],
+    [
+     585,
+     617
+    ]
+   ]
+  },
+  {
+   "id": "s-29",
+   "points": [
+    [
+     176,
+     577
+    ],
+    [
+     202,
+     575
+    ],
+    [
+     321,
+     575
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     176,
+     577
+    ],
+    [
+     321,
+     575
+    ]
+   ]
+  },
+  {
+   "id": "s-30",
+   "points": [
+    [
+     465,
+     563
+    ],
+    [
+     635,
+     564
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     465,
+     563
+    ],
+    [
+     635,
+     564
+    ]
+   ]
+  },
+  {
+   "id": "s-31",
+   "points": [
+    [
+     463,
+     575
+    ],
+    [
+     608,
+     575
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     463,
+     575
+    ],
+    [
+     608,
+     575
+    ]
+   ]
+  },
+  {
+   "id": "s-32",
+   "points": [
+    [
+     144,
+     566
+    ],
+    [
+     174,
+     566
+    ],
+    [
+     203,
+     563
+    ],
+    [
+     318,
+     562
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     144,
+     566
+    ],
+    [
+     318,
+     562
+    ]
+   ]
+  },
+  {
+   "id": "s-33",
+   "points": [
+    [
+     641,
+     624
+    ],
+    [
+     639,
+     626
+    ],
+    [
+     610,
+     626
+    ],
+    [
+     610,
+     576
+    ],
+    [
+     608,
+     564
+    ],
+    [
+     608,
+     375
+    ],
+    [
+     612,
+     357
+    ],
+    [
+     612,
+     333
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     641,
+     624
+    ],
+    [
+     612,
+     333
+    ],
+    [
+     610,
+     626
+    ],
+    [
+     639,
+     626
+    ]
+   ]
+  },
+  {
+   "id": "s-34",
+   "points": [
+    [
+     115,
+     515
+    ],
+    [
+     139,
+     564
+    ],
+    [
+     143,
+     566
+    ],
+    [
+     139,
+     569
+    ],
+    [
+     144,
+     572
+    ],
+    [
+     144,
+     618
+    ],
+    [
+     140,
+     622
+    ],
+    [
+     144,
+     626
+    ],
+    [
+     200,
+     626
+    ]
+   ],
+   "tier": "structure",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     115,
+     515
+    ],
+    [
+     200,
+     626
+    ],
+    [
+     143,
+     566
+    ],
+    [
+     139,
+     569
+    ],
+    [
+     140,
+     622
+    ],
+    [
+     144,
+     572
+    ]
+   ]
+  },
+  {
+   "id": "s-35",
+   "points": [
+    [
+     139,
+     350
+    ],
+    [
+     663,
+     352
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     139,
+     350
+    ],
+    [
+     663,
+     352
+    ]
+   ]
+  },
+  {
+   "id": "s-36",
+   "points": [
+    [
+     643,
+     331
+    ],
+    [
+     612,
+     333
+    ],
+    [
+     585,
+     331
+    ],
+    [
+     156,
+     331
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     643,
+     331
+    ],
+    [
+     156,
+     331
+    ]
+   ]
+  },
+  {
+   "id": "s-37",
+   "points": [
+    [
+     585,
+     330
+    ],
+    [
+     493,
+     227
+    ],
+    [
+     409,
+     140
+    ],
+    [
+     405,
+     140
+    ],
+    [
+     233,
+     311
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     585,
+     330
+    ],
+    [
+     233,
+     311
+    ],
+    [
+     409,
+     140
+    ]
+   ]
+  },
+  {
+   "id": "s-38",
+   "points": [
+    [
+     185,
+     330
+    ],
+    [
+     321,
+     191
+    ],
+    [
+     408,
+     106
+    ],
+    [
+     415,
+     104
+    ],
+    [
+     628,
+     331
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     185,
+     330
+    ],
+    [
+     628,
+     331
+    ],
+    [
+     415,
+     104
+    ]
+   ]
+  },
+  {
+   "id": "s-39",
+   "points": [
+    [
+     394,
+     153
+    ],
+    [
+     478,
+     235
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     394,
+     153
+    ],
+    [
+     478,
+     235
+    ]
+   ]
+  },
+  {
+   "id": "s-40",
+   "points": [
+    [
+     131,
+     358
+    ],
+    [
+     133,
+     352
+    ],
+    [
+     139,
+     349
+    ],
+    [
+     140,
+     345
+    ],
+    [
+     157,
+     327
+    ],
+    [
+     229,
+     256
+    ],
+    [
+     388,
+     90
+    ],
+    [
+     394,
+     94
+    ],
+    [
+     412,
+     79
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     131,
+     358
+    ],
+    [
+     412,
+     79
+    ],
+    [
+     388,
+     90
+    ],
+    [
+     394,
+     94
+    ],
+    [
+     139,
+     349
+    ],
+    [
+     133,
+     352
+    ]
+   ]
+  },
+  {
+   "id": "s-41",
+   "points": [
+    [
+     674,
+     360
+    ],
+    [
+     648,
+     332
+    ],
+    [
+     643,
+     330
+    ],
+    [
+     642,
+     324
+    ],
+    [
+     619,
+     299
+    ],
+    [
+     575,
+     255
+    ],
+    [
+     424,
+     89
+    ],
+    [
+     412,
+     79
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     674,
+     360
+    ],
+    [
+     412,
+     79
+    ],
+    [
+     643,
+     330
+    ]
+   ]
+  },
+  {
+   "id": "s-42",
+   "points": [
+    [
+     434,
+     502
+    ],
+    [
+     435,
+     603
+    ]
+   ],
+   "tier": "structure",
+   "partId": "door",
+   "keyPoints": [
+    [
+     434,
+     502
+    ],
+    [
+     435,
+     603
+    ]
+   ]
+  },
+  {
+   "id": "s-43",
+   "points": [
+    [
+     250,
+     449
+    ],
+    [
+     251,
+     549
+    ]
+   ],
+   "tier": "structure",
+   "partId": "window_left",
+   "keyPoints": [
+    [
+     250,
+     449
+    ],
+    [
+     251,
+     549
+    ]
+   ]
+  },
+  {
+   "id": "s-44",
+   "points": [
+    [
+     246,
+     546
+    ],
+    [
+     230,
+     546
+    ],
+    [
+     231,
+     520
+    ],
+    [
+     232,
+     528
+    ],
+    [
+     236,
+     530
+    ],
+    [
+     232,
+     532
+    ],
+    [
+     237,
+     534
+    ],
+    [
+     239,
+     532
+    ],
+    [
+     244,
+     534
+    ],
+    [
+     246,
+     526
+    ],
+    [
+     246,
+     546
+    ]
+   ],
+   "tier": "structure",
+   "partId": "window_left",
+   "keyPoints": [
+    [
+     231,
+     520
+    ],
+    [
+     246,
+     526
+    ],
+    [
+     236,
+     530
+    ],
+    [
+     232,
+     532
+    ],
+    [
+     230,
+     546
+    ],
+    [
+     246,
+     546
+    ],
+    [
+     244,
+     534
+    ],
+    [
+     237,
+     534
+    ]
+   ]
+  },
+  {
+   "id": "s-45",
+   "points": [
+    [
+     584,
+     240
+    ],
+    [
+     586,
+     235
+    ],
+    [
+     585,
+     172
+    ],
+    [
+     587,
+     140
+    ]
+   ],
+   "tier": "structure",
+   "partId": "chimney",
+   "keyPoints": [
+    [
+     584,
+     240
+    ],
+    [
+     587,
+     140
+    ]
+   ]
+  },
+  {
+   "id": "s-46",
+   "points": [
+    [
+     416,
+     274
+    ],
+    [
+     386,
+     273
+    ],
+    [
+     386,
+     250
+    ],
+    [
+     388,
+     272
+    ],
+    [
+     388,
+     235
+    ],
+    [
+     386,
+     248
+    ],
+    [
+     386,
+     227
+    ],
+    [
+     387,
+     224
+    ],
+    [
+     391,
+     228
+    ],
+    [
+     393,
+     226
+    ],
+    [
+     392,
+     224
+    ],
+    [
+     397,
+     220
+    ],
+    [
+     401,
+     220
+    ],
+    [
+     404,
+     222
+    ],
+    [
+     402,
+     226
+    ],
+    [
+     405,
+     226
+    ],
+    [
+     404,
+     216
+    ],
+    [
+     407,
+     214
+    ],
+    [
+     410,
+     217
+    ],
+    [
+     408,
+     218
+    ],
+    [
+     410,
+     220
+    ],
+    [
+     414,
+     222
+    ],
+    [
+     415,
+     226
+    ],
+    [
+     416,
+     225
+    ],
+    [
+     416,
+     274
+    ]
+   ],
+   "tier": "structure",
+   "partId": "window_right",
+   "keyPoints": [
+    [
+     388,
+     272
+    ],
+    [
+     386,
+     250
+    ],
+    [
+     388,
+     235
+    ],
+    [
+     386,
+     248
+    ],
+    [
+     416,
+     225
+    ],
+    [
+     415,
+     226
+    ],
+    [
+     410,
+     217
+    ],
+    [
+     405,
+     226
+    ]
+   ]
+  },
+  {
+   "id": "s-47",
+   "points": [
+    [
+     401,
+     205
+    ],
+    [
+     406,
+     206
+    ],
+    [
+     420,
+     223
+    ],
+    [
+     419,
+     275
+    ],
+    [
+     383,
+     274
+    ],
+    [
+     384,
+     224
+    ],
+    [
+     401,
+     205
+    ]
+   ],
+   "tier": "structure",
+   "partId": "window_right",
+   "keyPoints": [
+    [
+     419,
+     275
+    ],
+    [
+     383,
+     274
+    ],
+    [
+     401,
+     205
+    ]
+   ]
+  },
+  {
+   "id": "s-48",
+   "points": [
+    [
+     396,
+     196
+    ],
+    [
+     406,
+     196
+    ],
+    [
+     414,
+     199
+    ],
+    [
+     429,
+     215
+    ],
+    [
+     429,
+     286
+    ],
+    [
+     376,
+     286
+    ],
+    [
+     374,
+     284
+    ],
+    [
+     374,
+     215
+    ],
+    [
+     388,
+     199
+    ],
+    [
+     396,
+     196
+    ]
+   ],
+   "tier": "structure",
+   "partId": "window_right",
+   "keyPoints": [
+    [
+     429,
+     286
+    ],
+    [
+     376,
+     286
+    ],
+    [
+     374,
+     284
+    ]
+   ]
+  },
+  {
+   "id": "s-49",
+   "points": [
+    [
+     642,
+     624
+    ],
+    [
+     647,
+     629
+    ],
+    [
+     647,
+     637
+    ],
+    [
+     645,
+     639
+    ],
+    [
+     475,
+     641
+    ],
+    [
+     471,
+     636
+    ],
+    [
+     465,
+     634
+    ],
+    [
+     332,
+     635
+    ],
+    [
+     327,
+     640
+    ],
+    [
+     136,
+     638
+    ],
+    [
+     134,
+     636
+    ],
+    [
+     134,
+     627
+    ],
+    [
+     139,
+     622
+    ],
+    [
+     133,
+     618
+    ],
+    [
+     131,
+     611
+    ],
+    [
+     108,
+     586
+    ],
+    [
+     100,
+     581
+    ],
+    [
+     90,
+     580
+    ],
+    [
+     87,
+     576
+    ]
+   ],
+   "tier": "structure",
+   "partId": null,
+   "keyPoints": [
+    [
+     642,
+     624
+    ],
+    [
+     87,
+     576
+    ],
+    [
+     139,
+     622
+    ],
+    [
+     475,
+     641
+    ],
+    [
+     90,
+     580
+    ],
+    [
+     327,
+     640
+    ],
+    [
+     647,
+     629
+    ],
+    [
+     647,
+     637
+    ]
+   ]
+  },
+  {
+   "id": "s-50",
+   "points": [
+    [
+     137,
+     590
+    ],
+    [
+     114,
+     558
+    ],
+    [
+     106,
+     551
+    ],
+    [
+     97,
+     548
+    ],
+    [
+     96,
+     511
+    ],
+    [
+     100,
+     498
+    ],
+    [
+     111,
+     493
+    ],
+    [
+     122,
+     496
+    ],
+    [
+     135,
+     510
+    ],
+    [
+     150,
+     508
+    ]
+   ],
+   "tier": "structure",
+   "partId": null,
+   "keyPoints": [
+    [
+     137,
+     590
+    ],
+    [
+     150,
+     508
+    ],
+    [
+     97,
+     548
+    ],
+    [
+     135,
+     510
+    ],
+    [
+     100,
+     498
+    ]
+   ]
+  },
+  {
+   "id": "s-51",
+   "points": [
+    [
+     586,
+     221
+    ],
+    [
+     603,
+     221
+    ],
+    [
+     605,
+     219
+    ],
+    [
+     604,
+     207
+    ],
+    [
+     586,
+     207
+    ]
+   ],
+   "tier": "detail",
+   "partId": "chimney",
+   "keyPoints": [
+    [
+     586,
+     221
+    ],
+    [
+     586,
+     207
+    ],
+    [
+     604,
+     207
+    ],
+    [
+     605,
+     219
+    ],
+    [
+     603,
+     221
+    ]
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "id": "step-1",
+   "label": "Block in the wall",
+   "tip": "Keep the wall about 47% of the drawing height.",
+   "tier": "construction",
+   "strokeIds": [
+    "c-wall"
+   ]
+  },
+  {
+   "id": "step-2",
+   "label": "Outline the wall",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-2"
+   ]
+  },
+  {
+   "id": "step-3",
+   "label": "Outline the roof",
+   "tip": "Keep the roof about 52% of the drawing height.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-3",
+    "s-4",
+    "s-5"
+   ]
+  },
+  {
+   "id": "step-4",
+   "label": "Outline the chimney",
+   "tip": "Keep the chimney about 22% of the drawing height.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-6"
+   ]
+  },
+  {
+   "id": "step-5",
+   "label": "Outline the shape",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-7",
+    "s-8",
+    "s-9"
+   ]
+  },
+  {
+   "id": "step-6",
+   "label": "Add the wall",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-10",
+    "s-11",
+    "s-12",
+    "s-13"
+   ]
+  },
+  {
+   "id": "step-7",
+   "label": "Add the wall (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-14",
+    "s-15",
+    "s-16",
+    "s-17"
+   ]
+  },
+  {
+   "id": "step-8",
+   "label": "Add the wall (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-18",
+    "s-19",
+    "s-20",
+    "s-21"
+   ]
+  },
+  {
+   "id": "step-9",
+   "label": "Add the wall (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-22",
+    "s-23",
+    "s-24",
+    "s-25"
+   ]
+  },
+  {
+   "id": "step-10",
+   "label": "Add the wall (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-26",
+    "s-27",
+    "s-28",
+    "s-29"
+   ]
+  },
+  {
+   "id": "step-11",
+   "label": "Add the wall (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-30",
+    "s-31",
+    "s-32",
+    "s-33"
+   ]
+  },
+  {
+   "id": "step-12",
+   "label": "Add the wall (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-34"
+   ]
+  },
+  {
+   "id": "step-13",
+   "label": "Add the roof",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-35",
+    "s-36",
+    "s-37",
+    "s-38"
+   ]
+  },
+  {
+   "id": "step-14",
+   "label": "Add the roof (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-39",
+    "s-40",
+    "s-41"
+   ]
+  },
+  {
+   "id": "step-15",
+   "label": "Add the door",
+   "tip": "Keep the door about 24% of the drawing height.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-42"
+   ]
+  },
+  {
+   "id": "step-16",
+   "label": "Add the left window",
+   "tip": "Keep the left window about 20% of the drawing height.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-43",
+    "s-44"
+   ]
+  },
+  {
+   "id": "step-17",
+   "label": "Add the chimney",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-45"
+   ]
+  },
+  {
+   "id": "step-18",
+   "label": "Add the right window",
+   "tip": "Keep the right window about 15% of the drawing height.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-46",
+    "s-47",
+    "s-48"
+   ]
+  },
+  {
+   "id": "step-19",
+   "label": "Add the inner lines",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-49",
+    "s-50"
+   ]
+  },
+  {
+   "id": "step-20",
+   "label": "Add the chimney",
+   "tip": "Press lightly and match the angle of the guide.",
+   "tier": "detail",
+   "strokeIds": [
+    "s-51"
+   ]
+  }
+ ],
+ "pipeline": [
+  {
+   "id": "source",
+   "label": "Prompt",
+   "text": "minimalist line icon of a house, full body, bold uniform pure black outline, smooth even symmetrical curves, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white background"
+  },
+  {
+   "id": "candidates",
+   "label": "2 AI drafts",
+   "text": "SDXL-Lightning drew 2 line-art drafts, 8 steps each."
+  },
+  {
+   "id": "chosen",
+   "label": "Chosen drawing",
+   "text": "The cleanest draft, traced into 73 strokes (a lesson keeps 6-60)."
+  },
+  {
+   "id": "skeleton",
+   "label": "Traced lines",
+   "text": "Thinned to 1 px lines, then traced into 73 strokes."
+  },
+  {
+   "id": "parts",
+   "label": "Parts found",
+   "text": "OWLv2 found: roof, wall, door, left window, right window, chimney."
+  },
+  {
+   "id": "order",
+   "label": "Your lesson",
+   "text": "51 strokes in 20 steps: big shapes first, then outlines, inner lines and details."
+  }
+ ]
+}
