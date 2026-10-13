@@ -15,9 +15,14 @@ $env:GHOSTLINES_LIGHTNING_STEPS = "8"   # cleaner, more even lines; about twice 
 $env:GHOSTLINES_PROMPT = "icon_even"    # asks for smooth, symmetrical curves (balls, faces)
 $env:GHOSTLINES_PREFER_SYMMETRY = "1"   # of near-equally clean drafts, keep the most mirror-symmetric one
 # $env:GHOSTLINES_LIVE_CANDIDATES = "3"   # drafts per live lesson (default: 3, or 2 with 8 steps)
-# Draw with OpenAI's image model instead of SDXL (see server/LIVE.md, "Drawing with OpenAI"). Needs OPENAI_API_KEY
-# in .env (never committed). Costs money per picture. Remove the # to turn it on.
-# $env:GHOSTLINES_IMAGE_MODEL = "openai"
+# Who draws typed subjects (see server/LIVE.md, "Image models" and "Drawing with OpenAI"). Remove a # to turn one on.
+# $env:GHOSTLINES_IMAGE_MODEL = "flux"    # FLUX.1-schnell on this GPU: much better at one clean subject (download it
+#                                         # first with server/scripts/download_models.py, same settings)
+# $env:GHOSTLINES_IMAGE_MODEL = "openai"  # OpenAI's image model: needs OPENAI_API_KEY in .env (never committed),
+#                                         # costs money per picture
+# A style LoRA merged into SDXL-Lightning (only with the default "sdxl"):
+# $env:GHOSTLINES_LORA = "artificialguybr/ColoringBookRedmond-V2:ColoringBookRedmond-ColoringBook-ColoringBookAF.safetensors"
+# $env:GHOSTLINES_LORA_WORDS = "ColoringBookAF, Coloring Book"   # that LoRA's trigger words (from its model card)
 
 # If the server stops (it exits by itself when a GPU job hangs, see STUCK_S in api.py), start it again.
 # Close this window, or press Ctrl+C, to stop it for good.

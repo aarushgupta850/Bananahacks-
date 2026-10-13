@@ -14,6 +14,9 @@ Downloaded by `server/scripts/download_models.py`; licenses as listed on each mo
 | MistoLine (TheMistoAI) | SDXL ControlNet that redraws a photo's lines cleanly (photo packs) | CreativeML Open RAIL++-M | https://huggingface.co/TheMistoAI/MistoLine |
 | Annotators: line-art detector (lllyasviel) | Pulling line art out of a photo, via controlnet-aux | Listed as "other" on the model page | https://huggingface.co/lllyasviel/Annotators |
 | OWLv2 base patch16 ensemble (Google) | Finding parts (head, ear, tail...) in a drawing from text labels | Apache-2.0 | https://huggingface.co/google/owlv2-base-patch16-ensemble |
+| FLUX.1-schnell (Black Forest Labs; optional, GHOSTLINES_IMAGE_MODEL=flux) | Text-to-line-art generation with a newer model | Apache-2.0 | https://huggingface.co/black-forest-labs/FLUX.1-schnell |
+| FLUX.1-schnell GGUF quantizations (city96; optional, with FLUX) | The 4-bit FLUX.1-schnell transformer that fits an 8 GB card | Apache-2.0 (as FLUX.1-schnell) | https://huggingface.co/city96/FLUX.1-schnell-gguf |
+| ColoringBookRedmond-V2 (artificialguybr; optional, GHOSTLINES_LORA) | Coloring-book style LoRA for SDXL-Lightning | CreativeML OpenRAIL-M | https://huggingface.co/artificialguybr/ColoringBookRedmond-V2 |
 | OpenAI image API, gpt-image-1 (OpenAI; optional, off by default) | Line-art drafts for live lessons when the server sets GHOSTLINES_IMAGE_MODEL=openai | Proprietary paid API, OpenAI Terms of Use | https://platform.openai.com/docs/guides/image-generation |
 
 ## Fonts
