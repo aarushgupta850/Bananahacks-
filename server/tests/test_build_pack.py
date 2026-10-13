@@ -335,3 +335,22 @@ def test_without_strokes_keeps_a_short_piece_joining_two_kept_lines():
     out = np.asarray(without_strokes(drawing, kept=[[(100, 300), (300, 300)], [(330, 300), (600, 300)]],
                                      dropped=[[(300, 300), (330, 300)]]).convert("L"))
     assert (out[298:303, 300:331] < 128).all()               # no gap in the line
+
+
+def test_the_live_server_prefers_a_whole_subject_over_a_cut_off_one_that_fits():
+    from build_pack import make_pack
+
+    cropped = Image.new("RGB", (768, 768), (220, 220, 220))
+    cropped.paste(cat_drawing().crop((0, 0, 768, 618)), (0, 150))  # the cat moved down: its legs run off the page
+    whole = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(whole)
+    for k in range(90):  # 90 separate short lines, none near the edge: whole, but over the 60-stroke gate
+        x, y = 40 + (k % 10) * 70, 40 + (k // 10) * 75
+        draw.line([(x, y), (x + 30 + k % 7 * 3, y + 20)], fill=INK, width=6)
+    lines = []
+    pack, _ = make_pack(pack_id="live-cat-simple", subject="cat", title="Cat", difficulty="simple",
+                        source_kind="prompt", prompt="cat", subject_words="cat", seed=0,
+                        generate=lambda seed: [cropped, whole], detect=lambda image: [], retries=0, log=lines.append,
+                        always=True, rate=True, limit=25)
+    assert pack["pipeline"][2]["image"].endswith("candidate-1.webp")  # the whole one, simplified to 25 strokes
+    assert any("cut off" in line for line in lines) and any("whole subject" in line for line in lines)

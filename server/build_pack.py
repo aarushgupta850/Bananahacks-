@@ -357,6 +357,13 @@ def make_pack(
         chosen = choose_anyway(candidates, min_strokes) if always else None
         if chosen is not None:
             log(f"  no candidate fit {min_strokes}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
+    if always and chosen is not None and candidates[chosen].cut_off:
+        # The only drafts inside the gate are cut off at the edge (a giraffe's neck, cropped): a whole subject is
+        # better even if it has too many strokes and gets simplified.
+        whole = choose_anyway([c if not c.cut_off else Candidate(c.image, [], c.score) for c in candidates], min_strokes)
+        if whole is not None:
+            chosen = whole
+            log(f"  candidate {chosen} is a whole subject: using it instead of a cut-off one, simplified")
     if chosen is None:
         counts = "; ".join(", ".join(str(len(c.strokes)) for c in t) for t in tries)
         raise NoCleanCandidate(
