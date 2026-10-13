@@ -64,3 +64,24 @@ def line_metrics(image: Image.Image) -> dict[str, float]:
         "color": color,
         "score": score,
     }
+
+
+SYMMETRY_SIZE = 192  # the drawing is compared with its mirror image at this size (fast, and forgiving of a pixel)
+SYMMETRY_SLACK_PX = 3  # at that size, ink within this distance of the mirrored ink counts as matching
+
+
+def symmetry(image: Image.Image) -> float:
+    """How mirror-symmetric the drawing is, left to right, from 0 to 1: the share of its ink that lies on (or within
+    SYMMETRY_SLACK_PX of) the ink of its own mirror image, mirrored about the middle of the drawing (not the page).
+    A clean basketball or a front-on face scores near 1; wobbly, lopsided seams score lower. A side view (a cat
+    walking, a mug with its handle) is rightly asymmetric, so this only breaks ties between near-equal drafts."""
+    gray = np.asarray(image.convert("L").resize((SYMMETRY_SIZE, SYMMETRY_SIZE)), dtype=np.uint8)
+    ink = gray < INK_LEVEL
+    if ink.sum() < 10:
+        return 0.0
+    cols = np.flatnonzero(ink.any(axis=0))
+    left, right = int(cols[0]), int(cols[-1])
+    drawing = ink[:, left:right + 1]
+    mirror = drawing[:, ::-1]
+    near_mirror = ndimage.binary_dilation(mirror, iterations=SYMMETRY_SLACK_PX)
+    return float((drawing & near_mirror).sum() / drawing.sum())

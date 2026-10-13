@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -35,8 +36,8 @@ sys.path.insert(0, str(SERVER_DIR))  # so `pipeline` and `scripts` import when r
 
 from pipeline import schema  # noqa: E402
 from pipeline.order import build_plan  # noqa: E402
-from pipeline.prompts import line_art_prompt  # noqa: E402
-from pipeline.quality import line_metrics  # noqa: E402
+from pipeline.prompts import active_variant, line_art_prompt  # noqa: E402
+from pipeline.quality import line_metrics, symmetry  # noqa: E402
 from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
 from pipeline.strays import has_ring, is_cut_off, remove_strays  # noqa: E402
 from pipeline.trace import ink_mask, points_along, skeleton_of, trace  # noqa: E402
@@ -64,6 +65,22 @@ class Candidate:
     score: float
     cut_off: bool = False  # the subject runs off the edge of the image (strays.is_cut_off)
     ringed: bool = False   # a background ring is still joined to the subject (strays.has_ring)
+    symmetry: float = 0.0  # quality.symmetry, 0-1 (only measured when prefer_symmetry() is on)
+
+
+# With GHOSTLINES_PREFER_SYMMETRY=1, a draft's cost drops by up to this much for being mirror-symmetric
+# (quality.symmetry), so of two near-equally clean drafts the even, balanced one wins: a basketball with matching
+# seams over a lopsided one. Clean scores of usable drafts are about 10 to 60, so this decides close calls only.
+SYMMETRY_BONUS = 15.0
+
+
+def prefer_symmetry() -> bool:
+    return os.environ.get("GHOSTLINES_PREFER_SYMMETRY") == "1"
+
+
+def symmetry_bonus(c: Candidate) -> float:
+    """How much a draft's mirror symmetry takes off its cost: nothing unless prefer_symmetry() is on."""
+    return SYMMETRY_BONUS * c.symmetry if prefer_symmetry() else 0.0
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -118,7 +135,8 @@ def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: i
     ]
     if not usable:
         return None
-    return min(usable, key=lambda i: (candidates[i].cut_off, cost(candidates[i], limit), len(candidates[i].strokes)))
+    return min(usable, key=lambda i: (candidates[i].cut_off, cost(candidates[i], limit) - symmetry_bonus(candidates[i]),
+                                      len(candidates[i].strokes)))
 
 
 def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
@@ -528,7 +546,7 @@ def make_pack(
     `source_note` says how a photo became the subject, in the "How this lesson was made" panel.
 
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
-    prompt_text = line_art_prompt(subject_words, difficulty=difficulty)
+    prompt_text = line_art_prompt(subject_words, variant=active_variant(), difficulty=difficulty)
     tries = []
     for attempt in range(retries + 1):
         first_seed = seed + attempt * RETRY_SEED_OFFSET
@@ -538,7 +556,9 @@ def make_pack(
             cut_off = is_cut_off(image)  # before fitting, which puts space around everything
             image = fit_to_page(image)
             strokes = trace(image)
-            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, has_ring(strokes)))
+            sym = symmetry(image) if prefer_symmetry() else 0.0
+            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, has_ring(strokes),
+                                        symmetry=sym))
             log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}"
                 + (", cut off at the edge" if candidates[-1].cut_off else "")
                 + (", ring around the subject" if candidates[-1].ringed else ""))

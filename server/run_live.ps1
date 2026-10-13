@@ -9,6 +9,12 @@ Set-Location (Split-Path -Parent $server) # the repo root, so .env (HF_HOME) is 
 $env:GHOSTLINES_WARMUP = "1"
 # Also log every request, with the time, to server\out\live.log (the window only keeps its last few screens).
 $env:GHOSTLINES_LOG = "1"
+# Better drawings (see server/LIVE.md, "Better drawings"). Each one is off until you remove its # and restart:
+# $env:GHOSTLINES_LIGHTNING_STEPS = "8"   # cleaner, more even lines; about twice as long per draft (download it first)
+# $env:GHOSTLINES_PROMPT = "icon_even"    # asks for smooth, symmetrical curves (balls, faces)
+# $env:GHOSTLINES_PREFER_SYMMETRY = "1"   # of near-equally clean drafts, keep the most mirror-symmetric one
+# $env:GHOSTLINES_LIVE_CANDIDATES = "3"   # drafts per live lesson (default: 3, or 2 with 8 steps)
+
 # If the server stops (it exits by itself when a GPU job hangs, see STUCK_S in api.py), start it again.
 # Close this window, or press Ctrl+C, to stop it for good.
 while ($true) {

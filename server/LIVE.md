@@ -61,3 +61,17 @@ apps that use the GPU.
   and never stores them. The photo and the chosen drawing are checked for nudity and weapons with
   OWLv2, and refused with a friendly message if found (see server/pipeline/safety.py).
 - Only the live site and the local dev server may call it (CORS).
+
+## Better drawings (optional switches)
+
+The 4-step model draws round and mirror-image subjects (a basketball's seams, a monkey's face) wobbly. Three
+switches can improve that. Each is **off by default**: set it in `run_live.ps1` (remove the `#`) and restart.
+
+| Switch | What it does | Cost |
+|---|---|---|
+| `GHOSTLINES_LIGHTNING_STEPS = "8"` | Uses the 8-step SDXL-Lightning UNet: cleaner, more even lines | About twice as long per draft, so live lessons make 2 drafts instead of 3. Download it first: set the same value in `.env` (or the shell) and run `python server/scripts/download_models.py` (about 5 GB) |
+| `GHOSTLINES_PROMPT = "icon_even"` | Asks for smooth, symmetrical curves | None |
+| `GHOSTLINES_PREFER_SYMMETRY = "1"` | Of two near-equally clean drafts, keeps the more mirror-symmetric one | None (side views like a walking cat stay allowed: it only breaks close calls) |
+| `GHOSTLINES_LIVE_CANDIDATES = "3"` | Drafts per live lesson | Each draft adds about 5 s (4-step) or 9 s (8-step); the app waits 38 s |
+
+Try them on "a monkey" and "a basketball" (and a cat, to check nothing got worse), and keep a lesson under about 30 s.

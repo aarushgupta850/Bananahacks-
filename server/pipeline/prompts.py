@@ -7,6 +7,8 @@ lines are, and the cleanest one becomes CHOSEN.
 Keep each prompt short: SDXL's text encoders read at most 77 tokens and silently drop the rest.
 """
 
+import os
+
 VARIANTS = {
     # The first prompt we tried. It gave detailed, hatched portraits with decorative frames.
     "baseline": (
@@ -77,6 +79,15 @@ VARIANTS = {
         "bold uniform outline, single clean continuous lines, very few lines, no gray, no shading, "
         "no text, isolated on plain white background"
     ),
+    # "icon_plain" asking for smooth, even, symmetrical curves: the 4-step model draws round and mirror-image things
+    # (a basketball's seams, a monkey's face) wobbly and lopsided. Said only with what we want, like "icon_plain"
+    # ("no X" often reads as "X"), and no longer than it. Not yet compared on the GPU: switch it on with
+    # GHOSTLINES_PROMPT=icon_even and judge the drawings before making it CHOSEN.
+    "icon_even": (
+        "minimalist line icon of {subject}, full body, bold uniform pure black outline, smooth even symmetrical "
+        "curves, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white "
+        "background"
+    ),
     # "icon_clean" plus "black and white, no frame". Tried in the third speed test and rejected: it removed
     # color but made drawings more detailed, and frames stayed. Kept here so the comparison can be rerun.
     "icon_mono": (
@@ -95,6 +106,15 @@ DIFFICULTY_HINTS = {
     "medium": "",
     "detailed": "more detail, a few interior lines",
 }
+
+
+def active_variant() -> str:
+    """The variant to generate with: GHOSTLINES_PROMPT when it's set (to try another variant on the live server
+    without editing code), else CHOSEN."""
+    variant = os.environ.get("GHOSTLINES_PROMPT", "").strip() or CHOSEN
+    if variant not in VARIANTS:
+        raise ValueError(f"GHOSTLINES_PROMPT={variant!r} is not a prompt variant; expected one of {sorted(VARIANTS)}")
+    return variant
 
 
 def line_art_prompt(subject: str, variant: str = CHOSEN, difficulty: str = "medium") -> str:

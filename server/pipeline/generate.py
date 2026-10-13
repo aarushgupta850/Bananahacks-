@@ -14,7 +14,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from pipeline import models
-from pipeline.prompts import line_art_prompt
+from pipeline.prompts import active_variant, line_art_prompt
 
 GEN_SIZE = 1024  # SDXL's native size
 TARGET_SIZE = 768  # all app coordinates are in 768 x 768 space
@@ -96,7 +96,7 @@ def _generate(pipe, prompt: str, seed: int, **extra) -> Image.Image:
 
     image = pipe(
         prompt,
-        num_inference_steps=4,  # SDXL-Lightning's 4-step UNet
+        num_inference_steps=models.lightning_steps(),  # the steps the loaded Lightning UNet was distilled for
         guidance_scale=0.0,  # Lightning is trained without classifier-free guidance
         height=GEN_SIZE,
         width=GEN_SIZE,
@@ -115,7 +115,7 @@ def _generate_batch(pipe, prompt: str, seeds: list[int]) -> list[Image.Image]:
     images = pipe(
         prompt,
         num_images_per_prompt=len(seeds),
-        num_inference_steps=4,
+        num_inference_steps=models.lightning_steps(),
         guidance_scale=0.0,
         height=GEN_SIZE,
         width=GEN_SIZE,
@@ -129,7 +129,7 @@ def from_prompt(subject: str, difficulty: str = "medium", n: int = 4, seed: int 
     They are drawn one by one. (In one batch, 3 drafts took 9-11 s instead of 16-17 s in a test script, but in the
     live server, with OWLv2 also on the 8 GB card, a batch of 4 overflowed into shared memory and took 30 s.)"""
     pipe = _pipeline("text")
-    prompt = line_art_prompt(subject, difficulty=difficulty)
+    prompt = line_art_prompt(subject, variant=active_variant(), difficulty=difficulty)
     return [_generate(pipe, prompt, seed + i) for i in range(n)]
 
 
@@ -195,7 +195,7 @@ def from_photo(
     `photo` is a file path or an already-opened image (the live server gets photos as bytes)."""
     control = photo_lines(photo)
     pipe = _pipeline("photo")
-    prompt = line_art_prompt(subject, difficulty=difficulty)
+    prompt = line_art_prompt(subject, variant=active_variant(), difficulty=difficulty)
     return [
         _generate(pipe, prompt, seed + i, image=control, controlnet_conditioning_scale=CONTROLNET_SCALE)
         for i in range(n)
@@ -218,8 +218,8 @@ def _img2img(pipe, prompt: str, seed: int, start: Image.Image, strength: float =
     image = pipe(
         prompt,
         image=start.convert("RGB").resize((GEN_SIZE, GEN_SIZE)),
-        strength=strength,  # with 4 Lightning steps, 0.75 runs the last 3
-        num_inference_steps=4,
+        strength=strength,  # with 4 Lightning steps, 0.75 runs the last 3 (with 8, the last 6)
+        num_inference_steps=models.lightning_steps(),
         guidance_scale=0.0,
         generator=torch.Generator("cpu").manual_seed(seed),
     ).images[0]
@@ -231,5 +231,5 @@ def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium",
     becomes part of the new target). img2img from the user's canvas, flattened onto white."""
     start = ImageOps.invert(drawing_lines(drawing).convert("L"))  # back to black lines on white
     pipe = _pipeline("img2img")
-    prompt = line_art_prompt(subject, difficulty=difficulty)
+    prompt = line_art_prompt(subject, variant=active_variant(), difficulty=difficulty)
     return [_img2img(pipe, prompt, seed + i, start) for i in range(n)]
