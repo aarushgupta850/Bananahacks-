@@ -7,11 +7,12 @@ import type { Ghost, Pack, Teacher, UserStroke } from '../engine/types'
 import { loadPack } from '../lib/packs'
 import type { TeachRecording } from '../session'
 import CanvasToolbar from './CanvasToolbar'
-import DrawingCanvas from './DrawingCanvas'
+import DrawingCanvas, { type Tool } from './DrawingCanvas'
 import ExportStrokesButton from './ExportStrokesButton'
 import GhostLayer from './GhostLayer'
 import ReplayPlayer from './ReplayPlayer'
 import type { PenSize } from './geometry'
+import { useStrokeHistory } from './useStrokeHistory'
 
 const DEMO_PACK = 'demo-fox-medium'
 
@@ -38,6 +39,8 @@ function Demo({ pack }: { pack: Pack }) {
   const [ghosts, setGhosts] = useState<Ghost[]>(startGhosts)
   const [strokes, setStrokes] = useState<UserStroke[]>([])
   const [penSize, setPenSize] = useState<PenSize>('medium')
+  const [tool, setTool] = useState<Tool>('pen')
+  const history = useStrokeHistory(strokes, setStrokes)
   const [recording, setRecording] = useState<TeachRecording>({ events: [] })
   const startedAt = useRef(0) // performance.now() when the page opened (set in the effect below)
 
@@ -49,7 +52,7 @@ function Demo({ pack }: { pack: Pack }) {
   function handleStroke(stroke: UserStroke) {
     const result = teacher.current.addStroke(stroke)
     const t = Math.round(performance.now() - startedAt.current)
-    setStrokes((s) => [...s, stroke])
+    history.push(stroke)
     setGhosts(result.ghosts)
     setRecording((r) => ({ events: [...r.events, { t, type: 'stroke', stroke }, { t, type: 'ghosts', ghosts: result.ghosts }] }))
   }
@@ -58,7 +61,7 @@ function Demo({ pack }: { pack: Pack }) {
   function clear() {
     teacher.current = engine.createTeacher(pack, pack.steps, 'guided')
     startedAt.current = performance.now()
-    setStrokes([])
+    history.clear()
     setGhosts(teacher.current.state().ghosts)
     setRecording({ events: [] })
   }
@@ -72,15 +75,18 @@ function Demo({ pack }: { pack: Pack }) {
       <div className="demo-layout">
         <div className="canvas-column">
           <div className="canvas-stack">
-            <DrawingCanvas strokes={strokes} onStroke={handleStroke} penSize={penSize} />
+            <DrawingCanvas strokes={strokes} onStroke={handleStroke} onErase={history.replace} penSize={penSize} tool={tool} />
             <GhostLayer ghosts={ghosts} />
           </div>
           <CanvasToolbar
             penSize={penSize}
             onPenSize={setPenSize}
-            onUndo={() => setStrokes((s) => s.slice(0, -1))}
+            tool={tool}
+            onTool={setTool}
+            onUndo={history.undo}
             onClear={clear}
-            canUndo={strokes.length > 0}
+            canUndo={history.canUndo}
+            canClear={strokes.length > 0}
           />
           <ExportStrokesButton strokes={strokes} fileName={`${pack.subject}-canvas-demo`} />
         </div>

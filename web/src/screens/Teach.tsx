@@ -5,9 +5,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CanvasToolbar from '../canvas/CanvasToolbar'
 import { strokesToPngBase64 } from '../canvas/canvasPng'
-import DrawingCanvas from '../canvas/DrawingCanvas'
+import DrawingCanvas, { type Tool } from '../canvas/DrawingCanvas'
 import GhostLayer from '../canvas/GhostLayer'
 import { strokeToPath, PEN_SIZES, TARGET_SIZE, toSvgPoints, type PenSize } from '../canvas/geometry'
+import { useStrokeHistory } from '../canvas/useStrokeHistory'
 import { engine } from '../engine'
 import type { Ghost, HelpLevel, ModeChange, Mode, Pack, StrokeResult, UserStroke } from '../engine/types'
 import { checkLive, regenerate } from '../lib/live'
@@ -73,6 +74,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const [mode, setModeState] = useState<Mode>('auto')
   const [strokes, setStrokes] = useState<UserStroke[]>([])
   const [penSize, setPenSize] = useState<PenSize>('medium')
+  const [tool, setTool] = useState<Tool>('pen')
+  // Undo steps back through strokes, eraser drags and Clear (see useStrokeHistory).
+  const inkHistory = useStrokeHistory(strokes, setStrokes)
   const [meter, setMeter] = useState<number | null>(null) // eased accuracy, 0-1; null before the first match
   const [showMe, setShowMe] = useState<Ghost[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -124,7 +128,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
     const next = lesson.teacher.addStroke(stroke)
     const t = sinceStart(startedAt.current)
     recording.current.events.push({ t, type: 'stroke', stroke }, { t, type: 'ghosts', ghosts: next.ghosts })
-    setStrokes((previous) => [...previous, stroke])
+    inkHistory.push(stroke)
     reveal([stroke])
     // A quick "Step done" when this stroke finished a step (not on the last one: the panel above says so).
     if (!next.done && next.completedStepIds.length > result.completedStepIds.length) flash('Step done')
@@ -311,7 +315,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
             <svg className="assist-layer" viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`} aria-hidden="true">
               {assisted.map((stroke, i) => <path key={i} d={strokeToPath(stroke.points, true, PEN_SIZES.medium)} />)}
             </svg>
-            <DrawingCanvas strokes={strokes} onStroke={handleStroke} penSize={penSize} label="Lesson canvas. Draw over the ghost lines." />
+            {/* The eraser only touches the user's own ink, never the gray lines "Skip step" drew (those are a separate layer). */}
+            <DrawingCanvas strokes={strokes} onStroke={handleStroke} onErase={inkHistory.replace} penSize={penSize} tool={tool}
+              label="Lesson canvas. Draw over the ghost lines." />
             {fadingGhosts && <div className="ghost-swap is-out"><GhostLayer ghosts={fadingGhosts} /></div>}
             <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} /></div>
             {redrawing && <p className="teach-redrawing" role="status">Working your line into the drawing…</p>}
@@ -322,13 +328,17 @@ export default function Teach({ onBack, onNext }: NavProps) {
               </p>
             )}
           </div>
-          {/* Undo and clear only tidy the ink here: the teacher has already checked those strokes. */}
+          {/* Undo, the eraser and Clear only tidy the ink here: the teacher has already checked those strokes,
+              so none of them is sent to the teacher or recorded for the replay. */}
           <CanvasToolbar
             penSize={penSize}
             onPenSize={setPenSize}
-            onUndo={() => setStrokes((s) => s.slice(0, -1))}
-            onClear={() => { setStrokes([]); setAssisted([]) }}
-            canUndo={strokes.length > 0}
+            tool={tool}
+            onTool={setTool}
+            onUndo={inkHistory.undo}
+            onClear={() => { inkHistory.clear(); setAssisted([]) }}
+            canUndo={inkHistory.canUndo}
+            canClear={strokes.length > 0 || assisted.length > 0}
           />
         </div>
 
