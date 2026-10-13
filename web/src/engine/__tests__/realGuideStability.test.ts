@@ -86,6 +86,7 @@ export interface Run {
   moves: { stroke: number; px: number; scale: number; turn: number; event: string }[] // every frame change
   ghostJumps: { stroke: number; px: number }[] // the largest move of a ghost that stayed on screen, per event
   traceAtEnd: number         // px between the trace frame just before the end and once the lesson is done
+  scale: number              // the size the guides settled on (1 = the reference's size)
 }
 
 // Draws a whole lesson. The user draws in their own frame (scale + shift), aiming at the guides the teacher
@@ -113,7 +114,7 @@ export function simulate(pack: Pack, s: Scenario, seed: number, mode: Mode = 'au
   let state = teacher.state()
   let trace = traceMovement(teacher.showMe(), plan, NO_MOVE, state.done)
   let ghosts = state.ghosts
-  const run: Run = { strokes: 0, done: false, moves: [], ghostJumps: [], traceAtEnd: 0 }
+  const run: Run = { strokes: 0, done: false, moves: [], ghostJumps: [], traceAtEnd: 0, scale: 1 }
   const note = (event: string) => {
     const next = traceMovement(teacher.showMe(), plan, trace, state.done)
     const m = moveBetween(trace, next, box)
@@ -155,6 +156,7 @@ export function simulate(pack: Pack, s: Scenario, seed: number, mode: Mode = 'au
     note('stroke')
   }
   run.done = state.done
+  run.scale = Math.hypot(trace.a, trace.b)
   return run
 }
 
@@ -187,5 +189,9 @@ describe('guides stay put once calibrated', () => {
     expect(worstGhost).toBeLessThanOrEqual(2)
     // The trace stays where the guides were when the lesson ends (it used to snap back to the reference).
     expect(run.traceAtEnd).toBeLessThanOrEqual(2)
+    // The guides settle on the user's size: a drawing made bigger or smaller gets guides that size (within
+    // 5%), and a drawing at the reference's size is never resized by wobble.
+    if (s.scale === 1) expect(run.scale).toBeCloseTo(1, 6)
+    else expect(Math.abs(run.scale - s.scale)).toBeLessThan(0.05)
   })
 })
