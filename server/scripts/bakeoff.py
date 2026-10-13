@@ -3,8 +3,8 @@
 Set the model with the same environment variables the live server reads, then run one configuration at a time
 (each run loads its own models, so stop the live server first: an 8 GB card can't hold two copies):
 
-    $env:GHOSTLINES_MODEL = "flux"; python server/scripts/bakeoff.py --out server/out/bake/flux-1 --drafts 1
-    $env:GHOSTLINES_MODEL = "sdxl"; python server/scripts/bakeoff.py --out server/out/bake/sdxl-2 --drafts 2
+    $env:GHOSTLINES_IMAGE_MODEL = "flux"; python server/scripts/bakeoff.py --out server/out/bake/flux-1 --drafts 1
+    $env:GHOSTLINES_IMAGE_MODEL = "sdxl"; python server/scripts/bakeoff.py --out server/out/bake/sdxl-2 --drafts 2
 
 For each subject it saves the lesson's reference (target.png), the AI drafts it was chosen from and the pack's
 text into <out>/<subject>/, and the seconds each lesson took into <out>/results.json. The first subject is drawn

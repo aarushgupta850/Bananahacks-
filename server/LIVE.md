@@ -84,7 +84,7 @@ Typed subjects (and photos, which are named and then drawn from text) are drawn 
 Two switches try something else. Set them in `run_live.ps1` (or the shell), download with
 `python server/scripts/download_models.py` under the same settings, then restart the server.
 
-- `GHOSTLINES_MODEL=flux`: FLUX.1-schnell, a newer and much bigger model that follows the prompt far better (one
+- `GHOSTLINES_IMAGE_MODEL=flux`: FLUX.1-schnell, a newer and much bigger model that follows the prompt far better (one
   whole subject, clean flat outlines). On the 8 GB card its transformer is a 4-bit GGUF file and its T5 text encoder
   is loaded in 4 bits, so it needs `pip install gguf bitsandbytes` (in requirements.txt) and about 17 GB of downloads.
   It draws straight at 768 px in 4 steps. Its own prompt is `flux_line` in `pipeline/prompts.py`.
@@ -93,5 +93,38 @@ Two switches try something else. Set them in `run_live.ps1` (or the shell), down
 
 To compare them on the same 20 subjects, through exactly the live pipeline (stop the live server first):
 
-    $env:GHOSTLINES_MODEL = "flux"; python server/scripts/bakeoff.py --out server/out/bake/flux-1 --drafts 1
+    $env:GHOSTLINES_IMAGE_MODEL = "flux"; python server/scripts/bakeoff.py --out server/out/bake/flux-1 --drafts 1
+
+## Drawing with OpenAI (optional switch)
+
+SDXL-Lightning has to draw in 4 or 8 steps to fit the live time limit on an 8 GB card, and it still draws some
+subjects badly (lopsided monkeys, stray furniture and lines around the subject). The server can instead ask
+OpenAI's image model for the drafts. Everything after the drafts stays the same: choosing the cleanest, tracing,
+OWLv2 parts, the picture safety check and the lesson order. Code: `server/pipeline/openai_images.py`, prompt:
+`openai_prompt` in `server/pipeline/prompts.py`.
+
+1. Make an API key at https://platform.openai.com/api-keys (the account needs billing set up; image models may
+   also need the organization to be verified).
+2. Add these lines to `.env` in the repo root (never commit it):
+   ```
+   OPENAI_API_KEY=sk-...
+   GHOSTLINES_IMAGE_MODEL=openai
+   ```
+   (or remove the `#` in front of `GHOSTLINES_IMAGE_MODEL` in `run_live.ps1`).
+3. Restart `run_live.ps1`. The warm-up now also asks OpenAI for 2 pictures.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `GHOSTLINES_IMAGE_MODEL` | `sdxl` | `openai` draws the drafts with OpenAI |
+| `GHOSTLINES_OPENAI_MODEL` | `gpt-image-1` | Any OpenAI image model, e.g. `dall-e-3` |
+| `GHOSTLINES_OPENAI_QUALITY` | `medium` | `low` is faster and cheaper, `high` slower and dearer (gpt-image models only) |
+| `GHOSTLINES_LIVE_CANDIDATES` | 2 with OpenAI | Drafts per lesson. They are requested at the same time, so more aren't slower, but each one is paid for |
+
+Notes:
+- Each lesson costs a few cents (2 pictures). See OpenAI's pricing page for the current price per picture.
+- A picture takes about 20-40 s, so with OpenAI the server waits up to 75 s and the app up to 80 s.
+- If OpenAI's own safety system refuses a prompt, the user sees the same "Let's draw something else." message.
+- Typed subjects and photos (OWLv2 names the photo, then the name is drawn) use OpenAI. Happy accidents
+  (`?happy=1`) still uses SDXL img2img, so SDXL loads only if someone uses it.
+- The GPU is still needed for OWLv2 (parts, naming photos, the safety check).
 

@@ -68,7 +68,7 @@ def _pipeline(kind: str):
     "img2img" is built on the text pipeline's weights (nothing new to load), and so is "photo" when both are
     kept (keep_both_pipelines). Pipelines that share weights share CPU-offload hooks, so the hooks are
     re-attached whenever a different pipeline runs next."""
-    if kind == "flux":  # FLUX.1-schnell (GHOSTLINES_MODEL=flux): its own pipeline, for typed subjects only
+    if kind == "flux":  # FLUX.1-schnell (GHOSTLINES_IMAGE_MODEL=flux): its own pipeline, for typed subjects only
         if "flux" not in _cache:
             _cache["flux"] = models.load_flux()  # comes ready to run, with its own CPU-offload hooks
         return _cache["flux"]
@@ -137,7 +137,13 @@ def _generate_batch(pipe, prompt: str, seeds: list[int]) -> list[Image.Image]:
 def from_prompt(subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0) -> list[Image.Image]:
     """n candidate drawings of `subject`, 768 x 768, using seeds seed, seed+1, ... so a build can be repeated.
     They are drawn one by one. (In one batch, 3 drafts took 9-11 s instead of 16-17 s in a test script, but in the
-    live server, with OWLv2 also on the 8 GB card, a batch of 4 overflowed into shared memory and took 30 s.)"""
+    live server, with OWLv2 also on the 8 GB card, a batch of 4 overflowed into shared memory and took 30 s.)
+    GHOSTLINES_IMAGE_MODEL picks who draws them: "sdxl" (SDXL-Lightning, the default), "flux" (FLUX.1-schnell, on the
+    same GPU) or "openai" (OpenAI's image API, pipeline/openai_images.py, and no local model is loaded)."""
+    from pipeline import openai_images
+
+    if openai_images.enabled():
+        return openai_images.from_prompt(subject, difficulty, n=n)
     pipe = _pipeline("flux" if models.image_model() == "flux" else "text")
     prompt = line_art_prompt(subject, variant=active_variant(), difficulty=difficulty)
     words = os.environ.get("GHOSTLINES_LORA_WORDS", "").strip()  # a style LoRA's trigger words, e.g. "Coloring Book"

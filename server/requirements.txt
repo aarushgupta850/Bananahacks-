@@ -26,7 +26,7 @@ diffusers
 accelerate
 safetensors
 controlnet-aux
-# Only for GHOSTLINES_MODEL=flux (FLUX.1-schnell on an 8 GB card): gguf reads the 4-bit transformer file, and
+# Only for GHOSTLINES_IMAGE_MODEL=flux (FLUX.1-schnell on an 8 GB card): gguf reads the 4-bit transformer file, and
 # bitsandbytes loads the T5 text encoder in 4 bits. SDXL-Lightning needs neither.
 gguf
 bitsandbytes

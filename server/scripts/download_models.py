@@ -159,11 +159,12 @@ LIGHTNING_8STEP = Model(
 )
 
 
-# The model that draws typed subjects. "sdxl" (the default) is SDXL-Lightning; "flux" is FLUX.1-schnell, a newer,
+# The model that draws typed subjects. "sdxl" (the default) is SDXL-Lightning; "openai" is OpenAI's image API
+# (pipeline/openai_images.py: nothing to download); "flux" is FLUX.1-schnell, a newer,
 # much bigger model that follows prompts far better (one subject, clean flat line art). To fit an 8 GB card its
 # transformer is a 4-bit GGUF file and its T5 text encoder is loaded in 4 bits (bitsandbytes). Switch it on with
-# GHOSTLINES_MODEL=flux (in the shell, run_live.ps1 or .env); only the model in use is downloaded.
-IMAGE_MODELS = ("sdxl", "flux")
+# GHOSTLINES_IMAGE_MODEL=flux (in the shell, run_live.ps1 or .env); only the model in use is downloaded.
+IMAGE_MODELS = ("sdxl", "flux", "openai")
 FLUX_REPO = "black-forest-labs/FLUX.1-schnell"
 FLUX_GGUF_REPO = "city96/FLUX.1-schnell-gguf"
 # The 4-bit transformer: the first of these that the GGUF repo has (Q4_K_S is a little sharper than Q4_0, same size).
@@ -176,10 +177,10 @@ def _setting(name: str, env: dict[str, str] | None) -> str:
 
 
 def image_model(env: dict[str, str] | None = None) -> str:
-    """"sdxl" or "flux", from GHOSTLINES_MODEL. "sdxl" when it isn't set."""
-    value = _setting("GHOSTLINES_MODEL", env) or "sdxl"
+    """"sdxl", "flux" or "openai", from GHOSTLINES_IMAGE_MODEL. "sdxl" when it isn't set."""
+    value = (_setting("GHOSTLINES_IMAGE_MODEL", env) or "sdxl").lower()
     if value not in IMAGE_MODELS:
-        raise ValueError(f"GHOSTLINES_MODEL must be one of {IMAGE_MODELS}, not {value!r}")
+        raise ValueError(f"GHOSTLINES_IMAGE_MODEL must be one of {IMAGE_MODELS}, not {value!r}")
     return value
 
 

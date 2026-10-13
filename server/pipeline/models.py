@@ -121,7 +121,7 @@ def flux_gguf_path() -> str:
 def load_flux():
     """FLUX.1-schnell, made to fit an 8 GB card: the 12-billion-parameter transformer is a 4-bit GGUF file (about
     7 GB), the T5 text encoder is loaded in 4 bits (bitsandbytes), and every part waits on the CPU until it's needed.
-    Generate with FLUX_STEPS steps and guidance 0. Used for typed subjects when GHOSTLINES_MODEL=flux."""
+    Generate with FLUX_STEPS steps and guidance 0. Used for typed subjects when GHOSTLINES_IMAGE_MODEL=flux."""
     import torch
     from diffusers import FluxPipeline, FluxTransformer2DModel, GGUFQuantizationConfig
     from transformers import BitsAndBytesConfig, T5EncoderModel

@@ -15,9 +15,12 @@ $env:GHOSTLINES_LIGHTNING_STEPS = "8"   # cleaner, more even lines; about twice 
 $env:GHOSTLINES_PROMPT = "icon_even"    # asks for smooth, symmetrical curves (balls, faces)
 $env:GHOSTLINES_PREFER_SYMMETRY = "1"   # of near-equally clean drafts, keep the most mirror-symmetric one
 # $env:GHOSTLINES_LIVE_CANDIDATES = "3"   # drafts per live lesson (default: 3, or 2 with 8 steps)
-# A different model for typed subjects (see server/LIVE.md, "Image models"). Download it first with
-# server/scripts/download_models.py, with the same settings.
-# $env:GHOSTLINES_MODEL = "flux"          # FLUX.1-schnell: much better at one clean subject; 4-bit to fit 8 GB
+# Who draws typed subjects (see server/LIVE.md, "Image models" and "Drawing with OpenAI"). Remove a # to turn one on.
+# $env:GHOSTLINES_IMAGE_MODEL = "flux"    # FLUX.1-schnell on this GPU: much better at one clean subject (download it
+#                                         # first with server/scripts/download_models.py, same settings)
+# $env:GHOSTLINES_IMAGE_MODEL = "openai"  # OpenAI's image model: needs OPENAI_API_KEY in .env (never committed),
+#                                         # costs money per picture
+# A style LoRA merged into SDXL-Lightning (only with the default "sdxl"):
 # $env:GHOSTLINES_LORA = "artificialguybr/ColoringBookRedmond-V2:ColoringBookRedmond-ColoringBook-ColoringBookAF.safetensors"
 # $env:GHOSTLINES_LORA_WORDS = "ColoringBookAF, Coloring Book"   # that LoRA's trigger words (from its model card)
 

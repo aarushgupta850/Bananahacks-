@@ -58,10 +58,10 @@ def test_flux_gets_its_own_prompt_unless_one_is_chosen(monkeypatch):
     from pipeline.prompts import FLUX_CHOSEN, active_variant
 
     monkeypatch.delenv("GHOSTLINES_PROMPT", raising=False)
-    monkeypatch.setenv("GHOSTLINES_MODEL", "flux")
+    monkeypatch.setenv("GHOSTLINES_IMAGE_MODEL", "flux")
     assert active_variant() == FLUX_CHOSEN
     monkeypatch.setenv("GHOSTLINES_PROMPT", "icon_plain")
     assert active_variant() == "icon_plain"
-    monkeypatch.setenv("GHOSTLINES_MODEL", "sdxl")
+    monkeypatch.setenv("GHOSTLINES_IMAGE_MODEL", "sdxl")
     monkeypatch.delenv("GHOSTLINES_PROMPT")
     assert active_variant() == CHOSEN

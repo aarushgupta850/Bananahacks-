@@ -114,7 +114,7 @@ def test_flux_draws_typed_subjects_at_768_in_4_steps_with_its_own_prompt(monkeyp
     fake_torch(monkeypatch)
     flux = FakeFlux()
     monkeypatch.setattr(models, "load_flux", lambda: flux)
-    monkeypatch.setenv("GHOSTLINES_MODEL", "flux")
+    monkeypatch.setenv("GHOSTLINES_IMAGE_MODEL", "flux")
     monkeypatch.delenv("GHOSTLINES_PROMPT", raising=False)
     monkeypatch.setenv("GHOSTLINES_LORA_WORDS", "Coloring Book")  # SDXL-only: never added to FLUX's prompt
     images = generate.from_prompt("a cat", "medium", n=2, seed=5)
@@ -142,7 +142,7 @@ def test_sdxl_stays_the_default_and_gets_the_lora_trigger_words(monkeypatch):
     monkeypatch.setattr(models, "load_lightning", lambda with_controlnet=False: FakeSdxl())
     monkeypatch.setattr(models, "free_gpu", lambda: None)
     monkeypatch.setattr(generate, "_cache", {})
-    monkeypatch.delenv("GHOSTLINES_MODEL", raising=False)
+    monkeypatch.delenv("GHOSTLINES_IMAGE_MODEL", raising=False)
     monkeypatch.setenv("GHOSTLINES_LORA_WORDS", "Coloring Book")
     [image] = generate.from_prompt("a cat", n=1)
     prompt, kwargs = calls[0]
