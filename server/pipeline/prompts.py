@@ -53,20 +53,25 @@ VARIANTS = {
         "no text, no logo, isolated on plain white background"
     ),
     # "icon_whole" said only with what we want: CLIP, SDXL's text encoder, often reads "no X" as "X", so the long
-    # list of "no ..." may itself bring shading and sketch lines. Tried on Oct 13.
+    # list of "no ..." may itself bring shading and sketch lines. Chosen on Oct 13, after two rounds on the live PC
+    # (41 subjects, same seeds, judged by eye after the full pipeline): 26 of 33 medium lessons good and 1 bad,
+    # against 17 good and 7 bad with "icon_whole". Its drafts traced into fewer strokes (median 53 vs 65 at medium,
+    # 40 vs 55 at simple), so less was trimmed away, and fewer had a ring drawn around the subject (9 vs 18 of 141).
     "icon_plain": (
         "minimalist line icon of {subject}, full body, bold uniform pure black outline, single clean continuous "
         "lines, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white "
         "background"
     ),
-    # "icon_plain" pushed further toward few, big shapes: on Oct 13 even "simple" drafts traced into about 72 strokes,
+    # "icon_plain" pushed further toward few, big shapes. Rejected on Oct 13: more strokes and more rings than "icon_plain".
+    # Why it was tried: on Oct 13 even "simple" drafts traced into about 72 strokes,
     # far over a simple lesson's 25, so trimming them left broken, unfinished-looking drawings. Very thick lines leave
     # no room for fine texture.
     "icon_bold": (
         "simple bold cartoon line icon of {subject}, full body, very thick uniform black outline, a few large "
         "closed shapes, white inside, minimal details, flat vector style, isolated on plain white background"
     ),
-    # "icon_whole" asking for pure black on pure white, against faint gray lines and gray fills. Tried on Oct 13.
+    # "icon_whole" asking for pure black on pure white, against faint gray lines and gray fills. Rejected on Oct 13:
+    # busier drawings (median 106 strokes) with more texture.
     "icon_contrast": (
         "minimalist line icon of {subject}, full body, pure black lines on pure white, high contrast, "
         "bold uniform outline, single clean continuous lines, very few lines, no gray, no shading, "
@@ -82,7 +87,7 @@ VARIANTS = {
 }
 
 # The variant the pipeline uses. Set from the speed test results (see server/SPEEDTEST.md).
-CHOSEN = "icon_whole"  # the shipped packs were built with "icon_clean"
+CHOSEN = "icon_plain"  # the shipped packs were built with "icon_clean"
 
 # Extra words per difficulty, placed right after the subject. Must match Difficulty in types.ts.
 DIFFICULTY_HINTS = {

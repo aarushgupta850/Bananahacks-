@@ -439,3 +439,18 @@ def test_choose_prefers_a_draft_without_a_ring_around_the_subject():
     inside_gate = Candidate(None, [[(0, 0), (1, 1)]] * 58, 36.0, ringed=True)
     over_gate = Candidate(None, [[(0, 0), (1, 1)]] * 69, 45.0)
     assert choose([inside_gate, over_gate], limit=50) == 0 and choose_anyway([inside_gate, over_gate], limit=50) == 1
+
+
+def test_feature_boxes_find_solid_eyes_but_not_thin_marks():
+    from build_pack import feature_boxes
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.ellipse((300, 300, 330, 330), fill=INK)                  # a solid eye...
+    draw.ellipse((310, 306, 318, 314), fill=(250, 250, 250))      # ...with a white highlight
+    draw.line([(500, 300), (530, 330)], fill=INK, width=3)       # a thin tick of fur
+    draw.line([(100, 600), (400, 600)], fill=INK, width=8)       # a long line
+    boxes = feature_boxes(drawing)
+    assert len(boxes) == 1
+    x, y, w, h = boxes[0]
+    assert x <= 300 and y <= 300 and x + w >= 330 and y + h >= 330

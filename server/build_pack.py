@@ -159,6 +159,39 @@ def outline_band(image: Image.Image):
     return ndimage.distance_transform_edt(~edge) <= OUTLINE_NEAR_PX
 
 
+FEATURE_MAX_PX = 80      # feature_boxes: a solid blob of ink at most this wide and tall (an eye, a nose)...
+FEATURE_MIN_PX = 8       # ...at least this wide and tall...
+FEATURE_SOLIDITY = 0.35  # ...filling at least this share of its bounding box (a thin tick of fur fills far less)
+FEATURE_ASPECT = 2.5     # ...and at most this many times longer than wide
+
+
+def feature_boxes(image: Image.Image) -> list[list[int]]:
+    """Boxes ([x, y, w, h]) around small, solid, roundish blobs of ink: eyes, a nose, nostrils, buttons. An eye drawn
+    as a black dot with a white highlight traces into a few short, open strokes, which trimming by length dropped
+    (a cat lost one eye, a fish its only one) whenever OWLv2 hadn't found an eye there."""
+    import numpy as np
+    from scipy import ndimage
+
+    labels, _ = ndimage.label(ink_mask(image), structure=np.ones((3, 3), dtype=int))
+    boxes = []
+    for label, box in enumerate(ndimage.find_objects(labels), start=1):
+        if box is None:
+            continue
+        h, w = box[0].stop - box[0].start, box[1].stop - box[1].start
+        if not FEATURE_MIN_PX <= min(h, w) <= max(h, w) <= FEATURE_MAX_PX or max(h, w) > FEATURE_ASPECT * min(h, w):
+            continue
+        if (labels[box] == label).sum() >= FEATURE_SOLIDITY * h * w:
+            boxes.append([box[1].start - 4, box[0].start - 4, w + 8, h + 8])
+    return boxes
+
+
+def small_shape(stroke) -> bool:
+    """True for a closed stroke enclosing at most SMALL_SHAPE_PX: a dot or a ring for an eye, a nostril, a button."""
+    points = [tuple(p) for p in stroke]
+    closed = len(points) >= 3 and abs(points[0][0] - points[-1][0]) + abs(points[0][1] - points[-1][1]) <= 4
+    return closed and _polygon_area(points) <= SMALL_SHAPE_PX
+
+
 UNIT_MAX_STROKES = 8  # simplify: a separate small group of at most this many strokes is kept or dropped whole
 
 
@@ -180,9 +213,10 @@ def stroke_groups(image: Image.Image, strokes: list) -> list[int]:
 def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = (), outline=None, groups=None) -> list:
     """The `limit` most important strokes, in their original order. Importance is length, except that a stroke
     centered inside a detail part (detail_boxes, each [x, y, w, h]: the head, an eye, a door) counts DETAIL_BOOST
-    times its length, and one running along the subject's outer edge (`outline`, from outline_band) OUTLINE_BOOST
-    times. So a busy drawing keeps its outline whole, its big lines and its features, and loses texture and stray
-    bits. (By length alone, a cat lost its nose and mouth, a house its porch windows, and outlines got gaps.)
+    times its length, and so does a small closed shape (a dot or ring eye, a nostril: features, wherever OWLv2 found
+    parts); one running along the subject's outer edge (`outline`, from outline_band) counts OUTLINE_BOOST times. So
+    a busy drawing keeps its outline whole, its big lines and its features, and loses texture and stray bits. (By
+    length alone, a cat lost its nose and mouth, a house its porch windows, a fish its eye, and outlines got gaps.)
 
     With `groups` (from stroke_groups), a separate small group of strokes (a window, an eye, a bush: at most
     UNIT_MAX_STROKES) is kept or dropped whole, never cut in half: half a window looked broken. The groups and the
@@ -196,7 +230,7 @@ def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = (), o
 
     def importance(stroke) -> float:
         cx, cy = sum(p[0] for p in stroke) / len(stroke), sum(p[1] for p in stroke) / len(stroke)
-        detail = any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in detail_boxes)
+        detail = any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in detail_boxes) or small_shape(stroke)
         boost = max(DETAIL_BOOST if detail else 1.0, OUTLINE_BOOST if on_outline(stroke) else 1.0)
         return stroke_length(stroke) * boost
 
@@ -324,10 +358,8 @@ def lesson_only(image: Image.Image, shown: list) -> Image.Image:
     shapes = Image.new("1", (SIZE, SIZE), 0)
     draw = ImageDraw.Draw(shapes)
     for stroke in shown:
-        points = [tuple(p) for p in stroke]
-        closed = len(points) >= 3 and abs(points[0][0] - points[-1][0]) + abs(points[0][1] - points[-1][1]) <= 4
-        if closed and _polygon_area(points) <= SMALL_SHAPE_PX:
-            draw.polygon(points, fill=1, outline=1)
+        if small_shape(stroke):
+            draw.polygon([tuple(p) for p in stroke], fill=1, outline=1)
     keep = ndimage.binary_dilation(keep | np.asarray(shapes, dtype=bool), iterations=EDGE_PX)
     pixels = np.asarray(rgb).copy()
     gray = np.asarray(rgb.convert("L"))
@@ -546,6 +578,7 @@ def make_pack(
         check_drawing(best.image)
     parts = detect(best.image)
     details = [p["box"] for p in parts if p["id"].split("_")[0] not in WHOLE_PARTS]  # the head, eyes, a door...
+    details += feature_boxes(best.image)  # eyes and noses OWLv2 didn't box
     simplified = len(best.strokes) > limit
     dropped = []  # the strokes a simplified lesson leaves out
     if simplified:

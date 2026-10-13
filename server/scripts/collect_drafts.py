@@ -73,19 +73,11 @@ def round2_jobs(extra: list[str]) -> list[tuple[str, str, str, int]]:
 def draw(pipe, prompt: str, seeds: list[int], batch: bool):
     """The drafts for these seeds, 768 x 768, as gen.from_prompt makes them. With `batch`, all in one pipeline call
     (one generator per seed, so each draft starts from the same noise as when drawn alone)."""
-    import torch
-    from PIL import Image
-
     from pipeline import generate as gen
 
-    if not batch:
-        return [gen._generate(pipe, prompt, seed) for seed in seeds]
-    images = pipe(
-        prompt, num_images_per_prompt=len(seeds), num_inference_steps=4, guidance_scale=0.0,
-        height=gen.GEN_SIZE, width=gen.GEN_SIZE,
-        generator=[torch.Generator("cpu").manual_seed(seed) for seed in seeds],
-    ).images
-    return [image.resize((gen.TARGET_SIZE, gen.TARGET_SIZE), Image.LANCZOS) for image in images]
+    if batch:
+        return gen._generate_batch(pipe, prompt, seeds)
+    return [gen._generate(pipe, prompt, seed) for seed in seeds]
 
 
 def batch_test(pipe, results: dict) -> None:
@@ -96,7 +88,6 @@ def batch_test(pipe, results: dict) -> None:
 
     from pipeline.prompts import line_art_prompt
 
-    pipe.vae.enable_slicing()  # decode the batch one image at a time, or the VAE can run out of memory
     rows = []
     for subject in ["a cat", "a car", "a house"]:
         prompt = line_art_prompt(subject)
