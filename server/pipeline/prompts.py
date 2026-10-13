@@ -52,6 +52,19 @@ VARIANTS = {
         "no sketch lines, no double lines, very few lines, no details, no shading, no solid black areas, "
         "no text, no logo, isolated on plain white background"
     ),
+    # "icon_whole" said only with what we want: CLIP, SDXL's text encoder, often reads "no X" as "X", so the long
+    # list of "no ..." may itself bring shading and sketch lines. Tried on Oct 13.
+    "icon_plain": (
+        "minimalist line icon of {subject}, full body, bold uniform pure black outline, single clean continuous "
+        "lines, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white "
+        "background"
+    ),
+    # "icon_whole" asking for pure black on pure white, against faint gray lines and gray fills. Tried on Oct 13.
+    "icon_contrast": (
+        "minimalist line icon of {subject}, full body, pure black lines on pure white, high contrast, "
+        "bold uniform outline, single clean continuous lines, very few lines, no gray, no shading, "
+        "no text, isolated on plain white background"
+    ),
     # "icon_clean" plus "black and white, no frame". Tried in the third speed test and rejected: it removed
     # color but made drawings more detailed, and frames stayed. Kept here so the comparison can be rerun.
     "icon_mono": (
