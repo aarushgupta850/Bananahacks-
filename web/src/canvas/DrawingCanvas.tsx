@@ -107,6 +107,9 @@ export default function DrawingCanvas({
   function handlePointerEnd(e: PointerEvent<SVGSVGElement>) {
     if (erasing.current?.pointerId === e.pointerId) {
       erasing.current = null
+      // A finger can't hover, so once it lifts there is no eraser to show (the circle used to stay stuck where
+      // the finger left the glass). Mouse and pen keep it: they still hover over the canvas.
+      if (e.pointerType === 'touch') setEraserAt(null)
       return
     }
     const stroke = current.current
