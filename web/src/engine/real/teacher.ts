@@ -5,7 +5,7 @@ import type {
 } from '../types'
 import { config } from './config'
 import {
-  applyToAll, bbox, diagonal, IDENTITY, invertTransform, isClosed, length, PointGrid, procrustes,
+  applyToAll, bbox, diagonal, IDENTITY, invertTransform, isClosed, length, meanNearest, PointGrid, procrustes,
   resample, type Transform,
 } from './geometry'
 import { accuracyFor, coverageShare, isTap, matchStroke, tolerance, type Match } from './match'
@@ -40,7 +40,8 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   let transform: Transform = { ...IDENTITY } // plan space -> where the user is drawing
   let pairs: { from: Point; to: Point }[] = [] // matched plan point -> user point, for the fit
   let calibrations = 0     // strokes that traced a guide since calibration started (the guides lock after a few)
-  let calibrationStart = 0 // the stroke count when calibration started (0, or when the guides last went back home)
+  let calibrationStart: number | null = null // the stroke count of the first stroke that traced a guide (since the
+                                              // guides last went back home): calibration ends a few strokes later
   let pairStrokes = 0      // how many strokes the pairs come from
   let moves = 0            // how many times the guides have moved (at most config.adaptMaxMoves)
   let lostInARow = 0       // strokes in a row drawn at the guides' original places, far from the calibrated ones
@@ -129,6 +130,7 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   // the guides (and the trace under them) stay together. Guides that crept after every stroke felt like the
   // pictures were sliding around (Oct 13).
   //  - The fit uses every point pair so far (plan point -> user point), no rotation, size kept in a sane range.
+  //  - Calibration ends a few strokes after the first stroke that traced a guide.
   //  - Pairs that disagree with the earlier ones (a badly drawn line, not a shifted drawing) are dropped.
   //  - A move goes all the way to the fit in one go, and only when it would move the drawing at least
   //    config.adaptMinMove px (anything less is hand wobble). Usually that's one move, on the first stroke.
@@ -136,25 +138,33 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   //    so one line drawn in a random spot can't send them there.
   function adapt(guide: Point[], user: Point[], accuracy: number) {
     if (calibrations >= config.adaptCalibrationStrokes || moves >= config.adaptMaxMoves) return
-    if (strokeCount - calibrationStart > config.adaptLastStroke) return
-    calibrations++
+    calibrationStart ??= strokeCount
+    if (strokeCount - calibrationStart >= config.adaptLastStroke) return
     const planPoints = applyToAll(invertTransform(transform), guide) // the guide as it is in the plan
     const candidate = [...pairs, ...planPoints.map((from, i) => ({ from, to: user[i] }))].slice(-config.adaptMaxPairs)
-    // One small line says where the user draws, but not how big: until the traced lines span enough of the
-    // drawing, only shift (the size stays as it is).
-    const span = diagonal(bbox(candidate.map((p) => p.from)))
-    const sizes: [number, number] = span >= config.adaptScaleMinSpan * baseDiagonal ? config.adaptScaleRange : [transform.scale, transform.scale]
-    let fit = procrustes(candidate, config.adaptMaxRotationDeg, sizes)
-    // A small change of size is the hand, not the drawing: keep the size and only shift.
-    if (Math.abs(fit.scale / transform.scale - 1) < config.adaptMinScaleChange) {
-      fit = procrustes(candidate, config.adaptMaxRotationDeg, [transform.scale, transform.scale])
-    }
+    // Does this stroke agree with the earlier ones? Judged with the size free (within range), so a drawing that
+    // is simply bigger or smaller agrees with itself; judged at a fixed size its pairs looked inconsistent and
+    // were dropped, and a 1.2x drawing never got its size calibrated.
+    const free = procrustes(candidate, config.adaptMaxRotationDeg, config.adaptScaleRange)
     // How far the pairs sit from where a transform puts them, on average.
     const gap = (t: Transform, list: { from: Point; to: Point }[]) => list.reduce((sum, { from, to }) => {
       const [x, y] = applyToAll(t, [from])[0]
       return sum + Math.hypot(x - to[0], y - to[1])
     }, 0) / Math.max(list.length, 1)
-    if (gap(fit, candidate) > config.adaptMaxResidual * baseDiagonal) return // doesn't agree: not evidence of a shift
+    if (gap(free, candidate) > config.adaptMaxResidual * baseDiagonal) return // doesn't agree: not evidence of a shift
+    // How big is the drawing? Told by lines spanning enough of it, or, from a bit less, when a new size explains
+    // the lines far better than a shift alone (a drawing made 1.2x bigger fits to within a pixel or two once
+    // resized). One small line says where the user draws, but not how big: until then, only shift. Strokes count
+    // toward the few that calibrate only once the size is known: a lesson that starts with small lines (an eye,
+    // a tick) used up its calibration on them, and a drawing made 1.2x bigger never got its size.
+    const span = diagonal(bbox(candidate.map((p) => p.from)))
+    const shiftOnly = procrustes(candidate, config.adaptMaxRotationDeg, [transform.scale, transform.scale])
+    const sizeKnown = span >= config.adaptScaleMinSpan * baseDiagonal ||
+      (span >= config.adaptScaleMinSpan * baseDiagonal / 2 && gap(free, candidate) < 0.5 * gap(shiftOnly, candidate))
+    if (sizeKnown) calibrations++
+    // A small change of size is the hand, not the drawing: keep the size and only shift.
+    const resize = sizeKnown && Math.abs(free.scale / transform.scale - 1) >= config.adaptMinScaleChange
+    const fit = resize ? free : shiftOnly
     pairs = candidate
     pairStrokes++
     if (accuracy <= 0 && pairStrokes < 2) return // far off: wait for a second stroke that agrees
@@ -188,7 +198,18 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
     const finished = pack.strokes
       .filter((s) => done.has(s.id) && !shownIds.has(s.id) && length(s.points) >= config.minStrokeLength)
       .map((s) => ({ id: s.id, points: adapted(s.points) }))
-    const redraw = matchStroke(userPoints, finished, baseDiagonal * transform.scale)
+    // Only lines the stroke runs close to can score high enough, so only those get the slower stretch-by-stretch
+    // fit. (A stroke's error against a line is never below its mean distance to the whole line, and scoring
+    // redrawMinAccuracy needs an error under (1 - redrawMinAccuracy) of the line's tolerance.) Fitting every
+    // finished line took 30-40 ms per stroke late in a long lesson.
+    const user = resample(userPoints, config.resamplePoints)
+    const drawing = baseDiagonal * transform.scale
+    const close = finished.filter((f) => {
+      const limit = (1 - config.redrawMinAccuracy) * tolerance(f.points, drawing)
+      return meanNearest(user, resample(f.points, config.guidePoints)) <= 1.25 * limit + 2 // a little slack for sampling
+    })
+    if (close.length === 0) return null
+    const redraw = matchStroke(userPoints, close, drawing)
     return redraw && redraw.accuracy >= config.redrawMinAccuracy ? redraw : null
   }
 
@@ -277,7 +298,7 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
         pairStrokes = 0
         moves = 0
         calibrations = 0 // calibrate again from where the user really draws
-        calibrationStart = strokeCount - 1
+        calibrationStart = null
         lostInARow = 0
         ;({ match, closeness, shownIds } = look())
       }

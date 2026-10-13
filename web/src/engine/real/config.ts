@@ -30,12 +30,14 @@ export const config = {
   // when the fit is clearly somewhere else: small differences are hand wobble, and chasing them made the guides
   // and the trace twitch after every stroke.
   adaptCalibrationStrokes: 3, // strokes that traced a guide (matched, long enough, along one guide) may calibrate...
-  adaptLastStroke: 5,       // ...and only within the first 5 strokes (a first move at stroke 32 was a big jump)
+  adaptLastStroke: 5,       // ...and only within 5 strokes of the first stroke that traced a guide (a first move at
+                            // stroke 32 after many accepted-or-not fits was a big jump)
   adaptMaxMoves: 2,         // the guides move at most twice in a lesson (usually once, on the first stroke)
   adaptMinMove: 16,         // px: a fit that moves the drawing less than this (at any corner) is wobble: no move.
                             // A natural hand lands each stroke up to about 10 px off, which used to nudge the guides
-  adaptMaxResidual: 0.05,   // a stroke whose shape still sits this far from its guide after fitting (mean distance,
-                            // of the diagonal) is a badly drawn line, not a shifted drawing: it doesn't calibrate
+  adaptMaxResidual: 0.02,   // a stroke whose shape still sits this far from its guide after fitting (mean distance,
+                            // of the diagonal) is a badly drawn line, not a shifted drawing: it doesn't calibrate.
+                            // Shifted or resized copies fit to under 0.01; one stroke over two guides measured 0.023-0.047
   adaptScaleRange: [0.75, 1.35] as [number, number], // the guides are never resized beyond this
   adaptScaleMinSpan: 0.3,   // until the traced lines span this much of the diagonal, only shift (one small line
                             // says where the user draws, but not how big)...
