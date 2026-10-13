@@ -496,3 +496,56 @@ def test_feature_boxes_find_solid_eyes_but_not_thin_marks():
     assert len(boxes) == 1
     x, y, w, h = boxes[0]
     assert x <= 300 and y <= 300 and x + w >= 330 and y + h >= 330
+
+
+def test_a_bad_review_counts_when_choosing_and_asks_for_new_drafts_once_when_there_is_time():
+    import time
+
+    from build_pack import make_pack
+    from pipeline.gemini import Review
+
+    asked = []
+    verdicts = iter([[Review(True, False, ["arc behind it"])] * 2, [Review(True, True)] * 2])
+    common = dict(pack_id="live-cat-medium", subject="cat", title="Cat", difficulty="medium", source_kind="prompt",
+                  prompt="a cat", subject_words="a cat", seed=0, detect=lambda image: FAKE_PARTS, retries=0,
+                  log=lambda *a: None, always=True,
+                  generate=lambda seed: asked.append(("first", seed)) or [cat_drawing()] * 2,
+                  regenerate=lambda seed: asked.append(("again", seed)) or [cat_drawing()] * 2,
+                  review=lambda images: next(verdicts))
+    pack, assets = make_pack(**common, finish_by=time.monotonic() + 60)
+    assert [kind for kind, _ in asked] == ["first", "again"]
+    assert len([p for p in assets if p.startswith("pipeline/candidate-")]) == 4
+    stages = {s["id"]: s for s in pack["pipeline"]}
+    assert stages["chosen"]["image"] in ("pipeline/candidate-2.webp", "pipeline/candidate-3.webp")  # a good one
+    assert "asked to draw again" in stages["candidates"]["text"] and "2 of 4 looked good" in stages["candidates"]["text"]
+
+    # No time left: the first drafts are used.
+    asked.clear()
+    verdicts = iter([[Review(True, False, ["arc"])] * 2])
+    common["review"] = lambda images: next(verdicts)
+    make_pack(**common, finish_by=time.monotonic() - 1)
+    assert [kind for kind, _ in asked] == ["first"]
+
+
+def test_a_good_draft_or_no_review_never_asks_again():
+    import time
+
+    from build_pack import make_pack
+
+    asked = []
+    common = dict(pack_id="live-cat-medium", subject="cat", title="Cat", difficulty="medium", source_kind="prompt",
+                  prompt="a cat", subject_words="a cat", seed=0, detect=lambda image: FAKE_PARTS, retries=0,
+                  log=lambda *a: None, always=True, finish_by=time.monotonic() + 60,
+                  generate=lambda seed: asked.append(seed) or [cat_drawing()] * 2)
+    make_pack(**common, review=lambda images: None)  # Gemini busy: the local checks find nothing wrong
+    assert len(asked) == 1
+
+
+def test_choose_counts_strays_and_the_review():
+    from pipeline.gemini import Review
+
+    clean = Candidate(None, [[(0, 0), (1, 1)]] * 30, 20.0)
+    strayed = Candidate(None, [[(0, 0), (1, 1)]] * 30, 10.0, strays=0.2)  # cleaner score, but 20% stray arcs
+    assert choose([strayed, clean]) == 1
+    wrong = Candidate(None, [[(0, 0), (1, 1)]] * 30, 5.0, review=Review(False, True))
+    assert choose([wrong, clean]) == 1

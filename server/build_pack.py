@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,14 +40,16 @@ from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import active_variant, line_art_prompt, openai_prompt  # noqa: E402
 from pipeline.quality import biggest_subject, line_metrics, separate_subjects, symmetry  # noqa: E402
 from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
+from pipeline.stray_lines import find_strays, split_off, stray_share  # noqa: E402
 from pipeline.strays import has_ring, is_cut_off, remove_strays  # noqa: E402
 from pipeline.trace import ink_mask, points_along, skeleton_of, trace  # noqa: E402
-from scripts.download_models import lightning_steps  # noqa: E402
+from scripts.download_models import image_model, lightning_steps  # noqa: E402
 
 SUBJECTS_DIR = SERVER_DIR.parent / "web" / "public" / "subjects"
 DIFFICULTIES = ["simple", "medium", "detailed"]  # must match Difficulty in web/src/engine/types.ts
 N_CANDIDATES = 4
 RETRY_SEED_OFFSET = 100  # the retry uses seeds this far from the first try's
+REVIEW_SEED_OFFSET = 500  # make_pack: the drafts asked for again after a failed review use seeds this far away
 MIN_STROKES, MAX_STROKES = 6, 60  # the quality gate (server/CLAUDE.md)
 SIMPLE_MAX_STROKES = 25  # rate_difficulty: a drawing with at most this many strokes is "simple"...
 MEDIUM_MAX_STROKES = 50  # ...at most this many "medium", more "detailed"
@@ -68,6 +71,8 @@ class Candidate:
     ringed: bool = False   # a background ring is still joined to the subject (strays.has_ring)
     symmetry: float = 0.0  # quality.symmetry, 0-1 (only measured when prefer_symmetry() is on)
     subjects: int = 1      # quality.separate_subjects: 2 or more is two things drawn (two cars) or one broken in two
+    strays: float = 0.0    # share of its lines that were stray arcs or ground lines, erased (stray_lines.py)
+    review: object = None  # Gemini's gemini.Review of it (live server, with GEMINI_API_KEY), or None
 
 
 # With GHOSTLINES_PREFER_SYMMETRY=1, a draft's cost drops by up to this much for being mirror-symmetric
@@ -107,6 +112,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 LOST_WEIGHT = 300  # choose: a draft that loses its whole drawing to simplifying would count 300 points less clean
 RING_PENALTY = 150  # choose: a draft with a background ring around the subject counts this much less clean
 SUBJECTS_PENALTY = 100  # choose: a draft with two separate subjects (two cars, a sneaker and a loose sole) likewise
+STRAY_WEIGHT = 300  # choose: a draft whose lines were 10% stray arcs (erased) counts 30 points less clean
+WRONG_PENALTY = 200  # choose: Gemini says the draft doesn't show the subject (a cat with three legs, a blob)
+UNCLEAN_PENALTY = 100  # choose: Gemini says it has extra marks that aren't part of the subject (after the erasing)
 
 
 def lost_share(strokes: list, limit: int) -> float:
@@ -123,10 +131,28 @@ def cost(candidate: Candidate, limit: int) -> float:
     much of the drawing), plus RING_PENALTY for a background ring around the subject (a fifth of live drafts had
     one, joined to the subject, and its arcs looked like stray lines), plus SUBJECTS_PENALTY for two separate subjects,
     minus the symmetry bonus when that is on. Both choosers use this, so the last check never undoes the first's pick
-    (it used to leave the symmetry bonus out: a crossed, lopsided airplane beat a clean, symmetric one)."""
+    (it used to leave the symmetry bonus out: a crossed, lopsided airplane beat a clean, symmetric one).
+    Also STRAY_WEIGHT for the share of its lines that were stray arcs (they are erased, but a draft that had them is
+    often messy in other ways too), and Gemini's review when there is one: WRONG_PENALTY if it doesn't show the
+    subject, UNCLEAN_PENALTY if it still has extra marks."""
+    review = candidate.review
     return (candidate.score + LOST_WEIGHT * lost_share(candidate.strokes, limit)
             + (RING_PENALTY if candidate.ringed else 0) + (SUBJECTS_PENALTY if candidate.subjects >= 2 else 0)
+            + STRAY_WEIGHT * candidate.strays
+            + (WRONG_PENALTY if review is not None and not review.shows_subject else 0)
+            + (UNCLEAN_PENALTY if review is not None and not review.clean else 0)
             - symmetry_bonus(candidate))
+
+
+def looks_good(candidate: Candidate) -> bool:
+    """A draft good enough not to ask for more: Gemini found nothing wrong (when it looked), and no ring, two
+    subjects, cut-off edge or much stray line was found here."""
+    reviewed_ok = candidate.review is None or candidate.review.good
+    return (reviewed_ok and not candidate.ringed and candidate.subjects < 2 and not candidate.cut_off
+            and candidate.strays < STRAY_RETRY_SHARE)
+
+
+STRAY_RETRY_SHARE = 0.05  # looks_good: a draft whose lines were more than 5% strays asks for new drafts
 
 
 def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
@@ -454,12 +480,22 @@ def webp_bytes(image: Image.Image) -> bytes:
 # ---------------------------------------------------------------- the pack
 
 
+def drafts_text(n: int) -> str:
+    """Who drew the drafts, for the "How this lesson was made" panel."""
+    if openai_images.enabled():
+        return openai_images.drafts_text(n)
+    if image_model() == "flux":
+        return f"FLUX.1-schnell drew {n} line-art drafts."
+    return f"SDXL-Lightning drew {n} line-art drafts, {lightning_steps()} steps each."
+
+
 def pipeline_stages(
     source_kind: str, prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict,
-    n_candidates: int = N_CANDIDATES, source_note: str | None = None,
+    n_candidates: int = N_CANDIDATES, source_note: str | None = None, review_note: str | None = None,
 ) -> list[dict]:
     """The "How this lesson was made" stages, in the order the contract requires. `source_note` replaces the
-    photo stage's first sentence (the live server: the photo was named, not traced)."""
+    photo stage's first sentence (the live server: the photo was named, not traced). `review_note` is added to the
+    drafts stage (what Gemini's review and the stray-line check did)."""
     candidate_paths = [f"pipeline/candidate-{i}.webp" for i in range(n_candidates)]
     if source_kind == "photo":
         note = source_note or "The photo's lines guided the drawing."
@@ -471,8 +507,7 @@ def pipeline_stages(
     return [
         source,
         {"id": "candidates", "label": f"{n_candidates} AI drafts", "images": candidate_paths,
-         "text": openai_images.drafts_text(n_candidates) if openai_images.enabled()
-         else f"SDXL-Lightning drew {n_candidates} line-art drafts, {lightning_steps()} steps each."},
+         "text": " ".join(filter(None, [drafts_text(n_candidates), review_note]))},
         {"id": "chosen", "label": "Chosen drawing", "image": candidate_paths[chosen],
          "text": f"The cleanest draft, traced into {n_strokes} strokes (a lesson keeps {MIN_STROKES}-{MAX_STROKES})."},
         {"id": "skeleton", "label": "Traced lines", "image": "pipeline/skeleton.webp",
@@ -488,7 +523,7 @@ def pipeline_stages(
 def assemble_pack(
     pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     prompt_text: str, chosen: int, n_strokes: int, parts: list[dict], plan: dict, n_candidates: int = N_CANDIDATES,
-    source_note: str | None = None,
+    source_note: str | None = None, review_note: str | None = None,
 ) -> dict:
     """pack.json as a dict, checked against the schema (raises if it doesn't match types.ts)."""
     pack = {
@@ -504,7 +539,7 @@ def assemble_pack(
         "strokes": plan["strokes"],
         "steps": plan["steps"],
         "pipeline": pipeline_stages(source_kind, prompt_text, chosen, n_strokes, parts, plan, n_candidates,
-                                    source_note),
+                                    source_note, review_note),
     }
     schema.Pack.model_validate(pack)
     return pack
@@ -530,11 +565,26 @@ def update_index(index_path: Path, subject: str, title: str, difficulty: str, pa
 # ---------------------------------------------------------------- the build
 
 
+def review_note(candidates: list[Candidate], asked_again: bool) -> str | None:
+    """What the checks did, for the drafts stage of the "How this lesson was made" panel. Only facts we measured."""
+    notes = []
+    erased = sum(1 for c in candidates if c.strays > 0)
+    if erased:
+        notes.append(f"Stray arcs or ground lines were erased from {erased} of them.")
+    reviewed = [c.review for c in candidates if c.review is not None]
+    if reviewed:
+        notes.append(f"Gemini checked each draft: {sum(r.good for r in reviewed)} of {len(reviewed)} looked good.")
+    if asked_again:
+        notes.append("None was good enough at first, so the AI was asked to draw again.")
+    return " ".join(notes) or None
+
+
 def make_pack(
     *, pack_id: str, subject: str, title: str, difficulty: str, source_kind: str, prompt: str | None,
     subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
     always: bool = False, check_drawing=None, rate: bool = False, limit: int = MAX_STROKES,
-    min_strokes: int = MIN_STROKES, source_note: str | None = None,
+    min_strokes: int = MIN_STROKES, source_note: str | None = None, review=None, regenerate=None,
+    finish_by: float | None = None,
 ) -> tuple[dict, dict[str, bytes]]:
     """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
     by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits, unless
@@ -551,25 +601,54 @@ def make_pack(
     marks around the subject (pipeline/strays.py), and is then scaled up to fill the page (frame.fit_to_page).
     `source_note` says how a photo became the subject, in the "How this lesson was made" panel.
 
-    generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
+    generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts.
+
+    Every draft is also checked for long stray lines joined to the subject (a big arc over a car, a ring's arc
+    touching an ear: pipeline/stray_lines.py); they are erased and the draft retraced. `review(images)` (the live
+    server, with Gemini) returns a gemini.Review per draft, or None; the answers count when choosing (cost). When no
+    draft looks_good and there is time to make another round before `finish_by` (a time.monotonic() value; the
+    round is assumed to take as long as the first), `regenerate(seed)` (or generate) is asked for new drafts once,
+    and the best of all of them is used."""
+    started = time.monotonic()
     prompt_text = (openai_prompt(subject_words, difficulty) if openai_images.enabled()  # the prompt actually sent
                    else line_art_prompt(subject_words, variant=active_variant(), difficulty=difficulty))
-    tries = []
-    for attempt in range(retries + 1):
-        first_seed = seed + attempt * RETRY_SEED_OFFSET
-        candidates = []
-        for i, image in enumerate(generate(first_seed)):
+    def make_candidates(images, first_seed: int, numbered_from: int = 0) -> list[Candidate]:
+        made = []
+        for i, image in enumerate(images):
             image = remove_strays(remove_frame(image))
             cut_off = is_cut_off(image)  # before fitting, which puts space around everything
             image = fit_to_page(image)
             strokes = trace(image)
+            strays = find_strays(image, strokes)
+            stray = stray_share(strokes, strays)
+            if strays:  # erase the stray arcs and ground lines, fit what is left to the page again, and trace it
+                kept, dropped = split_off(strokes, strays)
+                image = fit_to_page(without_strokes(image, kept, dropped))
+                strokes = trace(image)
             sym = symmetry(image) if prefer_symmetry() else 0.0
-            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, has_ring(strokes),
-                                        symmetry=sym, subjects=separate_subjects(image)))
-            log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}"
-                + (", cut off at the edge" if candidates[-1].cut_off else "")
-                + (", ring around the subject" if candidates[-1].ringed else "")
-                + (", two separate subjects" if candidates[-1].subjects >= 2 else ""))
+            made.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, has_ring(strokes),
+                                  symmetry=sym, subjects=separate_subjects(image), strays=stray))
+            log(f"  candidate {numbered_from + i} (seed {first_seed + i}): {len(strokes)} strokes, "
+                f"score {made[-1].score:.1f}"
+                + (f", {stray:.0%} of its lines were stray arcs (erased)" if strays else "")
+                + (", cut off at the edge" if made[-1].cut_off else "")
+                + (", ring around the subject" if made[-1].ringed else "")
+                + (", two separate subjects" if made[-1].subjects >= 2 else ""))
+        if review is not None and made:
+            reviews = review([c.image for c in made])
+            if reviews is None:
+                log("  gemini: no review (busy or offline); judging by the local checks only")
+            for k, (c, r) in enumerate(zip(made, reviews or [])):
+                c.review = r
+                log(f"  gemini on candidate {numbered_from + k}: "
+                    + ("good" if r.good else "; ".join(r.problems) or ("not the subject" if not r.shows_subject
+                                                                       else "not clean")))
+        return made
+
+    tries = []
+    for attempt in range(retries + 1):
+        first_seed = seed + attempt * RETRY_SEED_OFFSET
+        candidates = make_candidates(generate(first_seed), first_seed)
         tries.append(candidates)
         chosen = choose(candidates, min_strokes, limit)
         if chosen is not None:
@@ -578,6 +657,19 @@ def make_pack(
         chosen = choose_anyway(candidates, min_strokes, limit) if always else None
         if chosen is not None:
             log(f"  no candidate fit {min_strokes}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
+    asked_again = False
+    round_s = time.monotonic() - started
+    if (finish_by is not None and candidates and not any(looks_good(c) for c in candidates)
+            and time.monotonic() + round_s <= finish_by):
+        # No draft is good (Gemini or the local checks found a problem with each): ask the image model again, once,
+        # and choose from all of them. Only when the new round should end before finish_by.
+        log("  no draft looks good: asking the image model for new ones")
+        first_seed = seed + REVIEW_SEED_OFFSET
+        candidates = candidates + make_candidates((regenerate or generate)(first_seed), first_seed, len(candidates))
+        asked_again = True
+        chosen = choose(candidates, min_strokes, limit)
+        if chosen is None and always:
+            chosen = choose_anyway(candidates, min_strokes, limit)
     if always and chosen is not None and candidates[chosen].cut_off:
         # The only drafts inside the gate are cut off at the edge (a giraffe's neck, cropped): a whole subject is
         # better even if it has too many strokes and gets simplified.
@@ -609,7 +701,8 @@ def make_pack(
             if len(strokes) >= min_strokes:
                 c = candidates[chosen]
                 candidates[chosen] = Candidate(alone, strokes, line_metrics(alone)["score"], c.cut_off,
-                                               has_ring(strokes), c.symmetry, separate_subjects(alone))
+                                               has_ring(strokes), c.symmetry, separate_subjects(alone), c.strays,
+                                               c.review)
                 log(f"  candidate {chosen} drew {c.subjects} separate subjects: keeping only the biggest "
                     f"({len(strokes)} strokes)")
 
@@ -632,7 +725,8 @@ def make_pack(
         difficulty = rate_difficulty(len(best.strokes))  # what the user will draw (the reference shows just these)
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
-                         n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note)
+                         n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note,
+                         review_note=review_note(candidates, asked_again))
     # The reference: the AI drawing without the strokes a simplified lesson leaves out, and without anything else the
     # lesson doesn't show (faint sketch lines, scraps too small to trace), cleaned to crisp black on white.
     if simplified:
