@@ -38,8 +38,8 @@ from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import line_art_prompt  # noqa: E402
 from pipeline.quality import line_metrics  # noqa: E402
 from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
-from pipeline.strays import is_cut_off, remove_strays  # noqa: E402
-from pipeline.trace import ink_mask, skeleton_of, trace  # noqa: E402
+from pipeline.strays import has_ring, is_cut_off, remove_strays  # noqa: E402
+from pipeline.trace import ink_mask, points_along, skeleton_of, trace  # noqa: E402
 
 SUBJECTS_DIR = SERVER_DIR.parent / "web" / "public" / "subjects"
 DIFFICULTIES = ["simple", "medium", "detailed"]  # must match Difficulty in web/src/engine/types.ts
@@ -63,6 +63,7 @@ class Candidate:
     strokes: list
     score: float
     cut_off: bool = False  # the subject runs off the edge of the image (strays.is_cut_off)
+    ringed: bool = False   # a background ring is still joined to the subject (strays.has_ring)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -85,6 +86,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 LOST_WEIGHT = 300  # choose: a draft that loses its whole drawing to simplifying would count 300 points less clean
+RING_PENALTY = 150  # choose: a draft with a background ring around the subject counts this much less clean
 
 
 def lost_share(strokes: list, limit: int) -> float:
@@ -96,10 +98,12 @@ def lost_share(strokes: list, limit: int) -> float:
 
 
 def cost(candidate: Candidate, limit: int) -> float:
-    """How much worse a draft would look as a lesson: its quality score (lower is cleaner) plus the lines simplifying
-    it would remove. A draft just over the limit loses a few short lines and barely changes; one far over it loses
-    much of the drawing."""
-    return candidate.score + LOST_WEIGHT * lost_share(candidate.strokes, limit)
+    """How much worse a draft would look as a lesson: its quality score (lower is cleaner), plus the lines simplifying
+    it would remove (a draft just over the limit loses a few short lines and barely changes; one far over it loses
+    much of the drawing), plus RING_PENALTY for a background ring around the subject (a fifth of live drafts had
+    one, joined to the subject, and its arcs looked like stray lines)."""
+    return (candidate.score + LOST_WEIGHT * lost_share(candidate.strokes, limit)
+            + (RING_PENALTY if candidate.ringed else 0))
 
 
 def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
@@ -155,27 +159,38 @@ def outline_band(image: Image.Image):
     return ndimage.distance_transform_edt(~edge) <= OUTLINE_NEAR_PX
 
 
-def _along(stroke, step: float = 4.0) -> list:
-    """Points every `step` px along a stroke (its corners alone leave long straight lines with only two points)."""
-    import math
-
-    points = [tuple(stroke[0])]
-    for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]):
-        n = max(1, int(math.dist((x1, y1), (x2, y2)) // step))
-        points += [(x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n) for k in range(1, n + 1)]
-    return points
+UNIT_MAX_STROKES = 8  # simplify: a separate small group of at most this many strokes is kept or dropped whole
 
 
-def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = (), outline=None) -> list:
+def stroke_groups(image: Image.Image, strokes: list) -> list[int]:
+    """For each stroke, the piece of ink (as the tracer sees it) it runs along: strokes sharing one are drawn joined
+    up, like the four sides of a window. A stroke off the ink (an eye drawn as a gray almond) is a group of its own."""
+    import numpy as np
+    from scipy import ndimage
+
+    labels, count = ndimage.label(ink_mask(image), structure=np.ones((3, 3), dtype=int))
+    groups = []
+    for k, stroke in enumerate(strokes):
+        hits = [labels[min(max(int(y), 0), SIZE - 1), min(max(int(x), 0), SIZE - 1)] for x, y in points_along(stroke)]
+        hits = [h for h in hits if h]
+        groups.append(max(set(hits), key=hits.count) if hits else count + 1 + k)
+    return groups
+
+
+def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = (), outline=None, groups=None) -> list:
     """The `limit` most important strokes, in their original order. Importance is length, except that a stroke
     centered inside a detail part (detail_boxes, each [x, y, w, h]: the head, an eye, a door) counts DETAIL_BOOST
     times its length, and one running along the subject's outer edge (`outline`, from outline_band) OUTLINE_BOOST
     times. So a busy drawing keeps its outline whole, its big lines and its features, and loses texture and stray
-    bits. (By length alone, a cat lost its nose and mouth, a house its porch windows, and outlines got gaps.)"""
+    bits. (By length alone, a cat lost its nose and mouth, a house its porch windows, and outlines got gaps.)
+
+    With `groups` (from stroke_groups), a separate small group of strokes (a window, an eye, a bush: at most
+    UNIT_MAX_STROKES) is kept or dropped whole, never cut in half: half a window looked broken. The groups and the
+    strokes of big groups are taken in order of importance per stroke they use, while they fit."""
     def on_outline(stroke) -> bool:
         if outline is None:
             return False
-        points = _along(stroke)
+        points = points_along(stroke)
         near = sum(bool(outline[min(max(int(y), 0), SIZE - 1), min(max(int(x), 0), SIZE - 1)]) for x, y in points)
         return near >= OUTLINE_SHARE * len(points)
 
@@ -187,7 +202,24 @@ def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = (), o
 
     if len(strokes) <= limit:
         return list(strokes)
-    keep = set(sorted(range(len(strokes)), key=lambda i: importance(strokes[i]), reverse=True)[:limit])
+    if groups is None:
+        groups = list(range(len(strokes)))  # every stroke on its own
+    members: dict[int, list[int]] = {}
+    for i, group in enumerate(groups):
+        members.setdefault(group, []).append(i)
+    # Items to choose from: a small group as a whole, or one stroke of a big group.
+    items = []
+    for indices in members.values():
+        if len(indices) <= UNIT_MAX_STROKES:
+            items.append(indices)
+        else:
+            items += [[i] for i in indices]
+    value = {i: importance(s) for i, s in enumerate(strokes)}
+    items.sort(key=lambda item: sum(value[i] for i in item) / len(item), reverse=True)
+    keep: set[int] = set()
+    for item in items:
+        if len(keep) + len(item) <= limit:
+            keep.update(item)
     return [s for i, s in enumerate(strokes) if i in keep]
 
 
@@ -474,9 +506,10 @@ def make_pack(
             cut_off = is_cut_off(image)  # before fitting, which puts space around everything
             image = fit_to_page(image)
             strokes = trace(image)
-            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off))
+            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, has_ring(strokes)))
             log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}"
-                + (", cut off at the edge" if candidates[-1].cut_off else ""))
+                + (", cut off at the edge" if candidates[-1].cut_off else "")
+                + (", ring around the subject" if candidates[-1].ringed else ""))
         tries.append(candidates)
         chosen = choose(candidates, min_strokes, limit)
         if chosen is not None:
@@ -493,6 +526,13 @@ def make_pack(
         if whole is not None:
             chosen = whole
             log(f"  candidate {chosen} is a whole subject: using it instead of a cut-off one, simplified")
+    if always and chosen is not None:
+        # The live server simplifies any draft to the limit, so the 60-stroke gate only says which drafts fit as
+        # drawn: a cleaner draft just over it, or one without a ring around the subject, makes the better lesson.
+        overall = choose_anyway(candidates, min_strokes, limit)
+        if overall is not None and overall != chosen:
+            chosen = overall
+            log(f"  candidate {chosen} is cleaner, counting what simplifying removes: using it, simplified")
     if chosen is None:
         counts = "; ".join(", ".join(str(len(c.strokes)) for c in t) for t in tries)
         raise NoCleanCandidate(
@@ -509,7 +549,8 @@ def make_pack(
     simplified = len(best.strokes) > limit
     dropped = []  # the strokes a simplified lesson leaves out
     if simplified:
-        kept = simplify(best.strokes, limit, details, outline_band(best.image))
+        groups = stroke_groups(best.image, best.strokes)
+        kept = simplify(best.strokes, limit, details, outline_band(best.image), groups)
         kept_ids = {id(stroke) for stroke in kept}
         dropped = [stroke for stroke in best.strokes if id(stroke) not in kept_ids]
         best = Candidate(best.image, kept, best.score, best.cut_off)

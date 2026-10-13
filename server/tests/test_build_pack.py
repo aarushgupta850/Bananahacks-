@@ -428,3 +428,14 @@ def test_simplify_keeps_the_whole_outline_of_a_busy_drawing():
     assert sum(s in outline for s in by_length) == 2               # by length alone the outline would break...
     kept = simplify(strokes, 8, outline=outline_band(drawing))
     assert all(s in kept for s in outline)                         # ...but along the outer edge it counts more
+
+
+def test_choose_prefers_a_draft_without_a_ring_around_the_subject():
+    ringed = Candidate(None, [[(0, 0), (1, 1)]] * 30, 20.0, ringed=True)
+    plain = Candidate(None, [[(0, 0), (1, 1)]] * 30, 60.0)
+    assert choose([ringed, plain]) == 1
+    # The live server can use a draft over the 60-stroke gate (simplified), so the gate doesn't force the ring.
+    from build_pack import choose_anyway
+    inside_gate = Candidate(None, [[(0, 0), (1, 1)]] * 58, 36.0, ringed=True)
+    over_gate = Candidate(None, [[(0, 0), (1, 1)]] * 69, 45.0)
+    assert choose([inside_gate, over_gate], limit=50) == 0 and choose_anyway([inside_gate, over_gate], limit=50) == 1
