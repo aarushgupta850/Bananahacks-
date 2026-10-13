@@ -27,11 +27,12 @@ check-in or auto mode) → Retest (solo, 45 s) → Report (measured before and a
   (see [server/PACK_QA.md](server/PACK_QA.md)).
 - An optional live server (`server/api.py`) can make new lessons. The app works fully without it.
 
-**The AI pipeline that builds each lesson** (`/server`): SDXL-Lightning draws four line-art drafts, the
-cleanest is thinned to 1 px lines and traced into strokes, OWLv2 finds and labels the parts, and the strokes
-are ordered the way an artist draws (construction shapes, outlines, structure, details). The drawing you copy
-is the chosen AI drawing itself, cleaned (page to white, ink to black). The guides and measurements use the
-strokes traced from that same image. Packs built offline from a photo (`build_pack.py --photo`) are first
+**The AI pipeline that builds each lesson** (`/server`): SDXL-Lightning draws four line-art drafts. Frames, stray
+marks and background rings are cleaned off, and the draft that will make the cleanest lesson is thinned to 1 px
+lines and traced into strokes. OWLv2 finds and labels the parts, and the strokes are ordered the way an artist
+draws (construction shapes, outlines, structure, details). The drawing you copy is the chosen AI drawing itself,
+cleaned (page to white, ink to black) down to exactly the lines the lesson teaches. The guides and measurements
+use the strokes traced from that same image. Packs built offline from a photo (`build_pack.py --photo`) are first
 redrawn with a line-art detector and the MistoLine ControlNet.
 
 **Live lessons** (optional; setup in [server/LIVE.md](server/LIVE.md)): when our GPU server is online,
@@ -44,8 +45,9 @@ redrawn with a line-art detector and the MistoLine ControlNet.
   "How this lesson was made" panel shows your photo and what it was recognized as. (Redrawing the photo itself
   came out as hundreds of broken strokes on real photos, so nearly every photo was refused.) If you type a name
   with the photo, that name is used. A photo OWLv2 can't name gets a hint to type what it is.
-- **Every allowed prompt gets a lesson.** If no AI draft fits the 60-stroke limit, the cleanest one is
-  simplified to its 60 longest lines.
+- **Every allowed prompt gets a lesson.** A busy drawing is trimmed to the difficulty's stroke limit, keeping its
+  outline, small parts like windows whole, and features like eyes. The prompt was picked by testing four wordings
+  on 41 subjects on the live GPU and judging every resulting lesson.
 - **Safety:** prompts are checked against a blocklist that also catches disguised words (leetspeak like
   "n4k3d", "p.o.r.n", explicit words inside other words), and the prompt is always wrapped in the line-art
   prompt. Uploaded photos and the chosen drawing are checked for nudity and weapons with OWLv2. Photos are

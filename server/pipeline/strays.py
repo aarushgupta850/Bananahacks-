@@ -45,6 +45,15 @@ MAIN_SHARE = 0.05       # a connected piece with at least this share of all the 
 NEAR_PX = 16            # pieces with gaps this small between them belong together
 INSIDE_SHARE = 0.5      # a piece with at least this share of its ink inside the subject's outline belongs to it
 MAX_STRAY_SHARE = 0.15  # strays are small extras: if they add up to more of the ink than this, they are the drawing
+# Rings still joined to the subject (has_ring), measured on 240 live drafts: a background ring ends up centered on
+# the page (fit_to_page frames everything inside it), with a radius of 290-355 px, and drawn around at least half of
+# its circle. A subject's own curves (a cat's back, a turtle's shell) fit big circles that are off center or barely
+# drawn around.
+RING_ARC_PX = 100       # traced strokes at least this long are tried as arcs of a ring
+RING_FIT_RADIUS = 250   # ...whose circle has at least this radius
+RING_CENTER_PX = 60     # ...and a center this close to the page's
+RING_ON_PX = 6          # strokes this close to the circle lie on it
+RING_COVER = 0.5        # the ring is drawn around at least this share of its circle
 # Cut off.
 EDGE_PX = 6       # ink this close to the image's edge means the subject runs off the page
 CUT_OFF_PX = 40   # at least this many ink pixels along the edge: the subject is cut off, not just touching it
@@ -169,6 +178,31 @@ def remove_strays(image: Image.Image) -> Image.Image:
     page = np.median(pixels[~ndimage.binary_dilation(ink, iterations=2)], axis=0)  # the page's own color
     pixels[erase] = page.astype(np.uint8)
     return Image.fromarray(pixels, "RGB")
+
+
+def has_ring(strokes: list, size: int = 768) -> bool:
+    """True if the traced drawing still has a background ring around the subject, joined to it (where the subject
+    touches the ring, remove_strays can't tell them apart). The pack builder then prefers another draft: the ring's
+    arcs would be strokes to copy, and they look like stray lines. Takes strokes of (x, y) points."""
+    from pipeline.trace import points_along
+
+    if not strokes:
+        return False
+    every = np.array([p for stroke in strokes for p in points_along(stroke)])
+    for stroke in strokes:
+        points = np.array(points_along(stroke))
+        if len(points) < 2 or np.hypot(*np.diff(points, axis=0).T).sum() < RING_ARC_PX:
+            continue
+        cx, cy, radius, misfit = fit_circle(points[:, 1], points[:, 0])
+        centered = np.hypot(cx - size / 2, cy - size / 2) <= RING_CENTER_PX
+        if radius < RING_FIT_RADIUS or misfit > RING_MAX_MISFIT or not centered:
+            continue
+        on = np.abs(np.hypot(every[:, 0] - cx, every[:, 1] - cy) - radius) <= RING_ON_PX
+        angles = np.arctan2(every[on, 1] - cy, every[on, 0] - cx)
+        drawn = len(np.unique(((angles + np.pi) / (2 * np.pi) * 72).astype(int) % 72)) / 72  # in 5-degree steps
+        if drawn >= RING_COVER:
+            return True
+    return False
 
 
 def is_cut_off(image: Image.Image) -> bool:

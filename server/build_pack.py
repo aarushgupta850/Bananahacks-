@@ -39,8 +39,8 @@ from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import active_variant, line_art_prompt  # noqa: E402
 from pipeline.quality import line_metrics, symmetry  # noqa: E402
 from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
-from pipeline.strays import is_cut_off, remove_strays  # noqa: E402
-from pipeline.trace import ink_mask, skeleton_of, trace  # noqa: E402
+from pipeline.strays import has_ring, is_cut_off, remove_strays  # noqa: E402
+from pipeline.trace import ink_mask, points_along, skeleton_of, trace  # noqa: E402
 
 SUBJECTS_DIR = SERVER_DIR.parent / "web" / "public" / "subjects"
 DIFFICULTIES = ["simple", "medium", "detailed"]  # must match Difficulty in web/src/engine/types.ts
@@ -64,10 +64,11 @@ class Candidate:
     strokes: list
     score: float
     cut_off: bool = False  # the subject runs off the edge of the image (strays.is_cut_off)
+    ringed: bool = False   # a background ring is still joined to the subject (strays.has_ring)
     symmetry: float = 0.0  # quality.symmetry, 0-1 (only measured when prefer_symmetry() is on)
 
 
-# With GHOSTLINES_PREFER_SYMMETRY=1, a draft's quality score improves by up to this much for being mirror-symmetric
+# With GHOSTLINES_PREFER_SYMMETRY=1, a draft's cost drops by up to this much for being mirror-symmetric
 # (quality.symmetry), so of two near-equally clean drafts the even, balanced one wins: a basketball with matching
 # seams over a lopsided one. Clean scores of usable drafts are about 10 to 60, so this decides close calls only.
 SYMMETRY_BONUS = 15.0
@@ -77,9 +78,9 @@ def prefer_symmetry() -> bool:
     return os.environ.get("GHOSTLINES_PREFER_SYMMETRY") == "1"
 
 
-def ranking_score(c: Candidate) -> float:
-    """The quality score used to rank drafts: the plain score, less the symmetry bonus when that's switched on."""
-    return c.score - (SYMMETRY_BONUS * c.symmetry if prefer_symmetry() else 0.0)
+def symmetry_bonus(c: Candidate) -> float:
+    """How much a draft's mirror symmetry takes off its cost: nothing unless prefer_symmetry() is on."""
+    return SYMMETRY_BONUS * c.symmetry if prefer_symmetry() else 0.0
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -101,57 +102,176 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 # ---------------------------------------------------------------- choosing a candidate
 
 
+LOST_WEIGHT = 300  # choose: a draft that loses its whole drawing to simplifying would count 300 points less clean
+RING_PENALTY = 150  # choose: a draft with a background ring around the subject counts this much less clean
+
+
+def lost_share(strokes: list, limit: int) -> float:
+    """Share of a drawing's line length that simplifying it to `limit` strokes would leave out (0 if it fits)."""
+    if len(strokes) <= limit:
+        return 0.0
+    total = sum(stroke_length(s) for s in strokes)
+    return 1 - sum(stroke_length(s) for s in simplify(strokes, limit)) / total if total else 0.0
+
+
+def cost(candidate: Candidate, limit: int) -> float:
+    """How much worse a draft would look as a lesson: its quality score (lower is cleaner), plus the lines simplifying
+    it would remove (a draft just over the limit loses a few short lines and barely changes; one far over it loses
+    much of the drawing), plus RING_PENALTY for a background ring around the subject (a fifth of live drafts had
+    one, joined to the subject, and its arcs looked like stray lines)."""
+    return (candidate.score + LOST_WEIGHT * lost_share(candidate.strokes, limit)
+            + (RING_PENALTY if candidate.ringed else 0))
+
+
 def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
     """Index of the best candidate inside the stroke gate, or None. In order of preference: a whole subject (not
-    cut off at the edge), then one that fits `limit` as drawn (a drawing over the limit loses its smallest lines,
-    so it looks unfinished), then the cleanest (lowest quality score), then the fewest strokes. (Fewest strokes
-    first, as before, kept drawings with dashed or broken lines over cleaner ones.)"""
+    cut off at the edge), then the lowest cost (the cleanest, counting what simplifying to `limit` would remove), then
+    the fewest strokes. (Fitting the limit used to come before cleanliness, so a faint, sketchy cat with 48 strokes
+    beat a crisp one with 54 for a 50-stroke lesson. Before that, fewest strokes first kept drawings with dashed or
+    broken lines over cleaner ones.)"""
     usable = [
         i for i, c in enumerate(candidates)
         if min_strokes <= len(c.strokes) <= MAX_STROKES and c.score < REJECTED_SCORE
     ]
     if not usable:
         return None
-    return min(usable, key=lambda i: (candidates[i].cut_off, len(candidates[i].strokes) > limit,
-                                      ranking_score(candidates[i]), len(candidates[i].strokes)))
+    return min(usable, key=lambda i: (candidates[i].cut_off, cost(candidates[i], limit) - symmetry_bonus(candidates[i]),
+                                      len(candidates[i].strokes)))
 
 
-NEAR_TIE = 1.3  # choose_anyway: drafts with at most this many times the fewest strokes count as equally short
-
-
-def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
-    """When no candidate fits the gate: one that loses little when simplified (few strokes: a 112-stroke house
-    trimmed to 25 was unrecognizable) and is clean. Of the drafts with enough lines, preferring a whole subject and
-    one that isn't colored, it takes the cleanest of those with close to the fewest strokes (a clean giraffe with 82
-    strokes over a messy 73-stroke one). None if every candidate is blank. (A colored one is retraced in black.)"""
+def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
+    """When no candidate fits the gate: one that is clean and loses little when simplified (a 112-stroke house
+    trimmed to 25 was unrecognizable), preferring a whole subject and one that isn't colored. So a clean giraffe with
+    82 strokes beats a messy 73-stroke one. None if every candidate is blank. (A colored one is retraced in black.)"""
     usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= min_strokes]
     if not usable:
         return None
     best = min((candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) for i in usable)
     group = [i for i in usable if (candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) == best]
-    fewest = min(len(candidates[i].strokes) for i in group)
-    near = [i for i in group if len(candidates[i].strokes) <= NEAR_TIE * fewest]
-    return min(near, key=lambda i: (candidates[i].score, len(candidates[i].strokes)))
+    return min(group, key=lambda i: (cost(candidates[i], limit), len(candidates[i].strokes)))
 
 
 DETAIL_BOOST = 3.0  # simplify: a stroke inside a detail part (an eye, the nose, a door) counts as this much longer
 WHOLE_PARTS = {"body", "wall"}  # parts that cover the whole subject (as pipeline.parts.WHOLE_OBJECT): no boost
+OUTLINE_BOOST = 2.0  # simplify: a stroke along the subject's outer edge counts this much longer...
+OUTLINE_SHARE = 0.6  # ...if at least this share of it lies within OUTLINE_NEAR_PX of that edge
+OUTLINE_NEAR_PX = 8
+OUTLINE_CLOSE_PX = 10  # gaps up to about twice this wide in the outline are bridged when finding the outer edge
 
 
-def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = ()) -> list:
+def stroke_length(stroke) -> float:
+    return sum(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]))
+
+
+def outline_band(image: Image.Image):
+    """True near the subject's outer edge (within OUTLINE_NEAR_PX): the edge of its silhouette, the ink with small
+    gaps closed and every hole filled in. Used by simplify, so trimming a busy drawing never breaks its outline."""
+    import numpy as np
+    from scipy import ndimage
+
+    ink = ink_mask(image)
+    pad = OUTLINE_CLOSE_PX  # padding, so ink at the page's edge isn't closed against the border
+    closed = ndimage.binary_closing(np.pad(ink, pad), iterations=OUTLINE_CLOSE_PX)[pad:-pad, pad:-pad]
+    silhouette = ndimage.binary_fill_holes(closed)
+    edge = silhouette & ~ndimage.binary_erosion(silhouette)
+    return ndimage.distance_transform_edt(~edge) <= OUTLINE_NEAR_PX
+
+
+FEATURE_MAX_PX = 80      # feature_boxes: a solid blob of ink at most this wide and tall (an eye, a nose)...
+FEATURE_MIN_PX = 8       # ...at least this wide and tall...
+FEATURE_SOLIDITY = 0.35  # ...filling at least this share of its bounding box (a thin tick of fur fills far less)
+FEATURE_ASPECT = 2.5     # ...and at most this many times longer than wide
+
+
+def feature_boxes(image: Image.Image) -> list[list[int]]:
+    """Boxes ([x, y, w, h]) around small, solid, roundish blobs of ink: eyes, a nose, nostrils, buttons. An eye drawn
+    as a black dot with a white highlight traces into a few short, open strokes, which trimming by length dropped
+    (a cat lost one eye, a fish its only one) whenever OWLv2 hadn't found an eye there."""
+    import numpy as np
+    from scipy import ndimage
+
+    labels, _ = ndimage.label(ink_mask(image), structure=np.ones((3, 3), dtype=int))
+    boxes = []
+    for label, box in enumerate(ndimage.find_objects(labels), start=1):
+        if box is None:
+            continue
+        h, w = box[0].stop - box[0].start, box[1].stop - box[1].start
+        if not FEATURE_MIN_PX <= min(h, w) <= max(h, w) <= FEATURE_MAX_PX or max(h, w) > FEATURE_ASPECT * min(h, w):
+            continue
+        if (labels[box] == label).sum() >= FEATURE_SOLIDITY * h * w:
+            boxes.append([box[1].start - 4, box[0].start - 4, w + 8, h + 8])
+    return boxes
+
+
+def small_shape(stroke) -> bool:
+    """True for a closed stroke enclosing at most SMALL_SHAPE_PX: a dot or a ring for an eye, a nostril, a button."""
+    points = [tuple(p) for p in stroke]
+    closed = len(points) >= 3 and abs(points[0][0] - points[-1][0]) + abs(points[0][1] - points[-1][1]) <= 4
+    return closed and _polygon_area(points) <= SMALL_SHAPE_PX
+
+
+UNIT_MAX_STROKES = 8  # simplify: a separate small group of at most this many strokes is kept or dropped whole
+
+
+def stroke_groups(image: Image.Image, strokes: list) -> list[int]:
+    """For each stroke, the piece of ink (as the tracer sees it) it runs along: strokes sharing one are drawn joined
+    up, like the four sides of a window. A stroke off the ink (an eye drawn as a gray almond) is a group of its own."""
+    import numpy as np
+    from scipy import ndimage
+
+    labels, count = ndimage.label(ink_mask(image), structure=np.ones((3, 3), dtype=int))
+    groups = []
+    for k, stroke in enumerate(strokes):
+        hits = [labels[min(max(int(y), 0), SIZE - 1), min(max(int(x), 0), SIZE - 1)] for x, y in points_along(stroke)]
+        hits = [h for h in hits if h]
+        groups.append(max(set(hits), key=hits.count) if hits else count + 1 + k)
+    return groups
+
+
+def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = (), outline=None, groups=None) -> list:
     """The `limit` most important strokes, in their original order. Importance is length, except that a stroke
     centered inside a detail part (detail_boxes, each [x, y, w, h]: the head, an eye, a door) counts DETAIL_BOOST
-    times its length. So a busy drawing keeps its big lines and its features, and loses texture and stray bits.
-    (By length alone, a cat lost its nose and mouth, and a house its porch windows.)"""
-    def length(stroke) -> float:
-        return sum(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]))
+    times its length, and so does a small closed shape (a dot or ring eye, a nostril: features, wherever OWLv2 found
+    parts); one running along the subject's outer edge (`outline`, from outline_band) counts OUTLINE_BOOST times. So
+    a busy drawing keeps its outline whole, its big lines and its features, and loses texture and stray bits. (By
+    length alone, a cat lost its nose and mouth, a house its porch windows, a fish its eye, and outlines got gaps.)
+
+    With `groups` (from stroke_groups), a separate small group of strokes (a window, an eye, a bush: at most
+    UNIT_MAX_STROKES) is kept or dropped whole, never cut in half: half a window looked broken. The groups and the
+    strokes of big groups are taken in order of importance per stroke they use, while they fit."""
+    def on_outline(stroke) -> bool:
+        if outline is None:
+            return False
+        points = points_along(stroke)
+        near = sum(bool(outline[min(max(int(y), 0), SIZE - 1), min(max(int(x), 0), SIZE - 1)]) for x, y in points)
+        return near >= OUTLINE_SHARE * len(points)
 
     def importance(stroke) -> float:
         cx, cy = sum(p[0] for p in stroke) / len(stroke), sum(p[1] for p in stroke) / len(stroke)
-        detail = any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in detail_boxes)
-        return length(stroke) * (DETAIL_BOOST if detail else 1.0)
+        detail = any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in detail_boxes) or small_shape(stroke)
+        boost = max(DETAIL_BOOST if detail else 1.0, OUTLINE_BOOST if on_outline(stroke) else 1.0)
+        return stroke_length(stroke) * boost
 
-    keep = set(sorted(range(len(strokes)), key=lambda i: importance(strokes[i]), reverse=True)[:limit])
+    if len(strokes) <= limit:
+        return list(strokes)
+    if groups is None:
+        groups = list(range(len(strokes)))  # every stroke on its own
+    members: dict[int, list[int]] = {}
+    for i, group in enumerate(groups):
+        members.setdefault(group, []).append(i)
+    # Items to choose from: a small group as a whole, or one stroke of a big group.
+    items = []
+    for indices in members.values():
+        if len(indices) <= UNIT_MAX_STROKES:
+            items.append(indices)
+        else:
+            items += [[i] for i in indices]
+    value = {i: importance(s) for i, s in enumerate(strokes)}
+    items.sort(key=lambda item: sum(value[i] for i in item) / len(item), reverse=True)
+    keep: set[int] = set()
+    for item in items:
+        if len(keep) + len(item) <= limit:
+            keep.update(item)
     return [s for i, s in enumerate(strokes) if i in keep]
 
 
@@ -173,45 +293,98 @@ BRIDGE_PX = 40       # a dropped stroke at most this long with both ends on kept
 FAINT_LEVEL = 12     # anything this much darker than the page counts as drawn (the faint edges of a line included)
 
 
-def without_strokes(image: Image.Image, kept: list, dropped: list, protect: list = ()) -> Image.Image:
-    """The AI drawing with the dropped strokes' lines painted over in the page's color, for a lesson that keeps only
-    some of the drawing's strokes. The reference then shows exactly what the lesson teaches, still drawn the way the
-    AI drew it. (Re-drawing the kept strokes themselves looked broken and sketchy: uniform lines with gaps wherever
-    a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line. A short dropped stroke
-    joining two kept lines (a knee, the corner of a window) stays drawn, or the outline would show a gap, and so
-    does one centered in a `protect` box ([x, y, w, h]: the head, an eye), so a face never gets a blank patch."""
-    import math
-
+def _lines(strokes: list):
+    """The strokes drawn as 1-px lines on a 768 x 768 boolean canvas."""
     import numpy as np
+
+    canvas = Image.new("1", (SIZE, SIZE), 0)
+    draw = ImageDraw.Draw(canvas)
+    for stroke in strokes:
+        draw.line([tuple(p) for p in stroke], fill=1, width=1)
+    return np.asarray(canvas, dtype=bool)
+
+
+def still_drawn(kept: list, dropped: list, protect: list = ()) -> list:
+    """The dropped strokes that stay on a simplified lesson's reference: a short one joining two kept lines (a knee,
+    the corner of a window), or the outline would show a gap, and one centered in a `protect` box ([x, y, w, h]: the
+    head, an eye), so a face never gets a blank patch."""
     from scipy import ndimage
 
-    def lines(strokes: list) -> np.ndarray:
-        canvas = Image.new("1", (SIZE, SIZE), 0)
-        draw = ImageDraw.Draw(canvas)
-        for stroke in strokes:
-            draw.line([tuple(p) for p in stroke], fill=1, width=1)
-        return np.asarray(canvas, dtype=bool)
-
-    to_kept = ndimage.distance_transform_edt(~lines(kept))
+    to_kept = ndimage.distance_transform_edt(~_lines(kept))
 
     def on_kept(point) -> bool:
         x, y = min(max(int(point[0]), 0), SIZE - 1), min(max(int(point[1]), 0), SIZE - 1)
         return to_kept[y, x] <= KEEP_NEAR_PX + 3
 
     def bridge(stroke) -> bool:
-        length = sum(math.dist(a, b) for a, b in zip(stroke, stroke[1:]))
-        return length <= BRIDGE_PX and on_kept(stroke[0]) and on_kept(stroke[-1])
+        return stroke_length(stroke) <= BRIDGE_PX and on_kept(stroke[0]) and on_kept(stroke[-1])
 
     def protected(stroke) -> bool:
         cx, cy = sum(p[0] for p in stroke) / len(stroke), sum(p[1] for p in stroke) / len(stroke)
         return any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in protect)
 
-    to_dropped = ndimage.distance_transform_edt(~lines([s for s in dropped if not bridge(s) and not protected(s)]))
+    return [s for s in dropped if bridge(s) or protected(s)]
+
+
+def without_strokes(image: Image.Image, kept: list, dropped: list, protect: list = ()) -> Image.Image:
+    """The AI drawing with the dropped strokes' lines painted over in the page's color, for a lesson that keeps only
+    some of the drawing's strokes. The reference then shows exactly what the lesson teaches, still drawn the way the
+    AI drew it. (Re-drawing the kept strokes themselves looked broken and sketchy: uniform lines with gaps wherever
+    a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line. Dropped strokes that
+    still_drawn() keeps (bridges, and strokes inside a `protect` box) stay."""
+    import numpy as np
+    from scipy import ndimage
+
+    to_kept = ndimage.distance_transform_edt(~_lines(kept))
+    staying = {id(s) for s in still_drawn(kept, dropped, protect)}
+    to_dropped = ndimage.distance_transform_edt(~_lines([s for s in dropped if id(s) not in staying]))
     rgb = image.convert("RGB").resize((SIZE, SIZE))
     pixels = np.asarray(rgb).copy()
     gray = np.asarray(rgb.convert("L"))
     drawn = gray < np.median(gray) - FAINT_LEVEL  # the page is most of the picture
     erase = drawn & (to_dropped < to_kept) & (to_kept > KEEP_NEAR_PX) & (to_dropped <= LINE_REACH_PX)
+    pixels[erase] = np.median(pixels[~drawn], axis=0).astype(np.uint8) if (~drawn).any() else 255
+    return Image.fromarray(pixels, "RGB")
+
+
+EDGE_PX = 3              # lesson_only: the soft (anti-aliased) edge kept around the ink of a shown stroke
+SMALL_SHAPE_PX = 6000    # ...and everything inside a closed shown stroke enclosing at most this area (in px) stays
+
+
+def _polygon_area(stroke) -> float:
+    """Area enclosed by a stroke read as a polygon (the shoelace formula)."""
+    return abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:] + stroke[:1]))) / 2
+
+
+def lesson_only(image: Image.Image, shown: list) -> Image.Image:
+    """The drawing with everything the lesson doesn't show painted over in the page's color, so the reference holds
+    exactly the lines the user is taught. What stays: each piece of ink (as the tracer sees it) that a shown stroke
+    runs along, whole (so solid fills and thick lines stay as drawn), with its soft edge; and everything inside a
+    small closed shown stroke (a dot eye, an eye drawn as a gray almond, which is lighter than ink). What goes: faint
+    gray sketch lines the tracer never counted as ink (they made sketchy, unfinished-looking "stray lines" on the
+    reference), and scraps too small to become strokes."""
+    import numpy as np
+    from scipy import ndimage
+
+    if not shown:
+        return image
+    rgb = image.convert("RGB").resize((SIZE, SIZE))
+    ink = ink_mask(rgb)
+    labels, _ = ndimage.label(ink, structure=np.ones((3, 3), dtype=int))
+    hit = np.unique(labels[_lines(shown)])
+    keep = np.isin(labels, hit[hit > 0])
+    shapes = Image.new("1", (SIZE, SIZE), 0)
+    draw = ImageDraw.Draw(shapes)
+    for stroke in shown:
+        if small_shape(stroke):
+            draw.polygon([tuple(p) for p in stroke], fill=1, outline=1)
+    keep = ndimage.binary_dilation(keep | np.asarray(shapes, dtype=bool), iterations=EDGE_PX)
+    pixels = np.asarray(rgb).copy()
+    gray = np.asarray(rgb.convert("L"))
+    drawn = gray < np.median(gray) - FAINT_LEVEL
+    erase = drawn & ~keep
+    if not erase.any():
+        return image
     pixels[erase] = np.median(pixels[~drawn], axis=0).astype(np.uint8) if (~drawn).any() else 255
     return Image.fromarray(pixels, "RGB")
 
@@ -384,25 +557,34 @@ def make_pack(
             image = fit_to_page(image)
             strokes = trace(image)
             sym = symmetry(image) if prefer_symmetry() else 0.0
-            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, sym))
+            candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, has_ring(strokes),
+                                        symmetry=sym))
             log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}"
-                + (", cut off at the edge" if candidates[-1].cut_off else ""))
+                + (", cut off at the edge" if candidates[-1].cut_off else "")
+                + (", ring around the subject" if candidates[-1].ringed else ""))
         tries.append(candidates)
         chosen = choose(candidates, min_strokes, limit)
         if chosen is not None:
             break
     else:
-        chosen = choose_anyway(candidates, min_strokes) if always else None
+        chosen = choose_anyway(candidates, min_strokes, limit) if always else None
         if chosen is not None:
             log(f"  no candidate fit {min_strokes}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
     if always and chosen is not None and candidates[chosen].cut_off:
         # The only drafts inside the gate are cut off at the edge (a giraffe's neck, cropped): a whole subject is
         # better even if it has too many strokes and gets simplified.
         uncut = [c if not c.cut_off else Candidate(c.image, [], c.score) for c in candidates]  # cut ones can't win
-        whole = choose_anyway(uncut, min_strokes)
+        whole = choose_anyway(uncut, min_strokes, limit)
         if whole is not None:
             chosen = whole
             log(f"  candidate {chosen} is a whole subject: using it instead of a cut-off one, simplified")
+    if always and chosen is not None:
+        # The live server simplifies any draft to the limit, so the 60-stroke gate only says which drafts fit as
+        # drawn: a cleaner draft just over it, or one without a ring around the subject, makes the better lesson.
+        overall = choose_anyway(candidates, min_strokes, limit)
+        if overall is not None and overall != chosen:
+            chosen = overall
+            log(f"  candidate {chosen} is cleaner, counting what simplifying removes: using it, simplified")
     if chosen is None:
         counts = "; ".join(", ".join(str(len(c.strokes)) for c in t) for t in tries)
         raise NoCleanCandidate(
@@ -416,10 +598,12 @@ def make_pack(
         check_drawing(best.image)
     parts = detect(best.image)
     details = [p["box"] for p in parts if p["id"].split("_")[0] not in WHOLE_PARTS]  # the head, eyes, a door...
+    details += feature_boxes(best.image)  # eyes and noses OWLv2 didn't box
     simplified = len(best.strokes) > limit
     dropped = []  # the strokes a simplified lesson leaves out
     if simplified:
-        kept = simplify(best.strokes, limit, details)
+        groups = stroke_groups(best.image, best.strokes)
+        kept = simplify(best.strokes, limit, details, outline_band(best.image), groups)
         kept_ids = {id(stroke) for stroke in kept}
         dropped = [stroke for stroke in best.strokes if id(stroke) not in kept_ids]
         best = Candidate(best.image, kept, best.score, best.cut_off)
@@ -428,7 +612,14 @@ def make_pack(
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
                          n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note)
-    target = clean_drawing(without_strokes(best.image, best.strokes, dropped, details) if simplified else best.image)
+    # The reference: the AI drawing without the strokes a simplified lesson leaves out, and without anything else the
+    # lesson doesn't show (faint sketch lines, scraps too small to trace), cleaned to crisp black on white.
+    if simplified:
+        drawing = without_strokes(best.image, best.strokes, dropped, details)
+        shown = best.strokes + still_drawn(best.strokes, dropped, details)
+    else:
+        drawing, shown = best.image, best.strokes
+    target = clean_drawing(lesson_only(drawing, shown))
     assets = {
         "target.png": png_bytes(target),
         "thumb.png": png_bytes(target.resize((256, 256), Image.LANCZOS)),
