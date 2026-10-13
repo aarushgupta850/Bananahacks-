@@ -95,6 +95,12 @@ export function traceReveal(strokes: PlanStroke[], steps: Step[], currentIndex: 
   return out
 }
 
+// A tap (a click, or a pen touching down without moving) leaves a dot of ink but is not a line: the teacher
+// ignores strokes shorter than 3 px (the engine's minStrokeLength), so the lesson must not count it either.
+// Before this, every tap revealed another 1/12 of the trace, and three taps said "Stuck?".
+export const TAP_PX = 3
+export const isTap = (points: Point[]) => lineLength(points) < TAP_PX
+
 // How much more line one user stroke reveals: as much as they drew, but at least 1/12 of the whole drawing,
 // so every drawing is fully traced after about a dozen strokes at most.
 export const REVEAL_STEPS = 12
