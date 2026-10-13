@@ -367,3 +367,15 @@ def test_without_strokes_keeps_dropped_lines_inside_protected_parts():
     out = np.asarray(without_strokes(drawing, kept=[[(100, 600), (600, 600)]], dropped=[[(300, 300), (330, 300)]],
                                      protect=[[250, 250, 150, 150]]).convert("L"))
     assert (out[298:303, 300:331] < 128).all()               # the nose stays on the reference
+
+
+def test_clean_drawing_turns_gray_fills_and_halos_white_and_keeps_lines_black():
+    from build_pack import clean_drawing
+
+    drawing = Image.new("RGB", (768, 768), (228, 228, 228))
+    draw = ImageDraw.Draw(drawing)
+    draw.ellipse((150, 150, 618, 618), fill=(205, 205, 205))             # a pale disc behind the subject
+    draw.rectangle((300, 300, 470, 470), fill=(170, 170, 170), outline=(25, 25, 25), width=8)  # gray-filled box
+    out = np.asarray(clean_drawing(drawing))
+    assert out[385, 385] == 255 and out[200, 384] == 255 and out[150, 384] == 255  # fill, disc and its edge: white
+    assert out[303, 385] < 60                                            # the outline stays black

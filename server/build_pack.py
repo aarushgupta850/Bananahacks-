@@ -199,11 +199,16 @@ def without_strokes(image: Image.Image, kept: list, dropped: list, protect: list
     return Image.fromarray(pixels, "RGB")
 
 
+FILL_FADE = (120, 165)  # clean_drawing: gray levels from the first fade to white at the second (fills, halos, shading)
+
+
 def clean_drawing(image: Image.Image) -> Image.Image:
     """The drawing the user copies: the chosen AI drawing itself, cleaned up (gray or uneven page to white, ink to
     crisp black, colour removed). It keeps the drawing's line weight and small details, which re-drawing it from
     the traced strokes lost. The traced strokes come from this same image, so the lesson's guides and the
-    measurements still line up with it."""
+    measurements still line up with it. Gray fills, shading and the halo of a gray disc behind the subject fade to
+    white (FILL_FADE): the lesson only teaches lines dark enough to be ink (the tracer's threshold is at most 100),
+    so the reference shows just those, as crisp black lines on white."""
     import numpy as np
     from scipy import ndimage
 
@@ -216,6 +221,7 @@ def clean_drawing(image: Image.Image) -> Image.Image:
     ink = min(float(np.percentile(ratio, 2)), 0.5)
     white_from = 1.0 - 0.18 * (1.0 - ink)  # this close to the page counts as page
     out = np.clip((ratio - ink) / max(white_from - ink, 1e-3), 0.0, 1.0) ** 1.6
+    out = np.maximum(out, np.clip((gray - FILL_FADE[0]) / (FILL_FADE[1] - FILL_FADE[0]), 0.0, 1.0))
     return Image.fromarray((out * 255).astype(np.uint8), "L").resize((SIZE, SIZE), Image.LANCZOS)
 
 
