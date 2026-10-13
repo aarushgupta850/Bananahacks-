@@ -374,7 +374,8 @@ def make_pack(
     if always and chosen is not None and candidates[chosen].cut_off:
         # The only drafts inside the gate are cut off at the edge (a giraffe's neck, cropped): a whole subject is
         # better even if it has too many strokes and gets simplified.
-        whole = choose_anyway([c if not c.cut_off else Candidate(c.image, [], c.score) for c in candidates], min_strokes)
+        uncut = [c if not c.cut_off else Candidate(c.image, [], c.score) for c in candidates]  # cut ones can't win
+        whole = choose_anyway(uncut, min_strokes)
         if whole is not None:
             chosen = whole
             log(f"  candidate {chosen} is a whole subject: using it instead of a cut-off one, simplified")
