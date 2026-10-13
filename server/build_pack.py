@@ -37,10 +37,11 @@ sys.path.insert(0, str(SERVER_DIR))  # so `pipeline` and `scripts` import when r
 from pipeline import schema  # noqa: E402
 from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import active_variant, line_art_prompt  # noqa: E402
-from pipeline.quality import line_metrics, symmetry  # noqa: E402
+from pipeline.quality import line_metrics, separate_subjects, symmetry  # noqa: E402
 from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
 from pipeline.strays import has_ring, is_cut_off, remove_strays  # noqa: E402
 from pipeline.trace import ink_mask, points_along, skeleton_of, trace  # noqa: E402
+from scripts.download_models import lightning_steps  # noqa: E402
 
 SUBJECTS_DIR = SERVER_DIR.parent / "web" / "public" / "subjects"
 DIFFICULTIES = ["simple", "medium", "detailed"]  # must match Difficulty in web/src/engine/types.ts
@@ -66,6 +67,7 @@ class Candidate:
     cut_off: bool = False  # the subject runs off the edge of the image (strays.is_cut_off)
     ringed: bool = False   # a background ring is still joined to the subject (strays.has_ring)
     symmetry: float = 0.0  # quality.symmetry, 0-1 (only measured when prefer_symmetry() is on)
+    subjects: int = 1      # quality.separate_subjects: 2 or more is two things drawn (two cars) or one broken in two
 
 
 # With GHOSTLINES_PREFER_SYMMETRY=1, a draft's cost drops by up to this much for being mirror-symmetric
@@ -104,6 +106,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 LOST_WEIGHT = 300  # choose: a draft that loses its whole drawing to simplifying would count 300 points less clean
 RING_PENALTY = 150  # choose: a draft with a background ring around the subject counts this much less clean
+SUBJECTS_PENALTY = 100  # choose: a draft with two separate subjects (two cars, a sneaker and a loose sole) likewise
 
 
 def lost_share(strokes: list, limit: int) -> float:
@@ -118,9 +121,12 @@ def cost(candidate: Candidate, limit: int) -> float:
     """How much worse a draft would look as a lesson: its quality score (lower is cleaner), plus the lines simplifying
     it would remove (a draft just over the limit loses a few short lines and barely changes; one far over it loses
     much of the drawing), plus RING_PENALTY for a background ring around the subject (a fifth of live drafts had
-    one, joined to the subject, and its arcs looked like stray lines)."""
+    one, joined to the subject, and its arcs looked like stray lines), plus SUBJECTS_PENALTY for two separate subjects,
+    minus the symmetry bonus when that is on. Both choosers use this, so the last check never undoes the first's pick
+    (it used to leave the symmetry bonus out: a crossed, lopsided airplane beat a clean, symmetric one)."""
     return (candidate.score + LOST_WEIGHT * lost_share(candidate.strokes, limit)
-            + (RING_PENALTY if candidate.ringed else 0))
+            + (RING_PENALTY if candidate.ringed else 0) + (SUBJECTS_PENALTY if candidate.subjects >= 2 else 0)
+            - symmetry_bonus(candidate))
 
 
 def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
@@ -135,8 +141,7 @@ def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: i
     ]
     if not usable:
         return None
-    return min(usable, key=lambda i: (candidates[i].cut_off, cost(candidates[i], limit) - symmetry_bonus(candidates[i]),
-                                      len(candidates[i].strokes)))
+    return min(usable, key=lambda i: (candidates[i].cut_off, cost(candidates[i], limit), len(candidates[i].strokes)))
 
 
 def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
@@ -466,7 +471,7 @@ def pipeline_stages(
     return [
         source,
         {"id": "candidates", "label": f"{n_candidates} AI drafts", "images": candidate_paths,
-         "text": f"SDXL-Lightning drew {n_candidates} line-art drafts, 4 steps each."},
+         "text": f"SDXL-Lightning drew {n_candidates} line-art drafts, {lightning_steps()} steps each."},
         {"id": "chosen", "label": "Chosen drawing", "image": candidate_paths[chosen],
          "text": f"The cleanest draft, traced into {n_strokes} strokes (a lesson keeps {MIN_STROKES}-{MAX_STROKES})."},
         {"id": "skeleton", "label": "Traced lines", "image": "pipeline/skeleton.webp",
@@ -558,10 +563,11 @@ def make_pack(
             strokes = trace(image)
             sym = symmetry(image) if prefer_symmetry() else 0.0
             candidates.append(Candidate(image, strokes, line_metrics(image)["score"], cut_off, has_ring(strokes),
-                                        symmetry=sym))
+                                        symmetry=sym, subjects=separate_subjects(image)))
             log(f"  candidate {i} (seed {first_seed + i}): {len(strokes)} strokes, score {candidates[-1].score:.1f}"
                 + (", cut off at the edge" if candidates[-1].cut_off else "")
-                + (", ring around the subject" if candidates[-1].ringed else ""))
+                + (", ring around the subject" if candidates[-1].ringed else "")
+                + (", two separate subjects" if candidates[-1].subjects >= 2 else ""))
         tries.append(candidates)
         chosen = choose(candidates, min_strokes, limit)
         if chosen is not None:

@@ -65,3 +65,28 @@ def test_tinted_near_black_lines_are_not_color():
     image = blank()
     ImageDraw.Draw(image).ellipse((184, 184, 584, 584), outline=(30, 22, 16), width=6)  # warm black
     assert line_metrics(image)["color"] < 0.15
+
+
+def test_a_mostly_black_page_is_rejected_like_a_colored_one():
+    solid = blank()
+    ImageDraw.Draw(solid).rectangle((0, 0, 767, 500), fill="black")  # 65% of the page black
+    assert line_metrics(solid)["score"] >= 1000
+    assert line_metrics(clean_circle())["score"] < 1000
+
+
+def test_separate_subjects_counts_two_things_drawn_but_not_details_inside_one():
+    from pipeline.quality import separate_subjects
+
+    assert separate_subjects(clean_circle()) == 1
+    two = blank()
+    draw = ImageDraw.Draw(two)
+    draw.rectangle((100, 100, 660, 330), outline="black", width=8)   # a car on top...
+    draw.rectangle((100, 440, 660, 670), outline="black", width=8)   # ...and another below it
+    assert separate_subjects(two) == 2
+    house = blank()
+    draw = ImageDraw.Draw(house)
+    draw.rectangle((150, 150, 620, 620), outline="black", width=8)   # a house...
+    draw.rectangle((220, 220, 400, 400), outline="black", width=6)   # ...with a big window inside, not touching
+    draw.line([(160, 700), (190, 700)], fill="black", width=6)       # and a small mark below: too small to count
+    assert separate_subjects(house) == 1
+    assert separate_subjects(blank()) == 0
