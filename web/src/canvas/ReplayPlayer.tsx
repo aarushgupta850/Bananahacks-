@@ -13,8 +13,10 @@ import './canvas.css'
 // so the player takes the starting ghosts as a prop.
 export default function ReplayPlayer({ recording, initialGhosts = [] }: { recording: TeachRecording; initialGhosts?: Ghost[] }) {
   const length = recordingLength(recording)
-  const [elapsed, setElapsed] = useState(0)
+  // Before the first Play, the player shows the end of the lesson (what the user drew), not an empty canvas.
+  const [elapsed, setElapsed] = useState(length)
   const [playing, setPlaying] = useState(false)
+  const [started, setStarted] = useState(false)
   const frame = useRef<number | null>(null)
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export default function ReplayPlayer({ recording, initialGhosts = [] }: { record
 
   function play() {
     if (finished) setElapsed(0)
+    setStarted(true)
     setPlaying(true)
   }
 
@@ -59,8 +62,8 @@ export default function ReplayPlayer({ recording, initialGhosts = [] }: { record
       <figcaption className="replay-controls">
         {playing
           ? <button type="button" className="btn" onClick={() => setPlaying(false)}>Pause</button>
-          : <button type="button" className="btn" onClick={play}>{finished ? 'Play again' : 'Play'}</button>}
-        <button type="button" className="btn btn-quiet" onClick={() => { setElapsed(0); setPlaying(false) }}>Restart</button>
+          : <button type="button" className="btn" onClick={play}>{finished && started ? 'Play again' : 'Play'}</button>}
+        <button type="button" className="btn btn-quiet" onClick={() => { setElapsed(0); setPlaying(false); setStarted(true) }}>Restart</button>
         <progress max={length} value={elapsed} aria-label="Replay progress" />
         <span className="replay-speed">{REPLAY_SPEED}× speed</span>
       </figcaption>

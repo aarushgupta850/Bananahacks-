@@ -338,7 +338,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
             <DrawingCanvas strokes={strokes} onStroke={handleStroke} onErase={inkHistory.replace} penSize={penSize} tool={tool}
               label="Lesson canvas. Draw over the ghost lines." />
             {fadingGhosts && <div className="ghost-swap is-out"><GhostLayer ghosts={fadingGhosts} /></div>}
-            <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} /></div>
+            <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} ink={strokes} /></div>
             {redrawing && <p className="teach-redrawing" role="status">Working your line into the drawing…</p>}
             {cheer && !result.done && <p key={cheer.id} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>{cheer.text}</p>}
             {toast && !result.done && (
@@ -371,7 +371,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
           </div>
 
           <div className="panel-block">
-            <span className="panel-label" id="accuracy-label">Accuracy</span>
+            <span className="panel-label" id="accuracy-label">Accuracy <span className="panel-sublabel">(this lesson so far)</span></span>
             <div className="meter" role="meter" aria-labelledby="accuracy-label" aria-valuemin={0} aria-valuemax={100}
               aria-valuenow={meter === null ? undefined : Math.round(meter * 100)}>
               <div className="meter-fill" style={{ width: `${(meter ?? 0) * 100}%` }} />

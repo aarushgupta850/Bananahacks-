@@ -246,3 +246,41 @@
 .btn.dev-only {
   border: 1px dashed var(--ink-muted);
 }
+
+/* ---------- guide depth: what's traced, where to start ---------- */
+/* A stretch of guide the user has already traced: the same blue, stronger, so what's left stands out. */
+.ghost-traced {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.6;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Where to put the pen down (dot) and which way to go (chevron). */
+.ghost-start circle {
+  fill: var(--accent);
+  fill-opacity: 0.75;
+  stroke: var(--surface);
+  stroke-width: 2.5;
+}
+
+.ghost-start polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.85;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ghost-start {
+  animation: ghost-fade-in 400ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghost-start {
+    animation: none;
+  }
+}
