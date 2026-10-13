@@ -100,6 +100,8 @@ def test_choose_prefers_a_whole_subject_then_one_that_fits_the_lesson_as_drawn()
     # For a simple lesson (25 strokes), a clean 40-stroke draft would lose 15 lines; a 22-stroke one keeps all.
     assert choose([c(40, 5.0), c(22, 9.0)], limit=25) == 1
     assert choose([c(40, 5.0), c(22, 9.0)]) == 0  # with the usual limit both fit, so the cleanest wins
+    # But a crisp draft just over the limit (it loses 4 short lines of 54) beats a faint, sketchy one that fits.
+    assert choose([c(54, 33.5), c(48, 86.0)], limit=50) == 0
 
 
 def test_choose_anyway_and_simplify_keep_the_big_lines():

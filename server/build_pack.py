@@ -84,37 +84,49 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 # ---------------------------------------------------------------- choosing a candidate
 
 
+LOST_WEIGHT = 300  # choose: a draft that loses its whole drawing to simplifying would count 300 points less clean
+
+
+def lost_share(strokes: list, limit: int) -> float:
+    """Share of a drawing's line length that simplifying it to `limit` strokes would leave out (0 if it fits)."""
+    if len(strokes) <= limit:
+        return 0.0
+    total = sum(stroke_length(s) for s in strokes)
+    return 1 - sum(stroke_length(s) for s in simplify(strokes, limit)) / total if total else 0.0
+
+
+def cost(candidate: Candidate, limit: int) -> float:
+    """How much worse a draft would look as a lesson: its quality score (lower is cleaner) plus the lines simplifying
+    it would remove. A draft just over the limit loses a few short lines and barely changes; one far over it loses
+    much of the drawing."""
+    return candidate.score + LOST_WEIGHT * lost_share(candidate.strokes, limit)
+
+
 def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
     """Index of the best candidate inside the stroke gate, or None. In order of preference: a whole subject (not
-    cut off at the edge), then one that fits `limit` as drawn (a drawing over the limit loses its smallest lines,
-    so it looks unfinished), then the cleanest (lowest quality score), then the fewest strokes. (Fewest strokes
-    first, as before, kept drawings with dashed or broken lines over cleaner ones.)"""
+    cut off at the edge), then the lowest cost (the cleanest, counting what simplifying to `limit` would remove), then
+    the fewest strokes. (Fitting the limit used to come before cleanliness, so a faint, sketchy cat with 48 strokes
+    beat a crisp one with 54 for a 50-stroke lesson. Before that, fewest strokes first kept drawings with dashed or
+    broken lines over cleaner ones.)"""
     usable = [
         i for i, c in enumerate(candidates)
         if min_strokes <= len(c.strokes) <= MAX_STROKES and c.score < REJECTED_SCORE
     ]
     if not usable:
         return None
-    return min(usable, key=lambda i: (candidates[i].cut_off, len(candidates[i].strokes) > limit,
-                                      candidates[i].score, len(candidates[i].strokes)))
+    return min(usable, key=lambda i: (candidates[i].cut_off, cost(candidates[i], limit), len(candidates[i].strokes)))
 
 
-NEAR_TIE = 1.3  # choose_anyway: drafts with at most this many times the fewest strokes count as equally short
-
-
-def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
-    """When no candidate fits the gate: one that loses little when simplified (few strokes: a 112-stroke house
-    trimmed to 25 was unrecognizable) and is clean. Of the drafts with enough lines, preferring a whole subject and
-    one that isn't colored, it takes the cleanest of those with close to the fewest strokes (a clean giraffe with 82
-    strokes over a messy 73-stroke one). None if every candidate is blank. (A colored one is retraced in black.)"""
+def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
+    """When no candidate fits the gate: one that is clean and loses little when simplified (a 112-stroke house
+    trimmed to 25 was unrecognizable), preferring a whole subject and one that isn't colored. So a clean giraffe with
+    82 strokes beats a messy 73-stroke one. None if every candidate is blank. (A colored one is retraced in black.)"""
     usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= min_strokes]
     if not usable:
         return None
     best = min((candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) for i in usable)
     group = [i for i in usable if (candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) == best]
-    fewest = min(len(candidates[i].strokes) for i in group)
-    near = [i for i in group if len(candidates[i].strokes) <= NEAR_TIE * fewest]
-    return min(near, key=lambda i: (candidates[i].score, len(candidates[i].strokes)))
+    return min(group, key=lambda i: (cost(candidates[i], limit), len(candidates[i].strokes)))
 
 
 DETAIL_BOOST = 3.0  # simplify: a stroke inside a detail part (an eye, the nose, a door) counts as this much longer
@@ -470,14 +482,14 @@ def make_pack(
         if chosen is not None:
             break
     else:
-        chosen = choose_anyway(candidates, min_strokes) if always else None
+        chosen = choose_anyway(candidates, min_strokes, limit) if always else None
         if chosen is not None:
             log(f"  no candidate fit {min_strokes}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
     if always and chosen is not None and candidates[chosen].cut_off:
         # The only drafts inside the gate are cut off at the edge (a giraffe's neck, cropped): a whole subject is
         # better even if it has too many strokes and gets simplified.
         uncut = [c if not c.cut_off else Candidate(c.image, [], c.score) for c in candidates]  # cut ones can't win
-        whole = choose_anyway(uncut, min_strokes)
+        whole = choose_anyway(uncut, min_strokes, limit)
         if whole is not None:
             chosen = whole
             log(f"  candidate {chosen} is a whole subject: using it instead of a cut-off one, simplified")
