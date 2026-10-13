@@ -379,3 +379,50 @@ def test_clean_drawing_turns_gray_fills_and_halos_white_and_keeps_lines_black():
     out = np.asarray(clean_drawing(drawing))
     assert out[385, 385] == 255 and out[200, 384] == 255 and out[150, 384] == 255  # fill, disc and its edge: white
     assert out[303, 385] < 60                                            # the outline stays black
+
+
+def test_lesson_only_keeps_what_the_lesson_shows_and_erases_the_rest():
+    from build_pack import lesson_only
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    outline = [(150, 150), (600, 150), (600, 600), (150, 600), (150, 150)]
+    draw.line(outline, fill=INK, width=9)                                  # taught
+    draw.rectangle((300, 250, 340, 500), fill=INK)                         # a solid black bar: taught by its rim
+    bar_rim = [(304, 254), (336, 254), (336, 496), (304, 496), (304, 254)]
+    draw.ellipse((400, 290, 440, 310), fill=(150, 150, 150))               # an eye drawn as a gray almond
+    almond = [(400 + 20 + 20 * np.cos(a), 300 + 10 * np.sin(a)) for a in np.linspace(0, 2 * np.pi, 16)]
+    draw.ellipse((442, 392, 458, 408), fill=INK)                           # a solid dot eye
+    dot = [(450 + 4 * np.cos(a), 400 + 4 * np.sin(a)) for a in np.linspace(0, 2 * np.pi, 12)]
+    draw.line([(200, 650), (550, 650)], fill=(150, 150, 150), width=5)     # a faint sketch line: not taught
+    draw.line([(650, 100), (690, 100)], fill=INK, width=6)                 # a separate scrap: not taught
+    out = np.asarray(lesson_only(drawing, [outline, bar_rim, almond, dot]).convert("L"))
+    assert (out[146:155, 150:600] < 128).mean() > 0.95                     # the outline stays
+    assert (out[260:490, 310:330] < 128).all()                             # the whole bar stays black
+    assert out[300, 420] < 170 and out[400, 450] < 128                     # both eyes stay
+    assert (out[640:660, 200:550] < 200).sum() == 0                        # the faint line is gone...
+    assert (out[90:110, 645:695] < 200).sum() == 0                         # ...and so is the scrap
+    assert abs(int(out[650, 300]) - 220) <= 1                              # painted in the page's own gray
+    clean = Image.new("RGB", (768, 768), (220, 220, 220))
+    ImageDraw.Draw(clean).line(outline, fill=INK, width=9)
+    assert lesson_only(clean, [outline]) is clean                          # nothing to erase: unchanged
+
+
+def test_simplify_keeps_the_whole_outline_of_a_busy_drawing():
+    from build_pack import outline_band, simplify
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    corners = [(150, 150), (600, 150), (600, 600), (150, 600), (150, 150)]
+    outline = []  # the square's outline as 8 strokes of 225 px
+    for (x1, y1), (x2, y2) in zip(corners, corners[1:]):
+        mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+        outline += [[(x1, y1), (mx, my)], [(mx, my), (x2, y2)]]
+    texture = [[(220 + 60 * k, 250), (220 + 60 * k, 500)] for k in range(6)]  # 6 inner lines of 250 px
+    for stroke in outline + texture:
+        draw.line(stroke, fill=INK, width=8)
+    strokes = outline + texture
+    by_length = simplify(strokes, 8)
+    assert sum(s in outline for s in by_length) == 2               # by length alone the outline would break...
+    kept = simplify(strokes, 8, outline=outline_band(drawing))
+    assert all(s in kept for s in outline)                         # ...but along the outer edge it counts more

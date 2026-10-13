@@ -119,21 +119,62 @@ def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -
 
 DETAIL_BOOST = 3.0  # simplify: a stroke inside a detail part (an eye, the nose, a door) counts as this much longer
 WHOLE_PARTS = {"body", "wall"}  # parts that cover the whole subject (as pipeline.parts.WHOLE_OBJECT): no boost
+OUTLINE_BOOST = 2.0  # simplify: a stroke along the subject's outer edge counts this much longer...
+OUTLINE_SHARE = 0.6  # ...if at least this share of it lies within OUTLINE_NEAR_PX of that edge
+OUTLINE_NEAR_PX = 8
+OUTLINE_CLOSE_PX = 10  # gaps up to about twice this wide in the outline are bridged when finding the outer edge
 
 
-def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = ()) -> list:
+def stroke_length(stroke) -> float:
+    return sum(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]))
+
+
+def outline_band(image: Image.Image):
+    """True near the subject's outer edge (within OUTLINE_NEAR_PX): the edge of its silhouette, the ink with small
+    gaps closed and every hole filled in. Used by simplify, so trimming a busy drawing never breaks its outline."""
+    import numpy as np
+    from scipy import ndimage
+
+    ink = ink_mask(image)
+    pad = OUTLINE_CLOSE_PX  # padding, so ink at the page's edge isn't closed against the border
+    closed = ndimage.binary_closing(np.pad(ink, pad), iterations=OUTLINE_CLOSE_PX)[pad:-pad, pad:-pad]
+    silhouette = ndimage.binary_fill_holes(closed)
+    edge = silhouette & ~ndimage.binary_erosion(silhouette)
+    return ndimage.distance_transform_edt(~edge) <= OUTLINE_NEAR_PX
+
+
+def _along(stroke, step: float = 4.0) -> list:
+    """Points every `step` px along a stroke (its corners alone leave long straight lines with only two points)."""
+    import math
+
+    points = [tuple(stroke[0])]
+    for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]):
+        n = max(1, int(math.dist((x1, y1), (x2, y2)) // step))
+        points += [(x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n) for k in range(1, n + 1)]
+    return points
+
+
+def simplify(strokes: list, limit: int = MAX_STROKES, detail_boxes: list = (), outline=None) -> list:
     """The `limit` most important strokes, in their original order. Importance is length, except that a stroke
     centered inside a detail part (detail_boxes, each [x, y, w, h]: the head, an eye, a door) counts DETAIL_BOOST
-    times its length. So a busy drawing keeps its big lines and its features, and loses texture and stray bits.
-    (By length alone, a cat lost its nose and mouth, and a house its porch windows.)"""
-    def length(stroke) -> float:
-        return sum(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:]))
+    times its length, and one running along the subject's outer edge (`outline`, from outline_band) OUTLINE_BOOST
+    times. So a busy drawing keeps its outline whole, its big lines and its features, and loses texture and stray
+    bits. (By length alone, a cat lost its nose and mouth, a house its porch windows, and outlines got gaps.)"""
+    def on_outline(stroke) -> bool:
+        if outline is None:
+            return False
+        points = _along(stroke)
+        near = sum(bool(outline[min(max(int(y), 0), SIZE - 1), min(max(int(x), 0), SIZE - 1)]) for x, y in points)
+        return near >= OUTLINE_SHARE * len(points)
 
     def importance(stroke) -> float:
         cx, cy = sum(p[0] for p in stroke) / len(stroke), sum(p[1] for p in stroke) / len(stroke)
         detail = any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in detail_boxes)
-        return length(stroke) * (DETAIL_BOOST if detail else 1.0)
+        boost = max(DETAIL_BOOST if detail else 1.0, OUTLINE_BOOST if on_outline(stroke) else 1.0)
+        return stroke_length(stroke) * boost
 
+    if len(strokes) <= limit:
+        return list(strokes)
     keep = set(sorted(range(len(strokes)), key=lambda i: importance(strokes[i]), reverse=True)[:limit])
     return [s for i, s in enumerate(strokes) if i in keep]
 
@@ -156,45 +197,100 @@ BRIDGE_PX = 40       # a dropped stroke at most this long with both ends on kept
 FAINT_LEVEL = 12     # anything this much darker than the page counts as drawn (the faint edges of a line included)
 
 
-def without_strokes(image: Image.Image, kept: list, dropped: list, protect: list = ()) -> Image.Image:
-    """The AI drawing with the dropped strokes' lines painted over in the page's color, for a lesson that keeps only
-    some of the drawing's strokes. The reference then shows exactly what the lesson teaches, still drawn the way the
-    AI drew it. (Re-drawing the kept strokes themselves looked broken and sketchy: uniform lines with gaps wherever
-    a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line. A short dropped stroke
-    joining two kept lines (a knee, the corner of a window) stays drawn, or the outline would show a gap, and so
-    does one centered in a `protect` box ([x, y, w, h]: the head, an eye), so a face never gets a blank patch."""
-    import math
-
+def _lines(strokes: list):
+    """The strokes drawn as 1-px lines on a 768 x 768 boolean canvas."""
     import numpy as np
+
+    canvas = Image.new("1", (SIZE, SIZE), 0)
+    draw = ImageDraw.Draw(canvas)
+    for stroke in strokes:
+        draw.line([tuple(p) for p in stroke], fill=1, width=1)
+    return np.asarray(canvas, dtype=bool)
+
+
+def still_drawn(kept: list, dropped: list, protect: list = ()) -> list:
+    """The dropped strokes that stay on a simplified lesson's reference: a short one joining two kept lines (a knee,
+    the corner of a window), or the outline would show a gap, and one centered in a `protect` box ([x, y, w, h]: the
+    head, an eye), so a face never gets a blank patch."""
     from scipy import ndimage
 
-    def lines(strokes: list) -> np.ndarray:
-        canvas = Image.new("1", (SIZE, SIZE), 0)
-        draw = ImageDraw.Draw(canvas)
-        for stroke in strokes:
-            draw.line([tuple(p) for p in stroke], fill=1, width=1)
-        return np.asarray(canvas, dtype=bool)
-
-    to_kept = ndimage.distance_transform_edt(~lines(kept))
+    to_kept = ndimage.distance_transform_edt(~_lines(kept))
 
     def on_kept(point) -> bool:
         x, y = min(max(int(point[0]), 0), SIZE - 1), min(max(int(point[1]), 0), SIZE - 1)
         return to_kept[y, x] <= KEEP_NEAR_PX + 3
 
     def bridge(stroke) -> bool:
-        length = sum(math.dist(a, b) for a, b in zip(stroke, stroke[1:]))
-        return length <= BRIDGE_PX and on_kept(stroke[0]) and on_kept(stroke[-1])
+        return stroke_length(stroke) <= BRIDGE_PX and on_kept(stroke[0]) and on_kept(stroke[-1])
 
     def protected(stroke) -> bool:
         cx, cy = sum(p[0] for p in stroke) / len(stroke), sum(p[1] for p in stroke) / len(stroke)
         return any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in protect)
 
-    to_dropped = ndimage.distance_transform_edt(~lines([s for s in dropped if not bridge(s) and not protected(s)]))
+    return [s for s in dropped if bridge(s) or protected(s)]
+
+
+def without_strokes(image: Image.Image, kept: list, dropped: list, protect: list = ()) -> Image.Image:
+    """The AI drawing with the dropped strokes' lines painted over in the page's color, for a lesson that keeps only
+    some of the drawing's strokes. The reference then shows exactly what the lesson teaches, still drawn the way the
+    AI drew it. (Re-drawing the kept strokes themselves looked broken and sketchy: uniform lines with gaps wherever
+    a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line. Dropped strokes that
+    still_drawn() keeps (bridges, and strokes inside a `protect` box) stay."""
+    import numpy as np
+    from scipy import ndimage
+
+    to_kept = ndimage.distance_transform_edt(~_lines(kept))
+    staying = {id(s) for s in still_drawn(kept, dropped, protect)}
+    to_dropped = ndimage.distance_transform_edt(~_lines([s for s in dropped if id(s) not in staying]))
     rgb = image.convert("RGB").resize((SIZE, SIZE))
     pixels = np.asarray(rgb).copy()
     gray = np.asarray(rgb.convert("L"))
     drawn = gray < np.median(gray) - FAINT_LEVEL  # the page is most of the picture
     erase = drawn & (to_dropped < to_kept) & (to_kept > KEEP_NEAR_PX) & (to_dropped <= LINE_REACH_PX)
+    pixels[erase] = np.median(pixels[~drawn], axis=0).astype(np.uint8) if (~drawn).any() else 255
+    return Image.fromarray(pixels, "RGB")
+
+
+EDGE_PX = 3              # lesson_only: the soft (anti-aliased) edge kept around the ink of a shown stroke
+SMALL_SHAPE_PX = 6000    # ...and everything inside a closed shown stroke enclosing at most this area (in px) stays
+
+
+def _polygon_area(stroke) -> float:
+    """Area enclosed by a stroke read as a polygon (the shoelace formula)."""
+    return abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(stroke, stroke[1:] + stroke[:1]))) / 2
+
+
+def lesson_only(image: Image.Image, shown: list) -> Image.Image:
+    """The drawing with everything the lesson doesn't show painted over in the page's color, so the reference holds
+    exactly the lines the user is taught. What stays: each piece of ink (as the tracer sees it) that a shown stroke
+    runs along, whole (so solid fills and thick lines stay as drawn), with its soft edge; and everything inside a
+    small closed shown stroke (a dot eye, an eye drawn as a gray almond, which is lighter than ink). What goes: faint
+    gray sketch lines the tracer never counted as ink (they made sketchy, unfinished-looking "stray lines" on the
+    reference), and scraps too small to become strokes."""
+    import numpy as np
+    from scipy import ndimage
+
+    if not shown:
+        return image
+    rgb = image.convert("RGB").resize((SIZE, SIZE))
+    ink = ink_mask(rgb)
+    labels, _ = ndimage.label(ink, structure=np.ones((3, 3), dtype=int))
+    hit = np.unique(labels[_lines(shown)])
+    keep = np.isin(labels, hit[hit > 0])
+    shapes = Image.new("1", (SIZE, SIZE), 0)
+    draw = ImageDraw.Draw(shapes)
+    for stroke in shown:
+        points = [tuple(p) for p in stroke]
+        closed = len(points) >= 3 and abs(points[0][0] - points[-1][0]) + abs(points[0][1] - points[-1][1]) <= 4
+        if closed and _polygon_area(points) <= SMALL_SHAPE_PX:
+            draw.polygon(points, fill=1, outline=1)
+    keep = ndimage.binary_dilation(keep | np.asarray(shapes, dtype=bool), iterations=EDGE_PX)
+    pixels = np.asarray(rgb).copy()
+    gray = np.asarray(rgb.convert("L"))
+    drawn = gray < np.median(gray) - FAINT_LEVEL
+    erase = drawn & ~keep
+    if not erase.any():
+        return image
     pixels[erase] = np.median(pixels[~drawn], axis=0).astype(np.uint8) if (~drawn).any() else 255
     return Image.fromarray(pixels, "RGB")
 
@@ -401,7 +497,7 @@ def make_pack(
     simplified = len(best.strokes) > limit
     dropped = []  # the strokes a simplified lesson leaves out
     if simplified:
-        kept = simplify(best.strokes, limit, details)
+        kept = simplify(best.strokes, limit, details, outline_band(best.image))
         kept_ids = {id(stroke) for stroke in kept}
         dropped = [stroke for stroke in best.strokes if id(stroke) not in kept_ids]
         best = Candidate(best.image, kept, best.score, best.cut_off)
@@ -410,7 +506,14 @@ def make_pack(
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
                          n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note)
-    target = clean_drawing(without_strokes(best.image, best.strokes, dropped, details) if simplified else best.image)
+    # The reference: the AI drawing without the strokes a simplified lesson leaves out, and without anything else the
+    # lesson doesn't show (faint sketch lines, scraps too small to trace), cleaned to crisp black on white.
+    if simplified:
+        drawing = without_strokes(best.image, best.strokes, dropped, details)
+        shown = best.strokes + still_drawn(best.strokes, dropped, details)
+    else:
+        drawing, shown = best.image, best.strokes
+    target = clean_drawing(lesson_only(drawing, shown))
     assets = {
         "target.png": png_bytes(target),
         "thumb.png": png_bytes(target.resize((256, 256), Image.LANCZOS)),
