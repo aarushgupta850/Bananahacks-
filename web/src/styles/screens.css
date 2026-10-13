@@ -680,6 +680,20 @@
   flex-basis: 100%;
 }
 
+/* When the canvas column is narrow (phones, and windows under ~860 px tall like a 1024 x 768 iPad or a
+   1366 x 768 laptop), a long step name such as "Outline the legs (continued)" wraps below "STEP 7 OF 21",
+   making this block one line taller, and the canvas jumped down 20 px between steps. Reserve that third line
+   here, and take it from the canvas so the buttons still fit above the fold. */
+@media (max-width: 560px), (max-height: 860px) {
+  .teach-step {
+    min-height: 5.75rem;
+  }
+
+  .teach-layout {
+    --canvas-max: min(640px, max(320px, calc(100svh - 430px)));
+  }
+}
+
 .step-count {
   color: var(--accent);
   font-size: var(--text-sm);
