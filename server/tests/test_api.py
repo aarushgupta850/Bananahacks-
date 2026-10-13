@@ -344,3 +344,32 @@ def test_the_picture_check_compares_on_the_same_box():
     # Weapons need the surer match.
     assert safety.unsafe_match(scores({"a knife": 0.35})) is None
     assert safety.unsafe_match(scores({"a knife": 0.5})).startswith("a knife")
+
+
+def test_a_hung_job_restarts_the_server(monkeypatch):
+    exits = []
+    monkeypatch.setattr(api, "_exit_for_restart", lambda: exits.append(True))
+    monkeypatch.setattr(api, "STUCK_S", 0.2)
+
+    async def scenario():
+        await api._lock.acquire()  # a job that never finishes
+        api._mark_job(True)
+        try:
+            api.health()  # not stuck yet: nothing happens
+            first = list(exits)
+            await asyncio.sleep(0.3)
+            api.health()  # now held too long: the server exits so run_live.ps1 restarts it
+            return first
+        finally:
+            api._mark_job(False)
+            api._lock.release()
+
+    assert run(scenario()) == [] and exits == [True]
+
+
+def test_a_normal_job_never_triggers_the_restart(monkeypatch, fake_build):
+    exits = []
+    monkeypatch.setattr(api, "_exit_for_restart", lambda: exits.append(True))
+    run(api.generate(api.GenerateRequest(prompt="a teapot")))
+    api.health()
+    assert exits == [] and api._job_started is None and not api._lock.locked()
