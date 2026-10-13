@@ -65,7 +65,9 @@ apps that use the GPU.
 ## Better drawings (optional switches)
 
 The 4-step model draws round and mirror-image subjects (a basketball's seams, a monkey's face) wobbly. Three
-switches can improve that. Each is **off by default**: set it in `run_live.ps1` (remove the `#`) and restart.
+switches can improve that. The first three are **on in `run_live.ps1`** since Oct 13: on "a monkey" and "a basketball",
+that setup drew the cleanest monkeys (4 of 4 good) and the only usable basketballs, in about 15 s per lesson instead
+of 21. To turn one off, put a `#` in front of its line in `run_live.ps1` and restart.
 
 | Switch | What it does | Cost |
 |---|---|---|
