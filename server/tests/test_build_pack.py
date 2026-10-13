@@ -109,7 +109,8 @@ def test_choose_anyway_and_simplify_keep_the_big_lines():
         return Candidate(None, [[(0, 0), (1, 1)]] * n, score)
 
     assert choose_anyway([c(3, 1.0), c(140, 80.0), c(90, 50.0)]) == 2  # enough lines, and the fewest
-    assert choose_anyway([c(90, 10.0), c(70, 50.0)]) == 1  # 70 strokes lose less to simplifying than 90
+    assert choose_anyway([c(100, 10.0), c(70, 50.0)]) == 1  # 70 strokes lose less to simplifying than 100
+    assert choose_anyway([c(73, 489.2), c(82, 131.1)]) == 1  # nearly as few strokes, and far cleaner
     assert choose_anyway([c(70, 1050.0), c(90, 50.0)]) == 1  # a colored drawing only if nothing else
     assert choose_anyway([c(0, 1000.0)]) is None  # blank
     strokes = [[(0, 0), (k, 0)] for k in range(1, 101)]  # lengths 1..100
@@ -354,3 +355,15 @@ def test_the_live_server_prefers_a_whole_subject_over_a_cut_off_one_that_fits():
                         always=True, rate=True, limit=25)
     assert pack["pipeline"][2]["image"].endswith("candidate-1.webp")  # the whole one, simplified to 25 strokes
     assert any("cut off" in line for line in lines) and any("whole subject" in line for line in lines)
+
+
+def test_without_strokes_keeps_dropped_lines_inside_protected_parts():
+    from build_pack import without_strokes
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.line([(100, 600), (600, 600)], fill=INK, width=9)    # kept
+    draw.line([(300, 300), (330, 300)], fill=INK, width=9)    # dropped: a nose, inside the head
+    out = np.asarray(without_strokes(drawing, kept=[[(100, 600), (600, 600)]], dropped=[[(300, 300), (330, 300)]],
+                                     protect=[[250, 250, 150, 150]]).convert("L"))
+    assert (out[298:303, 300:331] < 128).all()               # the nose stays on the reference

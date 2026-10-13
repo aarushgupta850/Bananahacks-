@@ -317,3 +317,30 @@ def test_the_log_file_gets_our_lines_and_uvicorns_access_lines_with_the_time(tmp
     assert len(lines) == 2
     assert lines[0].endswith("ok in 18.2 s") and lines[1].endswith('"POST /generate HTTP/1.1" 200')
     assert all(line[:4].isdigit() and line[4] == "-" for line in lines)  # each starts with the date
+
+
+def test_the_picture_check_compares_on_the_same_box():
+    import numpy as np
+
+    from pipeline import safety
+
+    n_unsafe, n_safe = len(safety.UNSAFE_QUERIES), len(safety.SAFE_QUERIES)
+
+    def scores(*boxes):  # each box: {query: score}; other queries score 0.01
+        out = np.full((len(boxes), n_unsafe + n_safe), 0.01)
+        names = [*safety.UNSAFE_QUERIES, *safety.SAFE_QUERIES]
+        for b, values in enumerate(boxes):
+            for query, value in values.items():
+                out[b, names.index(query)] = value
+        return out
+
+    # The close-up portrait refused before: 0.319 "a naked person", but 0.332 "a person wearing clothes", same box.
+    assert safety.unsafe_match(scores({"a naked person": 0.319, "a clothed person": 0.281,
+                                       "a person wearing clothes": 0.332})) is None
+    # Nudity on one box isn't excused by a clothed person on another box (two people in the picture).
+    found = safety.unsafe_match(scores({"a naked person": 0.6, "a clothed person": 0.1},
+                                       {"a clothed person": 0.8}))
+    assert found and found.startswith("a naked person")
+    # Weapons need the surer match.
+    assert safety.unsafe_match(scores({"a knife": 0.35})) is None
+    assert safety.unsafe_match(scores({"a knife": 0.5})).startswith("a knife")

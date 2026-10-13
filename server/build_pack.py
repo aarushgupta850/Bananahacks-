@@ -99,13 +99,22 @@ def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: i
                                       candidates[i].score, len(candidates[i].strokes)))
 
 
+NEAR_TIE = 1.3  # choose_anyway: drafts with at most this many times the fewest strokes count as equally short
+
+
 def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES) -> int | None:
-    """When no candidate fits the gate: the one with enough lines that loses the fewest when simplified (the
-    fewest strokes: a 112-stroke house trimmed to 25 was unrecognizable), preferring a whole subject and a drawing
-    that isn't colored; or None if every candidate is blank. (A colored one gets retraced in black anyway.)"""
+    """When no candidate fits the gate: one that loses little when simplified (few strokes: a 112-stroke house
+    trimmed to 25 was unrecognizable) and is clean. Of the drafts with enough lines, preferring a whole subject and
+    one that isn't colored, it takes the cleanest of those with close to the fewest strokes (a clean giraffe with 82
+    strokes over a messy 73-stroke one). None if every candidate is blank. (A colored one is retraced in black.)"""
     usable = [i for i, c in enumerate(candidates) if len(c.strokes) >= min_strokes]
-    return min(usable, key=lambda i: (candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE,
-                                      len(candidates[i].strokes))) if usable else None
+    if not usable:
+        return None
+    best = min((candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) for i in usable)
+    group = [i for i in usable if (candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) == best]
+    fewest = min(len(candidates[i].strokes) for i in group)
+    near = [i for i in group if len(candidates[i].strokes) <= NEAR_TIE * fewest]
+    return min(near, key=lambda i: (candidates[i].score, len(candidates[i].strokes)))
 
 
 DETAIL_BOOST = 3.0  # simplify: a stroke inside a detail part (an eye, the nose, a door) counts as this much longer
@@ -147,12 +156,13 @@ BRIDGE_PX = 40       # a dropped stroke at most this long with both ends on kept
 FAINT_LEVEL = 12     # anything this much darker than the page counts as drawn (the faint edges of a line included)
 
 
-def without_strokes(image: Image.Image, kept: list, dropped: list) -> Image.Image:
+def without_strokes(image: Image.Image, kept: list, dropped: list, protect: list = ()) -> Image.Image:
     """The AI drawing with the dropped strokes' lines painted over in the page's color, for a lesson that keeps only
     some of the drawing's strokes. The reference then shows exactly what the lesson teaches, still drawn the way the
     AI drew it. (Re-drawing the kept strokes themselves looked broken and sketchy: uniform lines with gaps wherever
     a short piece had been dropped.) Each drawn pixel belongs to the nearest stroke's line. A short dropped stroke
-    joining two kept lines (a knee, the corner of a window) stays drawn, or the outline would show a gap."""
+    joining two kept lines (a knee, the corner of a window) stays drawn, or the outline would show a gap, and so
+    does one centered in a `protect` box ([x, y, w, h]: the head, an eye), so a face never gets a blank patch."""
     import math
 
     import numpy as np
@@ -175,7 +185,11 @@ def without_strokes(image: Image.Image, kept: list, dropped: list) -> Image.Imag
         length = sum(math.dist(a, b) for a, b in zip(stroke, stroke[1:]))
         return length <= BRIDGE_PX and on_kept(stroke[0]) and on_kept(stroke[-1])
 
-    to_dropped = ndimage.distance_transform_edt(~lines([s for s in dropped if not bridge(s)]))
+    def protected(stroke) -> bool:
+        cx, cy = sum(p[0] for p in stroke) / len(stroke), sum(p[1] for p in stroke) / len(stroke)
+        return any(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in protect)
+
+    to_dropped = ndimage.distance_transform_edt(~lines([s for s in dropped if not bridge(s) and not protected(s)]))
     rgb = image.convert("RGB").resize((SIZE, SIZE))
     pixels = np.asarray(rgb).copy()
     gray = np.asarray(rgb.convert("L"))
@@ -376,10 +390,10 @@ def make_pack(
     if check_drawing is not None:
         check_drawing(best.image)
     parts = detect(best.image)
+    details = [p["box"] for p in parts if p["id"].split("_")[0] not in WHOLE_PARTS]  # the head, eyes, a door...
     simplified = len(best.strokes) > limit
     dropped = []  # the strokes a simplified lesson leaves out
     if simplified:
-        details = [p["box"] for p in parts if p["id"].split("_")[0] not in WHOLE_PARTS]
         kept = simplify(best.strokes, limit, details)
         kept_ids = {id(stroke) for stroke in kept}
         dropped = [stroke for stroke in best.strokes if id(stroke) not in kept_ids]
@@ -389,7 +403,7 @@ def make_pack(
     plan = build_plan(best.strokes, parts, subject=subject)
     pack = assemble_pack(pack_id, subject, title, difficulty, source_kind, prompt, prompt_text, chosen,
                          n_traced, parts, plan, n_candidates=len(candidates), source_note=source_note)
-    target = clean_drawing(without_strokes(best.image, best.strokes, dropped) if simplified else best.image)
+    target = clean_drawing(without_strokes(best.image, best.strokes, dropped, details) if simplified else best.image)
     assets = {
         "target.png": png_bytes(target),
         "thumb.png": png_bytes(target.resize((256, 256), Image.LANCZOS)),
