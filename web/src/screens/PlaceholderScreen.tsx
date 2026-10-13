@@ -1,6 +1,6 @@
 // A plain frame shared by the placeholder screens: a title, one sentence, the screen's content, and Back/Next.
 // Jeff replaces the placeholders with the designed screens (playbook J2a-J3).
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { clickCounts } from './clickGuard'
 
 // What App.tsx gives every screen: move one step forward or back in the flow.
@@ -34,8 +34,9 @@ export default function PlaceholderScreen({
     heading.current?.focus()
     shownAt.current = performance.now()
   }, [])
-  const next = () => {
-    if (clickCounts(shownAt.current, performance.now())) onNext?.()
+  // detail is 0 for Enter or Space: the keyboard can't double-click through (focus moves to the new heading).
+  const next = (event: MouseEvent) => {
+    if (event.detail === 0 || clickCounts(shownAt.current, performance.now())) onNext?.()
   }
 
   return (
