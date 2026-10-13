@@ -133,6 +133,37 @@ def format_size(num_bytes: int) -> str:
     return f"{num_bytes / 1024**2:.1f} MB"
 
 
+# SDXL-Lightning comes in 4- and 8-step versions. The 8-step one draws cleaner, more even lines (a ball's seams, a
+# face) and takes about twice as long per draft. GHOSTLINES_LIGHTNING_STEPS=8 (in the shell, run_live.ps1 or .env)
+# switches it on; the default stays 4. Only the version in use is downloaded (each is about 5 GB).
+LIGHTNING_STEP_CHOICES = (4, 8)
+
+
+def lightning_steps(env: dict[str, str] | None = None) -> int:
+    """4 or 8, from GHOSTLINES_LIGHTNING_STEPS (the shell wins over the .env file). 4 when it isn't set."""
+    value = os.environ.get("GHOSTLINES_LIGHTNING_STEPS") or (env if env is not None else read_env_file(ENV_FILE)).get(
+        "GHOSTLINES_LIGHTNING_STEPS") or "4"
+    if value.strip() not in {str(n) for n in LIGHTNING_STEP_CHOICES}:
+        raise ValueError(f"GHOSTLINES_LIGHTNING_STEPS must be 4 or 8, not {value!r}")
+    return int(value)
+
+
+def lightning_file(steps: int) -> str:
+    return f"sdxl_lightning_{steps}step_unet.safetensors"
+
+
+LIGHTNING_8STEP = Model(
+    repo_id="ByteDance/SDXL-Lightning",
+    why="SDXL-Lightning 8-step UNet (cleaner lines; used when GHOSTLINES_LIGHTNING_STEPS=8)",
+    patterns=[lightning_file(8)],
+)
+
+
+def models_to_fetch(env: dict[str, str]) -> list[Model]:
+    """MODELS, plus the 8-step UNet when it's switched on."""
+    return MODELS + ([LIGHTNING_8STEP] if lightning_steps(env) == 8 else [])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Download the Ghost Lines model weights.")
     parser.add_argument("--check", action="store_true", help="check repos and sizes, download nothing")
@@ -159,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     api = HfApi()
     plan: list[tuple[Model, list[str], int, int]] = []  # model, files, total bytes, bytes to fetch
     errors: list[str] = []
-    for model in MODELS:
+    for model in models_to_fetch(env):
         try:
             info = api.model_info(model.repo_id, files_metadata=True)
         # GatedRepoError is a kind of RepositoryNotFoundError, so it must be caught first.

@@ -9,11 +9,11 @@ from __future__ import annotations
 import gc
 import os
 
-from scripts.download_models import ENV_FILE, read_env_file
+from scripts.download_models import ENV_FILE, lightning_file, lightning_steps, read_env_file
 
 BASE_REPO = "stabilityai/stable-diffusion-xl-base-1.0"
 LIGHTNING_REPO = "ByteDance/SDXL-Lightning"
-LIGHTNING_FILE = "sdxl_lightning_4step_unet.safetensors"
+LIGHTNING_FILE = "sdxl_lightning_4step_unet.safetensors"  # the default; lightning_steps() can pick the 8-step one
 CONTROLNET_REPO = "TheMistoAI/MistoLine"  # SDXL ControlNet that follows line art (photo path only)
 ANNOTATORS_REPO = "lllyasviel/Annotators"  # weights for controlnet_aux's LineartDetector
 OWL_REPO = "google/owlv2-base-patch16-ensemble"  # finds parts (head, ear, ...) from text labels
@@ -47,7 +47,8 @@ def gpu_info() -> tuple[str, float]:
 
 
 def load_lightning(with_controlnet: bool = False):
-    """SDXL with the SDXL-Lightning 4-step UNet. Use 4 steps and guidance 0 when generating.
+    """SDXL with the SDXL-Lightning UNet (4-step, or 8-step with GHOSTLINES_LIGHTNING_STEPS=8). Generate with
+    lightning_steps() steps and guidance 0.
 
     with_controlnet=True adds the MistoLine ControlNet, for the photo path: the pipeline then
     takes a line-art image (white lines on black) and draws a clean version of it.
@@ -65,7 +66,7 @@ def load_lightning(with_controlnet: bool = False):
 
     # Build an empty SDXL UNet from the base config, then fill it with the Lightning weights.
     unet = UNet2DConditionModel.from_config(UNet2DConditionModel.load_config(BASE_REPO, subfolder="unet"))
-    unet.load_state_dict(load_file(hf_hub_download(LIGHTNING_REPO, LIGHTNING_FILE)))
+    unet.load_state_dict(load_file(hf_hub_download(LIGHTNING_REPO, lightning_file(lightning_steps()))))
     unet = unet.to(torch.float16)
 
     if with_controlnet:

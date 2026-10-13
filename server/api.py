@@ -63,6 +63,16 @@ TIMEOUT_S = 35
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
 
+
+def live_candidates() -> int:
+    """Drafts per live lesson: GHOSTLINES_LIVE_CANDIDATES when set, else LIVE_CANDIDATES with the 4-step model and
+    2 with the 8-step one (each 8-step draft takes about twice as long, and the app waits only 38 s)."""
+    if os.environ.get("GHOSTLINES_LIVE_CANDIDATES"):
+        return max(1, int(os.environ["GHOSTLINES_LIVE_CANDIDATES"]))
+    from scripts.download_models import lightning_steps
+
+    return 2 if lightning_steps() == 8 else LIVE_CANDIDATES
+
 log = logging.getLogger("ghostlines.live")
 log.setLevel(logging.INFO)  # whatever level the root logger has, our request lines are always written
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -253,7 +263,7 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         pack_id=f"live-{slug}-{difficulty}", subject=slug, title=words[:1].upper() + words[1:], difficulty=difficulty,
         source_kind="photo" if photo is not None else "prompt", prompt=words, subject_words=words,
         seed=secrets.randbelow(100_000),  # a new drawing every time
-        generate=lambda seed: gen.from_prompt(words, difficulty, n=LIVE_CANDIDATES, seed=seed),
+        generate=lambda seed: gen.from_prompt(words, difficulty, n=live_candidates(), seed=seed),
         detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
         log=log.info, check_drawing=safety.check_picture,
         rate=True,  # label the lesson by how hard the drawing came out, not by what was asked for
@@ -285,7 +295,7 @@ def rebuild_live_pack(prompt: str, canvas: bytes, difficulty: str) -> dict:
     pack, assets = make_pack(
         pack_id=f"live-{slug}-{difficulty}", subject=slug, title=prompt[:1].upper() + prompt[1:], difficulty=difficulty,
         source_kind="prompt", prompt=prompt, subject_words=prompt, seed=secrets.randbelow(100_000),
-        generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=LIVE_CANDIDATES, seed=seed),
+        generate=lambda seed: gen.from_drawing(drawing, prompt, difficulty, n=live_candidates(), seed=seed),
         detect=lambda image: detect_parts(image, prompt), retries=0, log=log.info, always=True,
         check_drawing=safety.check_picture, rate=True, limit=LIVE_STROKE_LIMITS[difficulty],
     )
