@@ -70,6 +70,29 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 # it went: the window only shows its last few screens. server/out is never committed.
 LOG_FILE = Path(__file__).resolve().parent / "out" / "live.log"
 _lock = asyncio.Lock()  # one job at a time: the GPU can only build one pack at once
+# When the current GPU job (or the warm-up) took the lock, by time.monotonic(); None when no job is running.
+_job_started: float | None = None
+# A build that holds the lock this long is hung (a real one takes under TIMEOUT_S; the warm-up about 30 s), e.g.
+# a CUDA call that never returns while the PC is short of memory. A Python thread can't be stopped, and while it
+# holds the lock every visitor gets "busy" forever, so the server exits instead and run_live.ps1 starts it again.
+STUCK_S = 180
+
+
+def _exit_for_restart() -> None:
+    os._exit(3)  # a separate function so tests can replace it
+
+
+def check_not_stuck() -> None:
+    """Exits the server (run_live.ps1 restarts it) when a GPU job has held the lock for more than STUCK_S."""
+    if _lock.locked() and _job_started is not None and time.monotonic() - _job_started > STUCK_S:
+        log.error("a GPU job has held the lock for %.0f s: it is stuck. Restarting the server.",
+                  time.monotonic() - _job_started)
+        _exit_for_restart()
+
+
+def _mark_job(started: bool) -> None:
+    global _job_started
+    _job_started = time.monotonic() if started else None
 _gpu_name: str | None = None
 
 
@@ -311,7 +334,11 @@ async def lifespan(_app: FastAPI):
         log_to_file()
     if os.environ.get("GHOSTLINES_WARMUP") == "1":  # set by run_live.ps1
         async with _lock:  # report busy while warming up
-            await asyncio.to_thread(warm_up)
+            _mark_job(True)
+            try:
+                await asyncio.to_thread(warm_up)
+            finally:
+                _mark_job(False)
     yield
 
 
@@ -327,6 +354,7 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict:
     """Tells the web app the server is up, which GPU it has, and whether it's busy."""
+    check_not_stuck()  # the web app asks this on every visit, so a hung job is caught quickly
     return {"ok": True, "gpu": gpu_name(), "busy": _lock.locked()}
 
 
@@ -348,6 +376,7 @@ async def generate(request: GenerateRequest):
 async def run_job(name: str, prompt: str | None, difficulty: str, job, image_bytes: int = 0):
     """Runs one GPU job: 503 if one is already running, 504 after TIMEOUT_S, 400/422/500 on failures."""
     start = time.perf_counter()
+    check_not_stuck()
     if _lock.locked():
         log.info("%s %r: busy", name, prompt)
         return JSONResponse({"error": "busy"}, status_code=503)
@@ -355,11 +384,13 @@ async def run_job(name: str, prompt: str | None, difficulty: str, job, image_byt
     from build_pack import NoCleanCandidate
 
     await _lock.acquire()
+    _mark_job(True)
     # The build runs in a worker thread. The lock is released when the build really ends, even if we stop
     # waiting for it, so a timed-out build can't overlap the next one on the GPU.
     task = asyncio.ensure_future(asyncio.to_thread(job))
 
     def finished(t: asyncio.Future) -> None:
+        _mark_job(False)
         _lock.release()
         if not t.cancelled():
             t.exception()  # mark any error as seen; it was already handled or logged
