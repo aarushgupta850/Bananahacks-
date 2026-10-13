@@ -3,9 +3,10 @@
 // When the round ends (Done, Skip or the timer) the engine analyzes the strokes and the session keeps the result.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import CanvasToolbar from '../canvas/CanvasToolbar'
-import DrawingCanvas from '../canvas/DrawingCanvas'
+import DrawingCanvas, { type Tool } from '../canvas/DrawingCanvas'
 import ExportStrokesButton from '../canvas/ExportStrokesButton'
 import type { PenSize } from '../canvas/geometry'
+import { useStrokeHistory } from '../canvas/useStrokeHistory'
 import { engine } from '../engine'
 import type { UserStroke } from '../engine/types'
 import { resolveAsset } from '../lib/packs'
@@ -24,7 +25,7 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
   const { session, update } = useSession()
   const strokes = round === 'test' ? session.testStrokes : session.retestStrokes
   const [penSize, setPenSize] = useState<PenSize>('medium')
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen')
+  const [tool, setTool] = useState<Tool>('pen')
 
   // The latest strokes, for finish() when the timer calls it (it may run from an old render).
   const latest = useRef(strokes)
@@ -34,6 +35,9 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
   const finished = useRef(false) // Done and the timer can both fire; only the first one counts
 
   const setStrokes = (next: UserStroke[]) => update(round === 'test' ? { testStrokes: next } : { retestStrokes: next })
+  // Drawing, erasing and Clear can each be undone. Erasing splits strokes into pieces, and those pieces are
+  // what the engine analyzes at the end: to the engine they are just more (shorter) strokes.
+  const history = useStrokeHistory(strokes, setStrokes)
 
   const finish = useCallback(() => {
     if (finished.current) return
@@ -75,21 +79,22 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
           <div className="canvas-stack">
             <DrawingCanvas
               strokes={strokes}
-              onStroke={(stroke) => setStrokes([...strokes, stroke])}
+              onStroke={history.push}
+              onErase={history.replace}
               penSize={penSize}
               tool={tool}
-              onErase={setStrokes}
               label={`${TEXT[round].title} canvas. Copy the reference here.`}
             />
           </div>
           <CanvasToolbar
             penSize={penSize}
             onPenSize={setPenSize}
-            onUndo={() => setStrokes(strokes.slice(0, -1))}
-            onClear={() => setStrokes([])}
-            canUndo={strokes.length > 0}
             tool={tool}
             onTool={setTool}
+            onUndo={history.undo}
+            onClear={history.clear}
+            canUndo={history.canUndo}
+            canClear={strokes.length > 0}
           />
         </div>
       </div>

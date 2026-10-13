@@ -91,23 +91,38 @@ export function buildLesson(pack: Pack, weaknesses: Weakness[]): Step[] {
     })
 }
 
-// Each part scores max(0, 1 - |size error| - |dx| - |dy|), and a missing part 0. proportion mixes the mean
-// of those with the worst one (config.proportionWorstShare), so one badly sized part can't hide behind the
-// rest. total = 40 * proportion + 35 * shape + 25 * line. A pack without parts uses the shape for proportion.
+// Each part scores max(0, 1 - slope * (|size error| + |dx| + |dy|)), where errors within
+// config.proportionTolerance are free and config.proportionSlope makes bigger ones count faster (a tail drawn
+// 70% too small is nearly a forgotten tail, and scored 0.5 with a slope of 1),
+// and a missing part 0. proportion mixes the mean of those with the worst one (config.proportionWorstShare),
+// so one badly sized part can't hide behind the rest. A pack without parts uses the shape for proportion.
+//
+// Proportion and line only earn full credit once the drawing looks like the subject: both are multiplied by
+// shape / config.creditFullShape (at most 1). Without this, part boxes and smooth lines scored on their own:
+// 14 random straight lines got the full 25 line points ("confident lines") plus part sizes from whatever ink
+// landed in each part's box, and scored 47-83. A real drawing, even a rough one, is far above the threshold,
+// so this only costs drawings that don't resemble the subject (or barely started ones).
+//
+// total = 40 * proportion + 35 * shape + 25 * line, with the values returned here, so the report's three bars
+// always add up to the total.
 export function score(analysis: Analysis): Score {
   const shape = clamp(analysis.shapeSimilarity, 0, 1)
-  const line = clamp(analysis.lineConfidence, 0, 1)
+  const credit = clamp(shape / config.creditFullShape, 0, 1)
+  const line = clamp(analysis.lineConfidence, 0, 1) * credit
   // Errors within config.proportionTolerance cost nothing: hand drawings are never exact.
   const over = (error: number) => Math.max(0, Math.abs(error) - config.proportionTolerance)
   const perPart = analysis.parts.map((m) => (m.missing
     ? 0
-    : Math.max(0, 1 - over(m.sizeError) - over(m.offset.dx) - over(m.offset.dy))))
+    : Math.max(0, 1 - config.proportionSlope * (over(m.sizeError) + over(m.offset.dx) + over(m.offset.dy)))))
   const mean = perPart.reduce((sum, p) => sum + p, 0) / Math.max(perPart.length, 1)
-  const proportion = perPart.length === 0
+  const proportion = (perPart.length === 0
     ? shape
-    : (1 - config.proportionWorstShare) * mean + config.proportionWorstShare * Math.min(...perPart)
-  const total = Math.round(config.weightProportion * proportion + config.weightShape * shape + config.weightLine * line)
-  return { total: clamp(total, 0, 100), proportion, shape, line }
+    : (1 - config.proportionWorstShare) * mean + config.proportionWorstShare * Math.min(...perPart)) * credit
+  // Whole percents, as the report shows them, and the total made from those, so the bars and the total agree.
+  const pct = (n: number) => Math.round(n * 100) / 100
+  const [p, s, l] = [pct(proportion), pct(shape), pct(line)]
+  const total = Math.round(config.weightProportion * p + config.weightShape * s + config.weightLine * l)
+  return { total: clamp(total, 0, 100), proportion: p, shape: s, line: l }
 }
 
 // How big one weakness is in an analysis (0 = gone). Missing counts as 1; a part missing again is still 1.
@@ -121,14 +136,26 @@ function errorOf(w: Weakness, a: Analysis): number {
   return Math.abs(m.aspectError)
 }
 
-// "Head size: 24% too big → 5%"
+// Words for one measure in the retest: "5% too small", "within 3%", "spot on" or "missing". The direction is said
+// again because it can flip: a head 24% too big in the test can come out 20% too small in the retest, and
+// "→ 20%" read as if it were still too big.
+function nowWords(w: Weakness, after: PartMetric | undefined): string {
+  if (!after || after.missing) return 'missing'
+  const error = w.kind === 'size' ? after.sizeError : w.kind === 'position' ? offsetSize(after) : after.aspectError
+  if (Math.abs(error) <= config.goodLimit) return percent(error) === 0 ? 'spot on' : `within ${percent(error)}%`
+  if (w.kind === 'size') return `${percent(error)}% too ${error > 0 ? 'big' : 'small'}`
+  if (w.kind === 'position') return `${percent(error)}% ${offsetWords(after)}`
+  return `${percent(error)}% too ${error > 0 ? 'wide' : 'narrow'}`
+}
+
+// "Head size: 24% too big → within 5%"
 function describeFix(w: Weakness, test: Analysis, retest: Analysis): string {
   const before = test.parts.find((p) => p.partId === w.partId)
   const after = retest.parts.find((p) => p.partId === w.partId)
   const name = capitalize(before?.label ?? 'part')
   if (w.kind === 'line') return `Line confidence: ${percent(test.lineConfidence)}% → ${percent(retest.lineConfidence)}%`
   if (w.kind === 'missing') return `${name}: missing → ${after && !after.missing ? 'drawn' : 'still missing'}`
-  const now = after && !after.missing ? `${percent(errorOf(w, retest))}%` : 'missing'
+  const now = nowWords(w, after)
   if (w.kind === 'size') return `${name} size: ${percent(before!.sizeError)}% too ${before!.sizeError > 0 ? 'big' : 'small'} → ${now}`
   if (w.kind === 'position') return `${name} position: ${percent(offsetSize(before!))}% ${offsetWords(before!)} → ${now}`
   return `${name} shape: ${percent(before!.aspectError)}% too ${before!.aspectError > 0 ? 'wide' : 'narrow'} → ${now}`
@@ -140,20 +167,39 @@ function spotOn(label: string, measure: 'size' | 'position', error: number): str
   return `Your ${label.toLowerCase()} ${measure} was spot on${within}`
 }
 
+// Whether a weakness is gone in the retest: back within the limit that made it a weakness.
+function fixedIn(w: Weakness, a: Analysis): boolean {
+  if (w.kind === 'line') return a.alignedStrokes.length > 0 && a.lineConfidence >= config.lineWeakBelow
+  return errorOf(w, a) <= config.goodLimit
+}
+
 export function coach(_pack: Pack, test: Analysis, retest: Analysis): Coaching {
-  // Fix items: the test's 3 biggest problems, improved when the retest error is at least 40% smaller.
-  // A part left out of the retest is never "improved", however big its error was in the test.
+  // Fix items: the test's 3 biggest problems. One counts as improved when its retest error is at least 40%
+  // smaller, or back within the limit (a part 12% too big in the test and 9% in the retest is fixed, though
+  // 9 is not 40% less than 12). A part left out of the retest is never "improved".
   const missingNow = (w: Weakness) => w.partId !== null && retest.parts.some((p) => p.partId === w.partId && p.missing)
-  const fix = allWeaknesses(test).slice(0, config.maxWeaknesses).map((w): CoachItem => ({
+  const testWeaknesses = allWeaknesses(test).slice(0, config.maxWeaknesses)
+  const fix = testWeaknesses.map((w): CoachItem => ({
     text: describeFix(w, test, retest),
     partId: w.partId,
-    status: !missingNow(w) && errorOf(w, retest) <= errorOf(w, test) * (1 - config.improvedShare) ? 'improved' : 'not-yet',
+    status: !missingNow(w) && (fixedIn(w, retest) || errorOf(w, retest) <= errorOf(w, test) * (1 - config.improvedShare))
+      ? 'improved'
+      : 'not-yet',
   }))
+  // The retest's biggest problem that the test's list didn't have (a part left out this time, a new size
+  // error), so a retest that got worse somewhere never reads as "Nothing big to fix". A part that was missing
+  // in the test and is drawn now isn't "new" whatever its size: the fix item above already covers it.
+  const listed = (w: Weakness) => testWeaknesses.some((t) => t.partId === w.partId && (t.kind === w.kind || t.kind === 'missing'))
+  const newProblem = allWeaknesses(retest).find((w) => !listed(w))
+  // (Not for an empty retest: every part is "new" there, and the report says the round was skipped.)
+  if (newProblem && retest.alignedStrokes.length > 0) fix.push({ text: `New this time: ${newProblem.message}`, partId: newProblem.partId, status: 'not-yet' })
 
-  // Good items: the retest's best parts that weren't already a fix item, by their best measure.
+  // Good items: the retest's best parts that weren't already a fix item, by their best measure. Only for a
+  // retest that looks like the subject: part boxes measured from random lines say nothing worth praising.
   const fixed = new Set(fix.map((f) => f.partId))
+  const praise = retest.shapeSimilarity >= config.praiseMinShape
   const good = retest.parts
-    .filter((m) => !m.missing && m.good && !fixed.has(m.partId))
+    .filter((m) => praise && !m.missing && m.good && !fixed.has(m.partId))
     .map((m) => ({ m, size: Math.abs(m.sizeError), position: offsetSize(m) }))
     .sort((a, b) => Math.min(a.size, a.position) - Math.min(b.size, b.position))
     .slice(0, 2)

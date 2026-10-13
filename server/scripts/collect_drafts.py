@@ -44,6 +44,10 @@ DRAW_SEEDS = [0, 100]  # medium subjects are drawn twice: seeds 0-2 and 100-102
 # --round 2: the most promising variant on every subject once (seed 0), and a bolder one on the variant subjects and
 # the simple ones, where drafts are furthest over the stroke limit.
 ROUND2 = {"icon_plain": "all", "icon_bold": "few"}
+# --round 3: the live setup since Oct 13 (run with GHOSTLINES_LIGHTNING_STEPS=8): "icon_even" on every subject, with 4
+# drafts per lesson, to tune the chooser and to see what a 3rd or 4th draft would add.
+ROUND3_VARIANT = "icon_even"
+ROUND3_DRAFTS = 4
 
 
 def slug(text: str) -> str:
@@ -67,6 +71,13 @@ def round2_jobs(extra: list[str]) -> list[tuple[str, str, str, int]]:
         todo += [(variant, s, "simple", 0) for s in SIMPLE]
         if which == "all":
             todo += [(variant, s, "detailed", 0) for s in DETAILED]
+    return todo
+
+
+def round3_jobs(extra: list[str]) -> list[tuple[str, str, str, int]]:
+    todo = [(ROUND3_VARIANT, s, "medium", 0) for s in MEDIUM + extra]
+    todo += [(ROUND3_VARIANT, s, "simple", 0) for s in SIMPLE]
+    todo += [(ROUND3_VARIANT, s, "detailed", 0) for s in DETAILED]
     return todo
 
 
@@ -120,7 +131,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=SERVER_DIR / "out" / "drafts")
     parser.add_argument("--extra", default="", help="more medium subjects, comma separated (e.g. from live.log)")
     parser.add_argument("--batch-test", action="store_true", help="also time batched drafts against one by one")
-    parser.add_argument("--round", type=int, default=1, choices=[1, 2], help="2: the second set of prompt variants")
+    parser.add_argument("--round", type=int, default=1, choices=[1, 2, 3],
+                        help="2: the second set of prompt variants; 3: the live setup (icon_even, run with 8 steps)")
     args = parser.parse_args(argv)
 
     models.setup_hf_env()  # offline mode and HF_HOME, before the Hugging Face libraries load
@@ -131,22 +143,25 @@ def main(argv: list[str] | None = None) -> int:
     results_path = args.out / "results.json"
     results = json.loads(results_path.read_text()) if results_path.exists() else {"lessons": {}}
     extra = [s.strip() for s in args.extra.split(",") if s.strip()]
-    todo = jobs(extra, CHOSEN) if args.round == 1 else round2_jobs(extra)
+    todo = {1: lambda: jobs(extra, CHOSEN), 2: lambda: round2_jobs(extra), 3: lambda: round3_jobs(extra)}[args.round]()
+    n_drafts = ROUND3_DRAFTS if args.round == 3 else N_DRAFTS
+    steps = models.lightning_steps()
     pipe = gen._pipeline("text")
     started = time.perf_counter()
     for n, (variant, subject, difficulty, seed) in enumerate(todo, start=1):
-        folder = args.out / variant / f"{slug(subject)}-{difficulty}-s{seed}"
-        if len(list(folder.glob("candidate-*.webp"))) >= N_DRAFTS:
+        label = variant if steps == 4 else f"{variant}-{steps}step"  # 8-step drafts get their own folders
+        folder = args.out / label / f"{slug(subject)}-{difficulty}-s{seed}"
+        if len(list(folder.glob("candidate-*.webp"))) >= n_drafts:
             continue
         folder.mkdir(parents=True, exist_ok=True)
         prompt = line_art_prompt(subject, variant=variant, difficulty=difficulty)
         start = time.perf_counter()
-        images = draw(pipe, prompt, [seed + i for i in range(N_DRAFTS)], batch=False)
+        images = draw(pipe, prompt, [seed + i for i in range(n_drafts)], batch=False)
         seconds = time.perf_counter() - start
         for i, image in enumerate(images):
             image.save(folder / f"candidate-{i}.webp", "WEBP", lossless=True)
-        results["lessons"][f"{variant}/{folder.name}"] = {
-            "variant": variant, "subject": subject, "difficulty": difficulty, "seeds": [seed, seed + N_DRAFTS - 1],
+        results["lessons"][f"{label}/{folder.name}"] = {
+            "variant": variant, "subject": subject, "difficulty": difficulty, "seeds": [seed, seed + n_drafts - 1], "steps": steps,
             "prompt": prompt, "seconds": round(seconds, 2),
         }
         results_path.write_text(json.dumps(results, indent=1))

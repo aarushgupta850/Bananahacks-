@@ -24,12 +24,28 @@ export const config = {
 
   // ---------- teacher (teacher.ts) ----------
   adaptMaxRotationDeg: 0,   // guides never turn: a tilting guide made the whole drawing look off (Oct 13)
-  adaptBlend: 0.6,          // during calibration, move 60% of the way to the newly fitted transform...
-  adaptCalibrationStrokes: 3, // ...for the first 3 good strokes (the last lands exactly on the fit), then the
-                            // guides are locked for the rest of the lesson, like a printed shadow: guides that
-                            // kept sliding after every stroke left the lines already drawn looking off (Oct 13)
-  adaptMinAccuracy: 0,      // a stroke must score above this to calibrate. Not higher: someone drawing 50 px
-                            // off-centre scores low against the guides not yet moved, and is who calibration is for
+  // Calibrate once, then lock (Oct 13, "the pictures move"). The guides may move only during the first 3 strokes
+  // that trace a guide, and only within the first 8 strokes of the lesson; after that they never move again, like
+  // a printed shadow. A move goes all the way to the fitted place in one go (no creeping 60% at a time), and only
+  // when the fit is clearly somewhere else: small differences are hand wobble, and chasing them made the guides
+  // and the trace twitch after every stroke.
+  adaptCalibrationStrokes: 3, // strokes that traced a guide (matched, long enough, along one guide) may calibrate...
+  adaptLastStroke: 5,       // ...and only within 5 strokes of the first stroke that traced a guide (a first move at
+                            // stroke 32 after many accepted-or-not fits was a big jump)
+  adaptMaxMoves: 2,         // the guides move at most twice in a lesson (usually once, on the first stroke)
+  adaptMinMove: 16,         // px: a fit that moves the drawing less than this (at any corner) is wobble: no move.
+                            // A natural hand lands each stroke up to about 10 px off, which used to nudge the guides
+  adaptMaxResidual: 0.02,   // a stroke whose shape still sits this far from its guide after fitting (mean distance,
+                            // of the diagonal) is a badly drawn line, not a shifted drawing: it doesn't calibrate.
+                            // Shifted or resized copies fit to under 0.01; one stroke over two guides measured 0.023-0.047
+  adaptScaleRange: [0.75, 1.35] as [number, number], // the guides are never resized beyond this
+  adaptScaleMinSpan: 0.3,   // until the traced lines span this much of the diagonal, only shift (one small line
+                            // says where the user draws, but not how big)...
+  adaptMinScaleChange: 0.08, // ...and the size changes only when the fit is at least 8% bigger or smaller: a 5%
+                            // "resize" from one line drawn a bit big moved the far side of the drawing 35 px
+  adaptLengthRatio: 1.35,   // a stroke within 1.35x of its guide's length (longer or shorter) traced that one guide
+  adaptLostStrokes: 2,      // strokes in a row near the guides' original places (and far from the calibrated ones)
+                            // before the guides go back there; one stray stroke never moves them
   adaptMaxPairs: 512,       // keep at most this many matched point pairs (the most recent ones)
   autoWindow: 5,            // auto mode looks at the last 5 matched strokes
   autoFadeAbove: 0.8,       // ...and gives less help when their mean accuracy is above this
@@ -48,6 +64,8 @@ export const config = {
   smallStrokeShare: 0.12,   // strokes under 12% of the diagonal (eyes, a nose) are placed inside their parent part
   onLineDistance: 0.01,     // a small stroke within 1% of the diagonal of its plan lines is never moved to a child part
   minPlanCoverage: 0.3,     // a child part whose plan lines cover under 30% of its box is judged by position only
+  partMinCoverage: 0.2,     // a part whose lines pass near under 20% of its own plan lines counts as missing...
+  partCoverDistance: 0.12,  // ...where near is within 12% of the diagonal (generous: a part drawn too small still counts)
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
   roundPartRatio: 1.3,      // parts whose long side is < 1.3x their short side have no reliable tilt
@@ -56,7 +74,12 @@ export const config = {
   scribbleDropRatio: 6,     // ...and over 6x it is ignored like a stray mark (it measures no part)
   completeInk: 0.85,        // drawing at least 85% as much line as the reference counts as complete; less scales
                             // the shape score down (real careful copies draw about 90%, a careless one 28%)
-  shapeScale: 0.16,         // mean distance of 16% of the diagonal scores 0 shape similarity (M2: 0.08 was too harsh)
+  completeCoverage: 0.8,    // ...and so does passing within drawnDistance of at least 80% of the reference's lines
+                            // (a careful real copy covers about 75-80%, half a drawing about 50%, random lines 20-50%)
+  completePrecision: 0.85,  // at least 85% of the user's lines lying on the reference's lines counts as fully precise
+  drawnDistance: 0.04,      // a reference line point counts as drawn when a user line passes this close (of the diagonal)
+  shapeScale: 0.06,         // the user's lines lying 6% of the diagonal from the reference's on average scores 0 closeness.
+                            // Was 0.16 (both ways), which gave random lines 0.75; careful real copies measure about 1%
   overstrokeDistance: 4,    // px: a stroke lying within 4 px of an earlier one is a re-stroke
   overstrokeShare: 0.7,     // ...when at least 70% of its points do
   smoothTurnRad: 0.5,       // a median turn of 0.5 rad per sample means a fully shaky line
@@ -65,9 +88,13 @@ export const config = {
   maxWeaknesses: 3,
   lineWeakBelow: 0.7,       // line confidence under this is reported as a weakness
   proportionTolerance: 0.2, // size and position errors up to 20% cost nothing in the proportion score (M2)
-  proportionWorstShare: 0,  // 0 = proportion is the mean over parts; 0.5 = half mean, half the worst part
+  proportionSlope: 1.5,     // ...beyond that, each 10% of error costs a part 15% of its proportion score
+  proportionWorstShare: 0.25, // 0 = proportion is the mean over parts; 0.5 = half mean, half the worst part.
+                            // Was 0: with 6 parts a forgotten tail cost only 7 points, and a tailless cat scored 93
+  creditFullShape: 0.7,     // proportion and line earn full credit from a shape score of 0.7 up, less below (score())
   weightProportion: 40,     // total = 40 * proportion + 35 * shape + 25 * line
   weightShape: 35,
   weightLine: 25,
+  praiseMinShape: 0.5,      // "Already good" part praise only for a retest with at least this shape score
   improvedShare: 0.4,       // a fix counts as improved when the retest error is at least 40% smaller
 } as const

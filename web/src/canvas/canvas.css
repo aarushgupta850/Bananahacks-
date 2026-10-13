@@ -29,6 +29,19 @@
   fill: var(--ink);
 }
 
+/* Eraser: the circle under the pointer shows its reach, so the system cursor is hidden for a mouse. */
+.drawing-canvas.is-erasing {
+  cursor: none;
+}
+
+.eraser-cursor {
+  fill: rgb(59 108 255 / 12%); /* the accent, very faint, so the ink under it stays visible */
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4; /* dashed, so it reads as a tool outline and never as a line of ink */
+  pointer-events: none;
+}
+
 .ghost-layer {
   position: absolute;
   inset: 0;
@@ -168,6 +181,12 @@
   background: rgb(59 108 255 / 8%);
 }
 
+.tool-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
 .pen-dot {
   display: block;
   border-radius: 50%;
@@ -226,19 +245,6 @@
 
 .btn.dev-only {
   border: 1px dashed var(--ink-muted);
-}
-
-/* ---------- eraser ---------- */
-.drawing-canvas.is-erasing {
-  cursor: none; /* the eraser circle is the cursor */
-}
-
-.eraser-cursor {
-  fill: rgb(255 255 255 / 55%);
-  stroke: var(--ink-muted);
-  stroke-width: 2;
-  stroke-dasharray: 4 3;
-  pointer-events: none;
 }
 
 /* ---------- guide depth: what's traced, where to start ---------- */

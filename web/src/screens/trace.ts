@@ -101,3 +101,16 @@ export const REVEAL_STEPS = 12
 export function revealFor(drawnLength: number, totalLength: number): number {
   return Math.max(drawnLength, totalLength / REVEAL_STEPS)
 }
+
+// The movement to apply to the trace now. Normally the movement of the guides on screen, so the trace and the
+// guides always move together. When no full guide is shown (the lesson is done, or only key points are left)
+// the trace keeps the movement it had: falling back to "no movement" made the finished drawing jump back to
+// the reference's place, away from the user's lines, the moment the lesson ended. Tiny float differences
+// between guides (well under a pixel) also keep the previous value, so the CSS transform doesn't change at all.
+export function traceMovement(ghosts: Ghost[], plan: Map<string, Point[]>, previous: Similarity, done: boolean): Similarity {
+  const now = done ? null : guideMovement(ghosts, plan)
+  if (!now) return previous
+  const same = Math.abs(now.a - previous.a) < 1e-4 && Math.abs(now.b - previous.b) < 1e-4 &&
+    Math.abs(now.tx - previous.tx) < 0.05 && Math.abs(now.ty - previous.ty) < 0.05
+  return same ? previous : now
+}

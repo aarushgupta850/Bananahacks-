@@ -10,6 +10,12 @@ body {
   margin: 0;
 }
 
+/* Always keep room for the scrollbar: when a page grows past the window (the lesson's text and panel change
+   after strokes), a scrollbar appearing would narrow the page and slide the centred canvas sideways. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   min-height: 100vh;
   background: var(--paper);
