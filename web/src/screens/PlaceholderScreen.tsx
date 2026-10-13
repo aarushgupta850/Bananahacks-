@@ -1,6 +1,7 @@
 // A plain frame shared by the placeholder screens: a title, one sentence, the screen's content, and Back/Next.
 // Jeff replaces the placeholders with the designed screens (playbook J2a-J3).
 import { useEffect, useRef, type ReactNode } from 'react'
+import { clickCounts } from './clickGuard'
 
 // What App.tsx gives every screen: move one step forward or back in the flow.
 export interface NavProps {
@@ -29,6 +30,12 @@ export default function PlaceholderScreen({
   useEffect(() => {
     heading.current?.focus()
   }, [])
+  // When the screen appeared, so the second click of a double-click on the previous screen's main button doesn't
+  // also press this one (see clickGuard.ts).
+  const shownAt = useRef(performance.now())
+  const next = () => {
+    if (clickCounts(shownAt.current, performance.now())) onNext?.()
+  }
 
   return (
     <section className={compact ? 'screen is-compact' : 'screen'} aria-labelledby="screen-title">
@@ -41,7 +48,7 @@ export default function PlaceholderScreen({
         {onBack && <button type="button" className="btn" onClick={onBack}>{backLabel}</button>}
         <div className="screen-nav-end">
           {extraActions}
-          {onNext && <button type="button" className="btn btn-primary" onClick={onNext} disabled={nextDisabled}>{nextLabel}</button>}
+          {onNext && <button type="button" className="btn btn-primary" onClick={next} disabled={nextDisabled}>{nextLabel}</button>}
         </div>
       </nav>
     </section>
