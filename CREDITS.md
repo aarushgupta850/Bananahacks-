@@ -10,7 +10,7 @@ Downloaded by `server/scripts/download_models.py`; licenses as listed on each mo
 | Model | Used for | License | Link |
 |---|---|---|---|
 | Stable Diffusion XL base 1.0 (Stability AI) | Text encoders, VAE and pipeline config for image generation | CreativeML Open RAIL++-M | https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0 |
-| SDXL-Lightning, 4-step UNet (ByteDance) | Fast text-to-line-art generation (4 steps) | CreativeML Open RAIL++-M | https://huggingface.co/ByteDance/SDXL-Lightning |
+| SDXL-Lightning, 4-step UNet (ByteDance; the 8-step UNet is optional) | Fast text-to-line-art generation (4 steps, or 8) | CreativeML Open RAIL++-M | https://huggingface.co/ByteDance/SDXL-Lightning |
 | MistoLine (TheMistoAI) | SDXL ControlNet that redraws a photo's lines cleanly (photo packs) | CreativeML Open RAIL++-M | https://huggingface.co/TheMistoAI/MistoLine |
 | Annotators: line-art detector (lllyasviel) | Pulling line art out of a photo, via controlnet-aux | Listed as "other" on the model page | https://huggingface.co/lllyasviel/Annotators |
 | OWLv2 base patch16 ensemble (Google) | Finding parts (head, ear, tail...) in a drawing from text labels | Apache-2.0 | https://huggingface.co/google/owlv2-base-patch16-ensemble |
@@ -42,6 +42,12 @@ Both are loaded from Google Fonts.
 | oxlint | Linting | MIT | https://oxc.rs |
 | @types/react, @types/react-dom, @types/node | Type definitions | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | GitHub Actions: checkout, setup-node, upload-pages-artifact, deploy-pages | Tests on every pull request and the GitHub Pages deploy | MIT | https://github.com/actions |
+
+## Live server hosting
+
+| Tool | Used for | License | Link |
+|---|---|---|---|
+| cloudflared (Cloudflare) | The quick tunnel that makes the live server on our GPU PC reachable from the site | Apache-2.0 | https://github.com/cloudflare/cloudflared |
 
 ## Server libraries (Python, `/server`)
 
