@@ -20,6 +20,10 @@ $env:GHOSTLINES_PREFER_SYMMETRY = "1"   # of near-equally clean drafts, keep the
 #                                         # first with server/scripts/download_models.py, same settings)
 # $env:GHOSTLINES_IMAGE_MODEL = "openai"  # OpenAI's image model: needs OPENAI_API_KEY in .env (never committed),
 #                                         # costs money per picture
+# With an OpenAI key in .env, OpenAI draws typed subjects (the local model takes over if a request fails).
+if (Select-String -Path .env -Pattern '^OPENAI_API_KEY=\S' -Quiet -ErrorAction SilentlyContinue) {
+    $env:GHOSTLINES_IMAGE_MODEL = "openai"
+}
 # A style LoRA merged into SDXL-Lightning (only with the default "sdxl"):
 # $env:GHOSTLINES_LORA = "artificialguybr/ColoringBookRedmond-V2:ColoringBookRedmond-ColoringBook-ColoringBookAF.safetensors"
 # $env:GHOSTLINES_LORA_WORDS = "ColoringBookAF, Coloring Book"   # that LoRA's trigger words (from its model card)

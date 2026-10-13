@@ -143,7 +143,10 @@ def from_prompt(subject: str, difficulty: str = "medium", n: int = 4, seed: int 
     from pipeline import openai_images
 
     if openai_images.enabled():
-        return openai_images.from_prompt(subject, difficulty, n=n)
+        try:
+            return openai_images.from_prompt(subject, difficulty, n=n)
+        except openai_images.OpenAIImageError as error:  # bad key, no credit, OpenAI down: draw it here instead
+            print(f"OpenAI images failed ({error}); drawing {subject!r} with the local model instead")
     pipe = _pipeline("flux" if models.image_model() == "flux" else "text")
     prompt = line_art_prompt(subject, variant=active_variant(), difficulty=difficulty)
     words = os.environ.get("GHOSTLINES_LORA_WORDS", "").strip()  # a style LoRA's trigger words, e.g. "Coloring Book"
