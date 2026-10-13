@@ -1,0 +1,394 @@
+/* "Your progress" (subject picker) and the highlight line under the report's score. Values from tokens.css. */
+
+/* ---------- the panel ---------- */
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.progress-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.progress-head h2 {
+  font-size: var(--text-lg);
+}
+
+.progress-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: var(--space-5);
+  align-items: center;
+}
+
+.progress-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.progress-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.progress-stat dt {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.progress-stat dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+
+.progress-stat-value {
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-stat-note {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* Sparkline: retest solid accent, test dashed at ghost strength (the app's own "ghost line" look). */
+.progress-spark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.progress-spark svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.spark-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.spark-test,
+.spark-retest {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.spark-test {
+  stroke: var(--accent);
+  stroke-opacity: var(--ghost-opacity);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.spark-retest {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.spark-dot {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.progress-spark figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Each legend key draws a short sample of its line, so the two are told apart by style, not color. */
+.spark-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spark-key::before {
+  content: '';
+  width: 16px;
+  border-top: 2.5px solid var(--accent);
+}
+
+.spark-key.is-test::before {
+  border-top: 2px dashed rgb(59 108 255 / 45%);
+}
+
+.spark-range {
+  margin-left: auto;
+}
+
+/* Recent lessons */
+.progress-subhead {
+  color: var(--ink-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.progress-recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.recent-thumb {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.recent-thumb img {
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  object-fit: contain;
+}
+
+.recent-initial {
+  color: var(--ink-muted);
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.recent-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.recent-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-meta {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.recent-scores {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-scores strong {
+  color: var(--ink);
+  font-size: var(--text-lg);
+}
+
+.recent-arrow {
+  font-size: var(--text-sm);
+}
+
+/* The change for a session, as a number AND a word (better / same / lower), never color alone. */
+.gain-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 5.5em;
+  justify-content: center;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gain-chip.is-up {
+  border-color: var(--success);
+  background: rgb(46 158 106 / 14%);
+}
+
+.gain-chip.is-down {
+  border-color: var(--warning);
+  background: var(--warning-tint);
+  color: var(--warning-ink);
+}
+
+.gain-word {
+  font-weight: 500;
+}
+
+/* "Clear history" and its confirm step: quiet text buttons. */
+.text-btn {
+  min-height: 36px;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.text-btn:hover {
+  color: var(--ink);
+}
+
+.text-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.text-btn.is-danger {
+  color: var(--warning-ink);
+}
+
+.progress-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.progress-cleared {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---------- report highlight line ---------- */
+
+.report-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-highlights li {
+  padding: 2px var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* The first line is the most notable one (a personal best when there is one). */
+.report-highlights li:first-child {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- layout on narrower screens (iPad portrait) ---------- */
+
+@media (max-width: 900px) {
+  .progress-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .progress-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .recent-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .recent-item .gain-chip {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+}
+
+/* ---------- entrance: a short rise, only when motion is welcome ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .progress {
+    animation: progress-in 320ms ease-out both;
+  }
+
+  .recent-item {
+    animation: progress-in 280ms ease-out both;
+  }
+
+  .report-highlights li {
+    animation: progress-in 280ms ease-out 900ms both; /* after the score finishes counting up */
+  }
+
+  .spark-retest {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: spark-draw 700ms ease-out 200ms forwards;
+  }
+}
+
+@keyframes progress-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes spark-draw {
+  to { stroke-dashoffset: 0; }
+}
