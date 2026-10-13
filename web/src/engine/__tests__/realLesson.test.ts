@@ -70,7 +70,8 @@ describe('real coach', () => {
     const coaching = engine.coach(pack, test, retest)
     const head = coaching.fix.find((f) => f.partId === 'head')!
     expect(head.status).toBe('improved')
-    expect(head.text).toMatch(/^Head size: \d+% too big → \d+%$/)
+    // The retest value says its direction again, or "within N%" / "spot on" once it is back within the good limit.
+    expect(head.text).toMatch(/^Head size: \d+% too big → (within \d+%|spot on|\d+% too (big|small))$/)
     expect(coaching.good.length).toBeGreaterThan(0)
     expect(coaching.good.every((g) => g.status === 'good')).toBe(true)
   })

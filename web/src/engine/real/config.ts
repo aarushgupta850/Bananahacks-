@@ -48,6 +48,8 @@ export const config = {
   smallStrokeShare: 0.12,   // strokes under 12% of the diagonal (eyes, a nose) are placed inside their parent part
   onLineDistance: 0.01,     // a small stroke within 1% of the diagonal of its plan lines is never moved to a child part
   minPlanCoverage: 0.3,     // a child part whose plan lines cover under 30% of its box is judged by position only
+  partMinCoverage: 0.2,     // a part whose lines pass near under 20% of its own plan lines counts as missing...
+  partCoverDistance: 0.12,  // ...where near is within 12% of the diagonal (generous: a part drawn too small still counts)
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
   roundPartRatio: 1.3,      // parts whose long side is < 1.3x their short side have no reliable tilt
@@ -56,7 +58,12 @@ export const config = {
   scribbleDropRatio: 6,     // ...and over 6x it is ignored like a stray mark (it measures no part)
   completeInk: 0.85,        // drawing at least 85% as much line as the reference counts as complete; less scales
                             // the shape score down (real careful copies draw about 90%, a careless one 28%)
-  shapeScale: 0.16,         // mean distance of 16% of the diagonal scores 0 shape similarity (M2: 0.08 was too harsh)
+  completeCoverage: 0.8,    // ...and so does passing within drawnDistance of at least 80% of the reference's lines
+                            // (a careful real copy covers about 75-80%, half a drawing about 50%, random lines 20-50%)
+  completePrecision: 0.85,  // at least 85% of the user's lines lying on the reference's lines counts as fully precise
+  drawnDistance: 0.04,      // a reference line point counts as drawn when a user line passes this close (of the diagonal)
+  shapeScale: 0.06,         // the user's lines lying 6% of the diagonal from the reference's on average scores 0 closeness.
+                            // Was 0.16 (both ways), which gave random lines 0.75; careful real copies measure about 1%
   overstrokeDistance: 4,    // px: a stroke lying within 4 px of an earlier one is a re-stroke
   overstrokeShare: 0.7,     // ...when at least 70% of its points do
   smoothTurnRad: 0.5,       // a median turn of 0.5 rad per sample means a fully shaky line
@@ -65,9 +72,12 @@ export const config = {
   maxWeaknesses: 3,
   lineWeakBelow: 0.7,       // line confidence under this is reported as a weakness
   proportionTolerance: 0.2, // size and position errors up to 20% cost nothing in the proportion score (M2)
-  proportionWorstShare: 0,  // 0 = proportion is the mean over parts; 0.5 = half mean, half the worst part
+  proportionWorstShare: 0.25, // 0 = proportion is the mean over parts; 0.5 = half mean, half the worst part.
+                            // Was 0: with 6 parts a forgotten tail cost only 7 points, and a tailless cat scored 93
+  creditFullShape: 0.7,     // proportion and line earn full credit from a shape score of 0.7 up, less below (score())
   weightProportion: 40,     // total = 40 * proportion + 35 * shape + 25 * line
   weightShape: 35,
   weightLine: 25,
+  praiseMinShape: 0.5,      // "Already good" part praise only for a retest with at least this shape score
   improvedShare: 0.4,       // a fix counts as improved when the retest error is at least 40% smaller
 } as const
