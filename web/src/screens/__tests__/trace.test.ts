@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanStroke, Point, Step } from '../../engine/types'
-import { fitSimilarity, guideMovement, IDENTITY, lineLength, revealFor, revealOrder, traceMovement, traceReveal } from '../trace'
+import { fitSimilarity, guideMovement, IDENTITY, isTap, lineLength, revealFor, revealOrder, traceMovement, traceReveal } from '../trace'
+
+// Regression: in the lesson, taps (which the teacher ignores) each revealed 1/12 of the trace and counted as a
+// failed try, so a few clicks said "Stuck?" and a dozen showed the whole drawing.
+describe('isTap', () => {
+  it('treats a click, or a pen landing without moving, as a tap', () => {
+    expect(isTap([[300, 300]])).toBe(true)
+    expect(isTap([[300, 300], [300, 300], [301, 301]])).toBe(true)
+  })
+
+  it('treats anything that moves as a line', () => {
+    expect(isTap([[300, 300], [304, 300]])).toBe(false)
+    expect(isTap([[100, 100], [400, 400]])).toBe(false)
+  })
+})
 
 const move = (p: Point, scale: number, angle: number, dx: number, dy: number): Point =>
   [scale * (Math.cos(angle) * p[0] - Math.sin(angle) * p[1]) + dx, scale * (Math.sin(angle) * p[0] + Math.cos(angle) * p[1]) + dy]

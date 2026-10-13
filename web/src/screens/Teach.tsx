@@ -16,7 +16,7 @@ import { usePack, useSession, type TeachRecording } from '../session'
 import CountdownRing from './CountdownRing'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
 import { skipStep } from './skipStep'
-import { IDENTITY, lineLength, revealFor, traceMovement, traceReveal, type Similarity } from './trace'
+import { IDENTITY, isTap, lineLength, revealFor, traceMovement, traceReveal, type Similarity } from './trace'
 import { useCountdown } from './useCountdown'
 
 const LESSON_SECONDS = 120
@@ -135,7 +135,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
     const t = sinceStart(startedAt.current)
     recording.current.events.push({ t, type: 'stroke', stroke }, { t, type: 'ghosts', ghosts: next.ghosts })
     inkHistory.push(stroke)
-    reveal([stroke])
+    // A tap stays on the canvas as ink, but the teacher ignored it, so it reveals no trace and isn't a try.
+    const tap = isTap(stroke.points.map(([x, y]): [number, number] => [x, y]))
+    if (!tap) reveal([stroke])
     // A quick "Step done" when this stroke finished a step (not on the last one: the panel above says so).
     if (!next.done && next.completedStepIds.length > result.completedStepIds.length) flash('Step done')
     setResult(next)
@@ -143,11 +145,14 @@ export default function Teach({ onBack, onNext }: NavProps) {
     // the step is done, and point at "Skip step". (Counting every stroke said "Stuck?" halfway through a step
     // with four lines drawn perfectly.)
     const progressed = next.done || next.currentStepId !== result.currentStepId || lesson.teacher.showMe().length < remainingBefore
-    triesHere.current = progressed ? 0 : triesHere.current + 1
-    const isStuck = triesHere.current >= STUCK_AFTER
-    setStuck(isStuck)
-    const accuracy = next.accuracy
-    setOwnAccuracy(accuracy)
+    if (progressed || !tap) { // a tap changes nothing here (and leaves a "Show me" on screen)
+      triesHere.current = progressed ? 0 : triesHere.current + 1
+      setStuck(triesHere.current >= STUCK_AFTER)
+    }
+    // After a tap the teacher repeats the last stroke's accuracy; easing the meter toward it again would count
+    // that stroke twice.
+    const accuracy = tap ? null : next.accuracy
+    if (!tap) setOwnAccuracy(accuracy)
     if (accuracy !== null) setMeter((m) => (m === null ? accuracy : m + (accuracy - m) * METER_EASING))
     if (next.warning) showToast(next.warning, 'warning')
     if (HAPPY && liveOnline && !redrawing && accuracy !== null && accuracy < HAPPY_BELOW && !next.done) {
