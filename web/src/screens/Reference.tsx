@@ -6,6 +6,7 @@ import { resolveAsset } from '../lib/packs'
 import { emptySession, usePack, useSession } from '../session'
 import PipelinePanel from './PipelinePanel'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
+import { liveWaitText, useSecondsSince } from './liveWait'
 import { REDRAW_FAILED, redrawApology, redrawNote } from './redraw'
 import SketchLoader from './SketchLoader'
 import TimeLimitPicker from './TimeLimitPicker'
@@ -23,6 +24,7 @@ export default function Reference({ onBack, onNext }: NavProps) {
   const [redraw, setRedraw] = useState<{ kind: 'idle' } | { kind: 'drawing'; waiting: boolean } | { kind: 'failed'; message: string }>({ kind: 'idle' })
   const [drawings, setDrawings] = useState(1) // how many drawings this subject has had, counting the first
   const drawing = redraw.kind === 'drawing'
+  const waited = useSecondsSince(drawing)
   // Only before the test: after it, a new drawing would make the before/after comparison meaningless.
   const canRedraw = liveRequest !== null && session.testAnalysis === null
 
@@ -58,9 +60,7 @@ export default function Reference({ onBack, onNext }: NavProps) {
         <figure className="reference-figure">
           {drawing ? (
             <div className="reference-image reference-redrawing">
-              <SketchLoader text={redraw.waiting
-                ? 'Someone else is drawing right now. You\u2019re next, hold on\u2026'
-                : 'Drawing a new one\u2026 this takes about 20 seconds.'} />
+              <SketchLoader text={liveWaitText(waited, redraw.waiting)} />
             </div>
           ) : (
             <img
