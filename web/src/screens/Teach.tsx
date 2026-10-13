@@ -16,7 +16,7 @@ import { usePack, useSession, type TeachRecording } from '../session'
 import CountdownRing from './CountdownRing'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
 import { skipStep } from './skipStep'
-import { guideMovement, IDENTITY, lineLength, revealFor, traceReveal, type Similarity } from './trace'
+import { IDENTITY, lineLength, revealFor, traceMovement, traceReveal, type Similarity } from './trace'
 import { useCountdown } from './useCountdown'
 
 const LESSON_SECONDS = 120
@@ -78,7 +78,13 @@ export default function Teach({ onBack, onNext }: NavProps) {
   // Undo steps back through strokes, eraser drags and Clear (see useStrokeHistory).
   const inkHistory = useStrokeHistory(strokes, setStrokes)
   const [meter, setMeter] = useState<number | null>(null) // eased accuracy, 0-1; null before the first match
-  const [showMe, setShowMe] = useState<Ghost[] | null>(null)
+  // "Show me" is on (the id of the press, so its timer only turns off its own press; 0 = off). While it's on,
+  // the full guides show and follow the lesson: drawing during Show me no longer makes them vanish.
+  const [showMeOn, setShowMeOn] = useState(0)
+  const showMePresses = useRef(0)
+  // The accuracy of the user's own last stroke (null: it matched no guide; undefined: no stroke yet). Kept apart
+  // from the teacher's, which "Skip step" sets to its own perfect strokes ("Last stroke: 100% match").
+  const [ownAccuracy, setOwnAccuracy] = useState<number | null | undefined>(undefined)
   const [toast, setToast] = useState<string | null>(null)
   const [cheer, setCheer] = useState<{ id: number; text: string } | null>(null) // "Step done" / "Drawn for you"
   const [assisted, setAssisted] = useState<UserStroke[]>([]) // lines drawn for the user by "Skip step"
@@ -140,8 +146,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
     triesHere.current = progressed ? 0 : triesHere.current + 1
     const isStuck = triesHere.current >= STUCK_AFTER
     setStuck(isStuck)
-    setShowMe(isStuck && next.helpLevel !== 'guided' ? lesson.teacher.showMe() : null)
     const accuracy = next.accuracy
+    setOwnAccuracy(accuracy)
     if (accuracy !== null) setMeter((m) => (m === null ? accuracy : m + (accuracy - m) * METER_EASING))
     if (next.warning) showToast(next.warning, 'warning')
     if (HAPPY && liveOnline && !redrawing && accuracy !== null && accuracy < HAPPY_BELOW && !next.done) {
@@ -173,7 +179,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
     setAssisted((previous) => [...previous, ...drawn])
     reveal(drawn)
     setResult(next)
-    setShowMe(null)
+    setShowMeOn(0)
     setStuck(false)
     triesHere.current = 0
     lastRedrawAt.current = t // no AI redraw right after a skip: the user just asked for the plan's own lines
@@ -191,9 +197,6 @@ export default function Teach({ onBack, onNext }: NavProps) {
 
   // The lesson right now, for a redraw that answers later.
   const latest = useRef({ teacher: lesson.teacher, mode, ghosts: result.ghosts, done: result.done })
-  useEffect(() => {
-    latest.current = { teacher: lesson.teacher, mode, ghosts: showMe ?? result.ghosts, done: result.done }
-  }, [lesson, mode, result, showMe])
 
   // Sends the drawing to image AI in the background (drawing carries on), then swaps in the redrawn lesson.
   // Any failure (offline, busy, too slow) is silent: the current lesson simply continues.
@@ -222,7 +225,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
         setSwaps((n) => n + 1)
         setLesson({ pack: newPack, steps: newPack.steps, teacher })
         setResult(fresh)
-        setShowMe(null)
+        setShowMeOn(0)
         recording.current.events.push({ t: sinceStart(startedAt.current), type: 'ghosts', ghosts: fresh.ghosts })
         showToast(HAPPY_TOAST, 'happy')
       })
@@ -238,9 +241,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
   }
 
   function revealStep() {
-    const ghosts = lesson.teacher.showMe()
-    setShowMe(ghosts)
-    later(SHOW_ME_MS, () => setShowMe((current) => (current === ghosts ? null : current)))
+    const id = ++showMePresses.current
+    setShowMeOn(id)
+    later(SHOW_ME_MS, () => setShowMeOn((current) => (current === id ? 0 : current)))
   }
 
   const finish = useCallback(() => {
@@ -257,15 +260,31 @@ export default function Teach({ onBack, onNext }: NavProps) {
 
   const stepIndex = lesson.steps.findIndex((s) => s.id === result.currentStepId)
   const step = stepIndex >= 0 ? lesson.steps[stepIndex] : undefined
-  const ghosts = showMe ?? result.ghosts
-
-  // The trace of the real drawing, moved the same way the guides have moved to follow the user.
-  const plan = useMemo(() => new Map(lesson.pack.strokes.map((s) => [s.id, s.points])), [lesson.pack])
-  // showMe() only reads the teacher (full guides, wherever they are now); it changes nothing.
-  const movement: Similarity = useMemo(
-    () => (result.done ? null : guideMovement(lesson.teacher.showMe(), plan)) ?? IDENTITY,
-    [lesson, result, plan],
+  // The ghosts on screen: the full guides while "Show me" is on or the user is stuck (in Hints or Check-in),
+  // else what the teacher shows. None once the lesson is done (old dots used to linger on the finished drawing).
+  // teacher.showMe() only reads the teacher (full guides, wherever they are now); it changes nothing.
+  const showFull = showMeOn > 0 || (stuck && result.helpLevel !== 'guided')
+  const ghosts: Ghost[] = useMemo(
+    () => (result.done ? [] : showFull ? lesson.teacher.showMe() : result.ghosts),
+    [lesson, result, showFull],
   )
+  useEffect(() => {
+    latest.current = { teacher: lesson.teacher, mode, ghosts, done: result.done }
+  }, [lesson, mode, result, ghosts])
+
+  // The trace of the real drawing, moved exactly the way the guides have moved to follow the user (so the two
+  // always line up). When no guide is shown (the lesson is done) it keeps its last place instead of jumping back.
+  const plan = useMemo(() => new Map(lesson.pack.strokes.map((s) => [s.id, s.points])), [lesson.pack])
+  // Worked out when the teacher's result changes, from the movement before (React's "state from the previous
+  // render" pattern, so no ref is read during render).
+  const [trace, setTrace] = useState({ result, lesson, movement: IDENTITY as Similarity })
+  let movement = trace.movement
+  if (trace.result !== result || trace.lesson !== lesson) {
+    // A happy-accident redraw starts a new pack, whose guides start unmoved.
+    const previous = trace.lesson.pack === lesson.pack ? trace.movement : IDENTITY
+    movement = traceMovement(lesson.teacher.showMe(), plan, previous, result.done)
+    setTrace({ result, lesson, movement })
+  }
   // Once the lesson is done the whole drawing shows, faint, as the finished picture.
   const traced = traceReveal(lesson.pack.strokes, lesson.steps, result.done ? lesson.steps.length : stepIndex, result.done ? Infinity : revealed)
   // Steps the teacher had to drop (nothing to draw) never show up as completed, so a finished lesson is shown full.
@@ -275,7 +294,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
     <PlaceholderScreen
       compact
       title="Lesson"
-      lead="Follow the ghost lines. They adapt to every stroke and fade as you get it right."
+      lead="Follow the ghost lines. They line up with your drawing, then fade as you get it right."
       onBack={onBack}
       onNext={finish}
       nextLabel={result.done ? 'Go to retest' : 'Skip to retest'}
@@ -358,9 +377,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
               <div className="meter-fill" style={{ width: `${(meter ?? 0) * 100}%` }} />
             </div>
             <span className="meter-text">
-              {result.accuracy !== null
-                ? `Last stroke: ${Math.round(result.accuracy * 100)}% match`
-                : meter === null ? 'Draw a stroke to see how close it is' : 'That stroke was far from the guide. Try tracing the blue line, or press Show me.'}
+              {typeof ownAccuracy === 'number'
+                ? `Last stroke: ${Math.round(ownAccuracy * 100)}% match`
+                : ownAccuracy === undefined ? 'Draw a stroke to see how close it is' : 'That stroke was far from the guide. Try tracing the blue line, or press Show me.'}
             </span>
           </div>
 

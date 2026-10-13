@@ -1,11 +1,11 @@
-// The Teacher: runs one lesson. It checks every stroke against the current step's guides, moves the guides to
-// follow where the user is actually drawing, and decides how much help to show (Guided, Hints, Check-in).
+// The Teacher: runs one lesson. It checks every stroke against the current step's guides, lines the guides up
+// once with where the user is actually drawing (then keeps them still), and decides how much help to show (Guided, Hints, Check-in).
 import type {
   Ghost, HelpLevel, Mode, ModeChange, Pack, PlanStroke, Point, Step, StrokeResult, Teacher, UserStroke,
 } from '../types'
 import { config } from './config'
 import {
-  applyToAll, bbox, diagonal, IDENTITY, invertTransform, isClosed, length, lerpTransform, PointGrid, procrustes,
+  applyToAll, bbox, diagonal, IDENTITY, invertTransform, isClosed, length, PointGrid, procrustes,
   resample, type Transform,
 } from './geometry'
 import { accuracyFor, coverageShare, isTap, matchStroke, tolerance, type Match } from './match'
@@ -39,7 +39,11 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   let helpLevel: HelpLevel = startMode === 'auto' ? 'guided' : startMode
   let transform: Transform = { ...IDENTITY } // plan space -> where the user is drawing
   let pairs: { from: Point; to: Point }[] = [] // matched plan point -> user point, for the fit
-  let calibrations = 0 // good strokes the guides have followed so far (they lock at config.adaptCalibrationStrokes)
+  let calibrations = 0     // strokes that traced a guide since calibration started (the guides lock after a few)
+  let calibrationStart = 0 // the stroke count when calibration started (0, or when the guides last went back home)
+  let pairStrokes = 0      // how many strokes the pairs come from
+  let moves = 0            // how many times the guides have moved (at most config.adaptMaxMoves)
+  let lostInARow = 0       // strokes in a row drawn at the guides' original places, far from the calibrated ones
   const done = new Set<string>()             // plan stroke ids drawn well enough
   const covered = new Map<string, Set<number>>() // plan stroke id -> guide points traced well so far (see match.ts)
   const recent: number[] = []                // accuracies of the last few matched strokes
@@ -67,6 +71,17 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
     return i === -1 ? lesson.length : i
   }
   const adapted = (points: Point[]) => applyToAll(transform, points)
+  // The corners of the whole drawing, to measure how far a change of transform would move it on screen.
+  const planBox = bbox(pack.strokes.flatMap((s) => s.points))
+  const corners: Point[] = [
+    [planBox[0], planBox[1]], [planBox[0] + planBox[2], planBox[1]],
+    [planBox[0], planBox[1] + planBox[3]], [planBox[0] + planBox[2], planBox[1] + planBox[3]],
+  ]
+  const moveSize = (a: Transform, b: Transform) => Math.max(...corners.map((c) => {
+    const [ax, ay] = applyToAll(a, [c])[0]
+    const [bx, by] = applyToAll(b, [c])[0]
+    return Math.hypot(ax - bx, ay - by)
+  }))
 
   // The guides on screen: the current step's undrawn strokes, plus the next step's when the current step
   // is a single stroke (so the user can see where the line is heading).
@@ -108,30 +123,44 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
     else if (mean < config.autoHelpBelow && at > 0) setHelpLevel(LEVELS[at - 1])
   }
 
-  // Moves the guides toward where the user draws: fit plan -> user over all matched points so far
-  // (rotation limited to 10 degrees), then go 60% of the way there, so one wobbly stroke can't throw them off.
-  // Calibrate, then lock: the guides follow the user's first few good strokes (so a drawing that is a bit bigger
-  // or off-centre still lines up), then never move again, so the lines already drawn and the guides stay together.
-  function adapt(guide: Point[], user: Point[]) {
-    if (calibrations >= config.adaptCalibrationStrokes) return // locked
-    const back = invertTransform(transform)
-    const planPoints = applyToAll(back, guide) // the guide as it is in the plan, before adapting
-    pairs.push(...planPoints.map((from, i) => ({ from, to: user[i] })))
-    if (pairs.length > config.adaptMaxPairs) pairs = pairs.slice(-config.adaptMaxPairs)
-    const fit = procrustes(pairs, config.adaptMaxRotationDeg)
-    // The last calibration stroke lands exactly on the fit, so the guides lock where they fit best.
-    const blend = calibrations === config.adaptCalibrationStrokes - 1 ? 1 : config.adaptBlend
-    const next = lerpTransform(transform, fit, blend)
-    // Adapting must bring the guide closer to this stroke. A stroke matched to the wrong stretch (e.g. one long
-    // line over several guides) can pair points badly and make a fit that moves the guides away: skip that one.
-    const gap = (t: Transform) => planPoints.reduce((sum, p, i) => {
-      const [x, y] = applyToAll(t, [p])[0]
-      return sum + Math.hypot(x - user[i][0], y - user[i][1])
-    }, 0)
-    if (gap(next) <= 1.1 * gap(transform)) { // a little worse is fine: the fit uses earlier strokes too
-      transform = next
-      calibrations++
-    } else pairs.splice(pairs.length - planPoints.length, planPoints.length)
+  // Calibrate once, then lock. The guides may follow where the user draws (a drawing a bit off-centre, bigger
+  // or smaller still lines up), but only during the first few strokes that trace a guide, and only when the fit
+  // is clearly somewhere else. Then they never move again, like a printed shadow, so the lines already drawn and
+  // the guides (and the trace under them) stay together. Guides that crept after every stroke felt like the
+  // pictures were sliding around (Oct 13).
+  //  - The fit uses every point pair so far (plan point -> user point), no rotation, size kept in a sane range.
+  //  - Pairs that disagree with the earlier ones (a badly drawn line, not a shifted drawing) are dropped.
+  //  - A move goes all the way to the fit in one go, and only when it would move the drawing at least
+  //    config.adaptMinMove px (anything less is hand wobble). Usually that's one move, on the first stroke.
+  //  - A stroke too far off to score (accuracy 0) needs a second stroke that agrees before the guides move,
+  //    so one line drawn in a random spot can't send them there.
+  function adapt(guide: Point[], user: Point[], accuracy: number) {
+    if (calibrations >= config.adaptCalibrationStrokes || moves >= config.adaptMaxMoves) return
+    if (strokeCount - calibrationStart > config.adaptLastStroke) return
+    calibrations++
+    const planPoints = applyToAll(invertTransform(transform), guide) // the guide as it is in the plan
+    const candidate = [...pairs, ...planPoints.map((from, i) => ({ from, to: user[i] }))].slice(-config.adaptMaxPairs)
+    // One small line says where the user draws, but not how big: until the traced lines span enough of the
+    // drawing, only shift (the size stays as it is).
+    const span = diagonal(bbox(candidate.map((p) => p.from)))
+    const sizes: [number, number] = span >= config.adaptScaleMinSpan * baseDiagonal ? config.adaptScaleRange : [transform.scale, transform.scale]
+    let fit = procrustes(candidate, config.adaptMaxRotationDeg, sizes)
+    // A small change of size is the hand, not the drawing: keep the size and only shift.
+    if (Math.abs(fit.scale / transform.scale - 1) < config.adaptMinScaleChange) {
+      fit = procrustes(candidate, config.adaptMaxRotationDeg, [transform.scale, transform.scale])
+    }
+    // How far the pairs sit from where a transform puts them, on average.
+    const gap = (t: Transform, list: { from: Point; to: Point }[]) => list.reduce((sum, { from, to }) => {
+      const [x, y] = applyToAll(t, [from])[0]
+      return sum + Math.hypot(x - to[0], y - to[1])
+    }, 0) / Math.max(list.length, 1)
+    if (gap(fit, candidate) > config.adaptMaxResidual * baseDiagonal) return // doesn't agree: not evidence of a shift
+    pairs = candidate
+    pairStrokes++
+    if (accuracy <= 0 && pairStrokes < 2) return // far off: wait for a second stroke that agrees
+    if (moveSize(transform, fit) < config.adaptMinMove) return // wobble, not a shifted drawing
+    transform = fit
+    moves++
   }
 
   // A gentle warning when a stroke is much bigger or smaller than its guide, e.g. "The head is getting large".
@@ -236,15 +265,21 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
       // the adaptation has drifted away from where the user draws (e.g. after one odd stroke). Without this the
       // user could never match a guide again (and in Check-in they can't even see where the guides went), so
       // the guides go back to their original places and the stroke is judged again.
+      // Only after config.adaptLostStrokes such strokes in a row: one stray stroke never moves the guides.
       const lost = !match && closeness.byGuide.size === 0 && closeness.accuracy === 0
-      if (lost && !isIdentity(transform)) {
-        const original = shownStrokes().map((s) => ({ id: s.id, points: s.points }))
-        if (matchStroke(userPoints, original, baseDiagonal) || coverByCloseness(userPoints, original).byGuide.size > 0) {
-          transform = { ...IDENTITY }
-          pairs = []
-          calibrations = 0 // calibrate again from where the user really draws
-          ;({ match, closeness, shownIds } = look())
-        }
+      const original = lost && !isIdentity(transform) ? shownStrokes().map((s) => ({ id: s.id, points: s.points })) : []
+      const nearOriginal = original.length > 0 &&
+        (!!matchStroke(userPoints, original, baseDiagonal) || coverByCloseness(userPoints, original).byGuide.size > 0)
+      lostInARow = nearOriginal ? lostInARow + 1 : 0
+      if (lostInARow >= config.adaptLostStrokes) {
+        transform = { ...IDENTITY }
+        pairs = []
+        pairStrokes = 0
+        moves = 0
+        calibrations = 0 // calibrate again from where the user really draws
+        calibrationStart = strokeCount - 1
+        lostInARow = 0
+        ;({ match, closeness, shownIds } = look())
       }
 
       // Going over a line finished earlier: it is scored against that line, and credits or moves nothing (no
@@ -284,13 +319,16 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
         // A good stroke also covers the stretch of the guide it was matched to.
         if (match.accuracy >= config.doneThreshold) credit(match.ghostId, match.covered)
         warning = sizeWarning(match.ghostId, match.user, match.guide)
-        // A stroke with zero accuracy is too far off its guide to say where the user is drawing, and a dot or
-        // a short tick is too small to say how big the user is drawing. A stroke along several guides can't be
-        // paired point by point with the one it matched, and pairing it anyway would pull the guides away from
-        // the user, so it doesn't move them.
-        if (match.accuracy > config.adaptMinAccuracy && !spansGuides && length(match.guide) >= config.minAdaptLength) {
-          adapt(match.guide, match.user)
-        }
+        // A dot or a short tick is too small to say where or how big the user is drawing. A stroke along several
+        // guides can't be paired point by point with the one it matched, and pairing it anyway would pull the
+        // guides away from the user, so it doesn't calibrate them.
+        // While the guides are still off (a drawing shifted or scaled), a stroke traced along its own guide often
+        // brushes past the guide next to it too, so it looks like it "spans" both. If it's about as long as the
+        // guide it matched, it really traced that guide and can calibrate; one long stroke over several guides
+        // is much longer than any one of them.
+        const ownLength = length(userPoints) / Math.max(length(match.guide), 1e-6)
+        const tracedOne = !spansGuides || (ownLength > 1 / config.adaptLengthRatio && ownLength < config.adaptLengthRatio)
+        if (tracedOne && length(match.guide) >= config.minAdaptLength) adapt(match.guide, match.user, match.accuracy)
         recent.push(lastAccuracy) // Auto judges the same score the user sees
         if (recent.length > config.autoWindow) recent.shift()
       } else {

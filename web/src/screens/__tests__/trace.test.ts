@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanStroke, Point, Step } from '../../engine/types'
-import { fitSimilarity, guideMovement, lineLength, revealFor, revealOrder, traceReveal } from '../trace'
+import { fitSimilarity, guideMovement, IDENTITY, lineLength, revealFor, revealOrder, traceMovement, traceReveal } from '../trace'
 
 const move = (p: Point, scale: number, angle: number, dx: number, dy: number): Point =>
   [scale * (Math.cos(angle) * p[0] - Math.sin(angle) * p[1]) + dx, scale * (Math.sin(angle) * p[0] + Math.cos(angle) * p[1]) + dy]
@@ -63,5 +63,30 @@ describe('traceReveal', () => {
     const total = 500
     const budget = Array.from({ length: 12 }, () => revealFor(3, total)).reduce((a, b) => a + b, 0)
     expect(shown(0, budget)).toEqual(['h1:100', 'h2:100', 'b1:100', 'x:100', 'y:100'])
+  })
+})
+
+describe('traceMovement', () => {
+  const planPoints: Point[] = [[100, 100], [300, 120], [250, 400]]
+  const plan = new Map([['s1', planPoints]])
+  const shifted = { strokeId: 's1', kind: 'stroke' as const, points: planPoints.map((p) => move(p, 1, 0, 40, -20)) }
+
+  it('follows the guides on screen', () => {
+    const m = traceMovement([shifted], plan, IDENTITY, false)
+    expect(m.tx).toBeCloseTo(40, 6)
+    expect(m.ty).toBeCloseTo(-20, 6)
+  })
+
+  it('keeps its place when the lesson is done or no full guide is shown (no snapping back)', () => {
+    const before = traceMovement([shifted], plan, IDENTITY, false)
+    expect(traceMovement([], plan, before, true)).toBe(before)
+    expect(traceMovement([shifted], plan, before, true)).toBe(before)
+    expect(traceMovement([{ ...shifted, kind: 'keypoints' }], plan, before, false)).toBe(before)
+  })
+
+  it('returns the very same movement for sub-pixel differences, so the CSS transform never changes', () => {
+    const before = traceMovement([shifted], plan, IDENTITY, false)
+    const nudged = { ...shifted, points: shifted.points.map(([x, y]): Point => [x + 0.001, y - 0.001]) }
+    expect(traceMovement([nudged], plan, before, false)).toBe(before)
   })
 })
