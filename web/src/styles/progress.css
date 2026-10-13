@@ -25,18 +25,29 @@
   font-size: var(--text-lg);
 }
 
-.progress-overview {
+.progress-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
-  gap: var(--space-5);
-  align-items: center;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--space-5) var(--space-6);
+  align-items: start;
+}
+
+.progress-overview,
+.progress-recent-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .progress-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   margin: 0;
+}
+
+.progress-stats.is-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .progress-stat {
@@ -56,9 +67,8 @@
 
 .progress-stat dd {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
+  flex-direction: column;
+  gap: var(--space-1);
   margin: 0;
 }
 
@@ -159,9 +169,9 @@
 }
 
 .progress-recent {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-2) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -169,10 +179,10 @@
 
 .recent-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -208,16 +218,28 @@
   min-width: 0;
 }
 
-.recent-title {
+.recent-title,
+.recent-meta {
   overflow: hidden;
-  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.recent-title {
+  font-weight: 600;
 }
 
 .recent-meta {
   color: var(--ink-muted);
   font-size: var(--text-sm);
+}
+
+/* Scores above the change chip, right-aligned so the numbers line up down the list. */
+.recent-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
 }
 
 .recent-scores {
@@ -242,8 +264,6 @@
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  min-width: 5.5em;
-  justify-content: center;
   padding: 2px var(--space-2);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -333,32 +353,27 @@
   font-weight: 600;
 }
 
-/* The first line is the most notable one (a personal best when there is one). */
-.report-highlights li:first-child {
+/* A personal best stands out with the accent; its words already say what it is. */
+.report-highlights li.is-best {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.report-highlights li.is-streak {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-/* ---------- layout on narrower screens (iPad portrait) ---------- */
+/* ---------- narrow screens: stack the numbers above the list ---------- */
 
-@media (max-width: 900px) {
-  .progress-overview {
+@media (max-width: 720px) {
+  .progress {
+    padding: var(--space-4);
+  }
+
+  .progress-layout {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .progress-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 420px) {
-  .recent-item {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .recent-item .gain-chip {
-    grid-column: 2 / -1;
-    justify-self: start;
   }
 }
 

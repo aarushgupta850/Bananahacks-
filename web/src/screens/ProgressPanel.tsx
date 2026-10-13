@@ -7,7 +7,7 @@ import {
 } from '../lib/progress'
 import '../styles/progress.css'
 
-const RECENT_COUNT = 6     // sessions in the recent list
+const RECENT_COUNT = 4     // sessions in the recent list
 const SPARK_COUNT = 12     // sessions in the sparkline
 
 const DIFFICULTY_LABEL = { simple: 'Simple', medium: 'Medium', detailed: 'Detailed' } as const
@@ -60,20 +60,32 @@ export default function ProgressPanel() {
         )}
       </header>
 
-      <div className="progress-overview">
-        <dl className="progress-stats">
-          <Stat label={stats.sessions === 1 ? 'Lesson' : 'Lessons'} value={String(stats.sessions)} />
-          <Stat label="Average gain" value={formatGain(stats.averageGain)} note="points per lesson" />
-          <Stat label="Best gain" value={formatGain(stats.bestGain)} note="points" />
-          <Stat label="Day streak" value={String(stats.streak)} note={stats.streak === 1 ? 'day' : 'days'} />
-        </dl>
-        {history.length >= 2 && <Sparkline records={history.slice(-SPARK_COUNT)} />}
-      </div>
+      {/* Left: the numbers and the chart. Right: the latest lessons. Stacks on narrow screens. */}
+      <div className="progress-layout">
+        <div className="progress-overview">
+          {/* After one lesson, "average" and "best" would both just repeat its gain, so one Gain tile shows instead. */}
+          <dl className={stats.sessions === 1 ? 'progress-stats is-row' : 'progress-stats'}>
+            <Stat label="Lessons" value={String(stats.sessions)} note="finished" />
+            {stats.sessions === 1 ? (
+              <Stat label="Gain" value={formatGain(stats.bestGain)} note="points" />
+            ) : (
+              <>
+                <Stat label="Average gain" value={formatGain(stats.averageGain)} note="points per lesson" />
+                <Stat label="Best gain" value={formatGain(stats.bestGain)} note="points in one lesson" />
+              </>
+            )}
+            <Stat label="Day streak" value={String(stats.streak)} note={stats.streak === 1 ? 'day' : 'days in a row'} />
+          </dl>
+          {history.length >= 2 && <Sparkline records={history.slice(-SPARK_COUNT)} />}
+        </div>
 
-      <h3 className="progress-subhead">Recent lessons</h3>
-      <ol className="progress-recent">
-        {recent.map((r, i) => <RecentItem key={r.id} record={r} now={now} index={i} />)}
-      </ol>
+        <div className="progress-recent-block">
+          <h3 className="progress-subhead" id="progress-recent-title">Recent lessons</h3>
+          <ol className="progress-recent" aria-labelledby="progress-recent-title">
+            {recent.map((r, i) => <RecentItem key={r.id} record={r} now={now} index={i} />)}
+          </ol>
+        </div>
+      </div>
     </section>
   )
 }
@@ -113,20 +125,22 @@ function RecentItem({ record, now, index }: { record: ProgressRecord; now: numbe
         <span className="recent-title">{record.title}</span>
         <span className="recent-meta">{DIFFICULTY_LABEL[record.difficulty]} · {relativeDay(record.at, now)}</span>
       </span>
-      <span className="recent-scores" aria-label={`Test ${record.testScore}, retest ${record.retestScore}`}>
-        <span>{record.testScore}</span>
-        <span className="recent-arrow" aria-hidden="true">→</span>
-        <strong>{record.retestScore}</strong>
+      <span className="recent-result">
+        <span className="recent-scores" aria-label={`Test ${record.testScore}, retest ${record.retestScore}`}>
+          <span>{record.testScore}</span>
+          <span className="recent-arrow" aria-hidden="true">→</span>
+          <strong>{record.retestScore}</strong>
+        </span>
+        <GainChip gain={gainOf(record)} />
       </span>
-      <GainChip gain={gainOf(record)} />
     </li>
   )
 }
 
 // A tiny chart of test (dashed, like a ghost line) and retest (solid) scores, oldest on the left.
 // Scores are 0-100, so the y axis is fixed at 0-100 and lines from different sessions compare fairly.
-const W = 260
-const H = 72
+const W = 520
+const H = 84
 const PAD = 6
 
 function Sparkline({ records }: { records: ProgressRecord[] }) {
@@ -147,12 +161,12 @@ function Sparkline({ records }: { records: ProgressRecord[] }) {
         <line className="spark-grid" x1={PAD} x2={W - PAD} y1={y(100)} y2={y(100)} />
         <path className="spark-test" d={line(tests)} />
         <path className="spark-retest" d={line(retests)} pathLength={1} />
-        <circle className="spark-dot" cx={x(retests.length - 1)} cy={y(last)} r={3.5} />
+        <circle className="spark-dot" cx={x(retests.length - 1)} cy={y(last)} r={4.5} />
       </svg>
       <figcaption>
         <span className="spark-key is-retest">Retest</span>
         <span className="spark-key is-test">Test</span>
-        <span className="spark-range">last {records.length} lessons</span>
+        <span className="spark-range">last {records.length} lessons, out of 100</span>
       </figcaption>
     </figure>
   )

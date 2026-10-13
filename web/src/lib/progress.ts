@@ -200,18 +200,23 @@ function ordinal(n: number): string {
 // The short lines under the report's score, each one only when it is true:
 // a personal best (beats every earlier retest on this subject), a streak of 2+ days, and the lesson count
 // with the average gain (from the 2nd lesson on). `earlier` is the history before this session.
-export function reportHighlights(earlier: ProgressRecord[], current: ProgressRecord, now: number): string[] {
+export interface Highlight {
+  kind: 'best' | 'streak' | 'count'
+  text: string
+}
+
+export function reportHighlights(earlier: ProgressRecord[], current: ProgressRecord, now: number): Highlight[] {
   const others = earlier.filter((r) => r.id !== current.id)
   const all = [...others, current]
   const stats = computeStats(all, now)
-  const lines: string[] = []
+  const lines: Highlight[] = []
 
   const sameSubject = others.filter((r) => r.subject === current.subject)
   if (sameSubject.length > 0 && current.retestScore > Math.max(...sameSubject.map((r) => r.retestScore))) {
-    lines.push(`Personal best for ${current.title}`)
+    lines.push({ kind: 'best', text: `Personal best for ${current.title}` })
   }
-  if (stats.streak >= 2) lines.push(`${stats.streak}-day streak`)
-  if (stats.sessions >= 2) lines.push(`Your ${ordinal(stats.sessions)} lesson, average ${formatGain(stats.averageGain)}`)
+  if (stats.streak >= 2) lines.push({ kind: 'streak', text: `${stats.streak}-day streak` })
+  if (stats.sessions >= 2) lines.push({ kind: 'count', text: `Your ${ordinal(stats.sessions)} lesson, average ${formatGain(stats.averageGain)}` })
   return lines
 }
 

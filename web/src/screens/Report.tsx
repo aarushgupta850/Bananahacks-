@@ -155,7 +155,7 @@ function ReportBody({ pack, test, retest, overlay, setOverlay, onStartPack }: Bo
         <Scores before={testScore} after={retestScore} />
         {progress.highlights.length > 0 && (
           <ul className="report-highlights" aria-label="Your progress">
-            {progress.highlights.map((line) => <li key={line}>{line}</li>)}
+            {progress.highlights.map((h) => <li key={h.kind} className={`is-${h.kind}`}>{h.text}</li>)}
           </ul>
         )}
       </div>

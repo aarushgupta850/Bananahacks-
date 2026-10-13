@@ -162,14 +162,14 @@ describe('report highlights', () => {
   it('notes a personal best, a streak and the lesson count when each is true', () => {
     const earlier = [record({ at: at(9), testScore: 30, retestScore: 50 })] // +20
     const now = record({ at: at(10), testScore: 40, retestScore: 64 })      // +24
-    expect(reportHighlights(earlier, now, at(10))).toEqual([
+    expect(reportHighlights(earlier, now, at(10)).map((h) => h.text)).toEqual([
       'Personal best for Cat', '2-day streak', 'Your 2nd lesson, average +22',
     ])
   })
 
   it('does not call it a personal best when an earlier retest was as good', () => {
     const earlier = [record({ at: at(10, 9), retestScore: 70 })]
-    const lines = reportHighlights(earlier, record({ at: at(10, 11), retestScore: 70 }), at(10, 11))
+    const lines = reportHighlights(earlier, record({ at: at(10, 11), retestScore: 70 }), at(10, 11)).map((h) => h.text)
     expect(lines).toEqual(['Your 2nd lesson, average +30']) // both 40 -> 70
   })
 
