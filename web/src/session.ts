@@ -2,6 +2,7 @@
 // These are UI-only types; the engine's types live in engine/types.ts (the contract).
 import { createContext, useContext } from 'react'
 import type { Analysis, Ghost, ModeChange, Pack, Step, UserStroke, Weakness } from './engine/types'
+import type { GenerateRequest } from './lib/live'
 
 // The Teach screen records what happened so the report can replay it (the ReplayPlayer format in Jeff's playbook).
 // t is milliseconds since the lesson started. A 'stroke' event carries the user's stroke, a 'ghosts' event the
@@ -29,6 +30,9 @@ export interface Session {
   // Time limit for both solo rounds (test and retest), in seconds; null = no time limit.
   // Chosen on the Reference screen and shared by both rounds, so the before/after comparison stays fair.
   soloSeconds: number | null
+  // What the user typed or uploaded when live AI made this pack (null for ready-made subjects), so the Reference
+  // screen can ask for a new drawing of the same thing.
+  liveRequest: GenerateRequest | null
 }
 
 // The time limit a new run starts with.
@@ -45,6 +49,7 @@ export const emptySession: Session = {
   retestStrokes: [],
   retestAnalysis: null,
   soloSeconds: DEFAULT_SOLO_SECONDS,
+  liveRequest: null,
 }
 
 export interface SessionContextValue {

@@ -4,7 +4,7 @@
 // a friendly note: the app never shows an error, it always offers a way forward.
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import type { Difficulty, Pack, SubjectIndex } from '../engine/types'
-import { checkLive, generate, LiveError, type LiveErrorKind } from '../lib/live'
+import { checkLive, generate, LiveError, type GenerateRequest, type LiveErrorKind } from '../lib/live'
 import { loadIndex, loadPack, resolveIndexAsset } from '../lib/packs'
 import { emptySession, useSession } from '../session'
 import PlaceholderScreen from './PlaceholderScreen'
@@ -71,9 +71,10 @@ export default function SubjectPicker({ onNext }: { onNext: () => void }) {
     setAttempt((n) => n + 1)
   }
 
-  // A new pack (ready-made or live) starts a fresh session, keeping the chosen time limit.
-  function start(pack: Pack) {
-    update({ ...emptySession, pack, soloSeconds: session.soloSeconds })
+  // A new pack (ready-made or live) starts a fresh session, keeping the chosen time limit. A live pack also keeps
+  // the request that made it, so the Reference screen can ask for a new drawing of the same thing.
+  function start(pack: Pack, liveRequest: GenerateRequest | null = null) {
+    update({ ...emptySession, pack, soloSeconds: session.soloSeconds, liveRequest })
     onNext()
   }
 
@@ -183,7 +184,7 @@ function readAsBase64(file: File): Promise<string> {
   })
 }
 
-function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
+function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest) => void }) {
   const [live, setLive] = useState<LiveState>({ kind: 'checking' })
   const [prompt, setPrompt] = useState('')
   const [photo, setPhoto] = useState<File | null>(null)
@@ -215,12 +216,13 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
     if (!prompt.trim() && !photo) return
     setLive({ kind: 'generating' })
     try {
-      const pack = await generate({
+      const request: GenerateRequest = {
         prompt: prompt.trim() || undefined,
         imageBase64: photo ? await readAsBase64(photo) : undefined,
         difficulty,
-      }, () => setLive({ kind: 'generating', waiting: true }))
-      onPack(pack)
+      }
+      const pack = await generate(request, () => setLive({ kind: 'generating', waiting: true }))
+      onPack(pack, request)
     } catch (error) {
       console.error(error)
       const kind: LiveErrorKind = error instanceof LiveError ? error.kind : 'failed'
