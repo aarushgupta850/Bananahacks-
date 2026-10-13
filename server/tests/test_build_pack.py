@@ -441,6 +441,25 @@ def test_choose_prefers_a_draft_without_a_ring_around_the_subject():
     assert choose([inside_gate, over_gate], limit=50) == 0 and choose_anyway([inside_gate, over_gate], limit=50) == 1
 
 
+def test_choose_prefers_one_subject_over_two():
+    two = Candidate(None, [[(0, 0), (1, 1)]] * 30, 20.0, subjects=2)   # two cars stacked, cleaner lines
+    one = Candidate(None, [[(0, 0), (1, 1)]] * 30, 60.0)
+    assert choose([two, one]) == 1
+
+
+def test_both_choosers_count_the_symmetry_bonus(monkeypatch):
+    # The live server's last check (choose_anyway) used to leave the bonus out and undo choose's pick: a crossed,
+    # lopsided airplane (cleaner by 4 points) beat a clean, symmetric one.
+    from build_pack import choose_anyway
+
+    monkeypatch.setenv("GHOSTLINES_PREFER_SYMMETRY", "1")
+    lopsided = Candidate(None, [[(0, 0), (1, 1)]] * 30, 12.0, symmetry=0.5)
+    even = Candidate(None, [[(0, 0), (1, 1)]] * 45, 16.0, symmetry=0.85)
+    assert choose([lopsided, even]) == 1 and choose_anyway([lopsided, even]) == 1
+    monkeypatch.setenv("GHOSTLINES_PREFER_SYMMETRY", "0")
+    assert choose([lopsided, even]) == 0 and choose_anyway([lopsided, even]) == 0
+
+
 def test_feature_boxes_find_solid_eyes_but_not_thin_marks():
     from build_pack import feature_boxes
 

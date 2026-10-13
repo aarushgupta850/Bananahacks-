@@ -1,6 +1,7 @@
 // A plain frame shared by the placeholder screens: a title, one sentence, the screen's content, and Back/Next.
 // Jeff replaces the placeholders with the designed screens (playbook J2a-J3).
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { clickCounts } from './clickGuard'
 
 // What App.tsx gives every screen: move one step forward or back in the flow.
 export interface NavProps {
@@ -26,9 +27,17 @@ export default function PlaceholderScreen({
 }: PlaceholderScreenProps) {
   // Move focus to the heading on every new screen, so keyboard and screen-reader users start at the top.
   const heading = useRef<HTMLHeadingElement>(null)
+  // When the screen appeared, so the second click of a double-click on the previous screen's main button doesn't
+  // also press this one (see clickGuard.ts). Set once the screen is on the page, not during render.
+  const shownAt = useRef(Infinity)
   useEffect(() => {
     heading.current?.focus()
+    shownAt.current = performance.now()
   }, [])
+  // detail is 0 for Enter or Space: the keyboard can't double-click through (focus moves to the new heading).
+  const next = (event: MouseEvent) => {
+    if (event.detail === 0 || clickCounts(shownAt.current, performance.now())) onNext?.()
+  }
 
   return (
     <section className={compact ? 'screen is-compact' : 'screen'} aria-labelledby="screen-title">
@@ -41,7 +50,7 @@ export default function PlaceholderScreen({
         {onBack && <button type="button" className="btn" onClick={onBack}>{backLabel}</button>}
         <div className="screen-nav-end">
           {extraActions}
-          {onNext && <button type="button" className="btn btn-primary" onClick={onNext} disabled={nextDisabled}>{nextLabel}</button>}
+          {onNext && <button type="button" className="btn btn-primary" onClick={next} disabled={nextDisabled}>{nextLabel}</button>}
         </div>
       </nav>
     </section>

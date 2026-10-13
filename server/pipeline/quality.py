@@ -17,6 +17,7 @@ SPECK_PX = 30  # ink blobs smaller than this are specks (the tracer drops them a
 MAX_CLEAN_INK = 0.15  # more ink than this (share of the page) means solid fills or dense hatching
 MIN_INK = 0.005  # less than this means an (almost) empty page
 MAX_COLOR = 0.15  # mean chroma of the drawn pixels above this means a colored drawing, not line art
+MAX_SOLID_INK = 0.35  # more ink than this is a mostly black page (a dragon drawn as black shapes), never line art
 
 
 def line_metrics(image: Image.Image) -> dict[str, float]:
@@ -55,6 +56,7 @@ def line_metrics(image: Image.Image) -> dict[str, float]:
         + 500 * max(0.0, ink - MAX_CLEAN_INK)  # solid fills and dense hatching
         + (1000 if ink < MIN_INK else 0)  # a blank page is never the cleanest
         + (1000 if color > MAX_COLOR else 0)  # a colored drawing is never usable line art
+        + (1000 if ink > MAX_SOLID_INK else 0)  # nor is a page that is mostly black
     )
     return {
         "ink": ink,
@@ -85,3 +87,33 @@ def symmetry(image: Image.Image) -> float:
     mirror = drawing[:, ::-1]
     near_mirror = ndimage.binary_dilation(mirror, iterations=SYMMETRY_SLACK_PX)
     return float((drawing & near_mirror).sum() / drawing.sum())
+
+
+SUBJECTS_SIZE = 192  # separate_subjects works on the drawing at this size
+SUBJECTS_JOIN_PX = 2  # at that size, ink this close counts as one shape (8 px at full size)
+SUBJECTS_MIN_SHARE = 0.08  # a shape whose box covers at least this share of the whole drawing's box is a subject
+
+
+def separate_subjects(image: Image.Image) -> int:
+    """How many separate, big shapes the drawing has: 1 for one subject, 2 for two cars stacked or a sneaker with a
+    loose sole drawn beside it. A shape counts if its bounding box covers at least SUBJECTS_MIN_SHARE of the whole
+    drawing's, and isn't mostly inside a bigger one's (a window inside a house, a mug's inner mark). On 815 live drafts
+    it flagged 25, nearly all of them two subjects, a ring around the subject or a drawing broken in two."""
+    gray = np.asarray(image.convert("L").resize((SUBJECTS_SIZE, SUBJECTS_SIZE)), dtype=np.uint8)
+    ink = gray < INK_LEVEL
+    if ink.sum() < 10:
+        return 0
+    labels, _ = ndimage.label(ndimage.binary_dilation(ink, iterations=SUBJECTS_JOIN_PX))
+    rows, cols = np.nonzero(ink)
+    whole = (np.ptp(rows) + 1) * (np.ptp(cols) + 1)
+    boxes = [(s[0].start, s[0].stop, s[1].start, s[1].stop) for s in ndimage.find_objects(labels)]
+
+    def area(b) -> int:
+        return (b[1] - b[0]) * (b[3] - b[2])
+
+    def mostly_inside(a, b) -> bool:
+        overlap = max(0, min(a[1], b[1]) - max(a[0], b[0])) * max(0, min(a[3], b[3]) - max(a[2], b[2]))
+        return overlap >= 0.5 * area(a)
+
+    big = [b for b in boxes if area(b) >= SUBJECTS_MIN_SHARE * whole]
+    return sum(not any(b is not o and area(o) > area(b) and mostly_inside(b, o) for o in big) for b in big)

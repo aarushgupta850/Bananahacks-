@@ -8,6 +8,7 @@ import { checkLive, generate, LiveError, type LiveErrorKind } from '../lib/live'
 import { loadIndex, loadPack, resolveIndexAsset } from '../lib/packs'
 import { emptySession, useSession } from '../session'
 import PlaceholderScreen from './PlaceholderScreen'
+import ProgressPanel from './ProgressPanel'
 import SketchLoader from './SketchLoader'
 
 type Subject = SubjectIndex['subjects'][number]
@@ -93,6 +94,9 @@ export default function SubjectPicker({ onNext }: { onNext: () => void }) {
 
   return (
     <PlaceholderScreen title="What do you want to draw?" lead="Pick a subject. We'll test you, teach you with ghost lines, then retest you and measure what improved.">
+      {/* Only shows once a session has been finished in this browser. */}
+      <ProgressPanel />
+
       {index.kind === 'loading' && <p role="status" className="muted">Loading subjects…</p>}
 
       {index.kind === 'failed' && (

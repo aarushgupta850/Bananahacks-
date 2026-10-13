@@ -47,3 +47,10 @@ export function skipStep(teacher: Teacher, steps: Step[], mode: Mode): SkipResul
   }
   return { result, drawn, ignoreHistory: [historyStart, teacher.history().length] }
 }
+
+/** The teacher counts every stroke it is given, the ones "Skip step" drew included. This turns its count `at` back
+ * into the user's own strokes: `skips` holds, per skip, [the teacher's count before it, strokes it drew], and
+ * `before` is the user's own strokes in earlier (redrawn) lessons, whose teachers counted from 0. */
+export function ownStrokeNumber(at: number, skips: ReadonlyArray<readonly [number, number]>, before = 0): number {
+  return before + at - skips.filter(([start]) => start < at).reduce((sum, [, n]) => sum + n, 0)
+}

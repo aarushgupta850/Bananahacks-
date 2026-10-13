@@ -302,4 +302,13 @@ describe('mock coach', () => {
     ])
     expect(coaching.good.map((g) => [g.partId, g.status])).toEqual([['tail', 'good'], ['ear', 'good']])
   })
+
+  // Regression: with an empty retest, "Head size: 24% off in the test, missing in the retest" was marked
+  // "Improved", because the retest's weakness for the head is 'missing', not 'size'.
+  it('never marks a part improved when the retest left it out', () => {
+    const { engine, test } = testAndRetest()
+    const coaching = engine.coach(foxPack, test, engine.analyze(foxPack, []))
+    expect(coaching.fix.length).toBeGreaterThan(0)
+    for (const item of coaching.fix) expect(item.status).toBe('not-yet')
+  })
 })
