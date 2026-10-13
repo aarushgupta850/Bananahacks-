@@ -4,7 +4,7 @@
 // a friendly note: the app never shows an error, it always offers a way forward.
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import type { Difficulty, Pack, SubjectIndex } from '../engine/types'
-import { checkLive, generate, LiveError, type GenerateRequest, type LiveErrorKind } from '../lib/live'
+import { checkLive, generate, LiveError, PHOTO_UNREADABLE, preparePhoto, type GenerateRequest, type LiveErrorKind } from '../lib/live'
 import { loadIndex, loadPack, resolveIndexAsset } from '../lib/packs'
 import { emptySession, useSession } from '../session'
 import PlaceholderScreen from './PlaceholderScreen'
@@ -174,21 +174,35 @@ type LiveState =
   | { kind: 'generating'; waiting?: boolean } // waiting: someone else's lesson is being drawn first
   | { kind: 'problem'; message: string }
 
-// Reads a photo as base64 without the "data:image/...;base64," prefix (what the server expects).
-function readAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
-}
+// A chosen photo, already turned into a small JPEG (base64, no data: prefix) when it was picked.
+type ChosenPhoto = { name: string; base64: string }
 
 function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest) => void }) {
   const [live, setLive] = useState<LiveState>({ kind: 'checking' })
   const [prompt, setPrompt] = useState('')
-  const [photo, setPhoto] = useState<File | null>(null)
+  const [photo, setPhoto] = useState<ChosenPhoto | null>(null)
+  const [preparing, setPreparing] = useState(false) // the chosen photo is being opened and shrunk
+  const [photoProblem, setPhotoProblem] = useState<string | null>(null) // why the last chosen file can't be used
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+
+  // Opens the chosen file right away, so a file the browser can't open is caught now (with what to do instead),
+  // and the user sees which photo will be sent.
+  async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = '' // so choosing the same file again (after Remove) still counts as a change
+    if (!file) return
+    setPreparing(true)
+    setPhotoProblem(null)
+    try {
+      setPhoto({ name: file.name, base64: await preparePhoto(file) })
+    } catch (error) {
+      console.error(error)
+      setPhoto(null)
+      setPhotoProblem(error instanceof LiveError && error.userMessage ? error.userMessage : PHOTO_UNREADABLE)
+    } finally {
+      setPreparing(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -213,12 +227,12 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!prompt.trim() && !photo) return
+    if ((!prompt.trim() && !photo) || preparing) return
     setLive({ kind: 'generating' })
     try {
       const request: GenerateRequest = {
         prompt: prompt.trim() || undefined,
-        imageBase64: photo ? await readAsBase64(photo) : undefined,
+        imageBase64: photo?.base64,
         difficulty,
       }
       const pack = await generate(request, () => setLive({ kind: 'generating', waiting: true }))
@@ -226,8 +240,10 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest
     } catch (error) {
       console.error(error)
       const kind: LiveErrorKind = error instanceof LiveError ? error.kind : 'failed'
-      // A refused photo is usually a busy one (a background, several objects), so say what helps.
-      const message = photo && kind === 'rejected' ? PHOTO_REJECTED : LIVE_MESSAGES[kind]
+      // The server's own reason, when it gave one, says best what to change ("Couldn't tell what's in that
+      // photo..."). Otherwise a refused photo is usually a busy one (a background, several objects): say what helps.
+      const reason = error instanceof LiveError ? error.userMessage : undefined
+      const message = reason ?? (photo && kind === 'rejected' ? PHOTO_REJECTED : LIVE_MESSAGES[kind])
       setLive(kind === 'offline' ? { kind: 'offline' } : { kind: 'problem', message })
     }
   }
@@ -259,20 +275,32 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest
               disabled={!enabled}
             />
           </label>
-          {/* The real file input is hidden; its label is drawn as a button, with the chosen file's name beside it. */}
+          {/* The real file input is hidden; its label is drawn as a button. A chosen photo shows as a small preview
+              with its name and a Remove button, so it is clear what will be sent (and a prompt alone can be sent again). */}
           <div className="field">
             <span>or a photo</span>
-            <label className={enabled ? 'btn photo-pick' : 'btn photo-pick is-disabled'}>
-              <input
-                type="file"
-                accept="image/*"
-                className="visually-hidden"
-                disabled={!enabled}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setPhoto(e.target.files?.[0] ?? null)}
-              />
-              {photo ? 'Change photo' : 'Choose a photo'}
-            </label>
-            {photo && <span className="photo-name" title={photo.name}>{photo.name}</span>}
+            <div className="photo-row">
+              <label className={enabled && !preparing ? 'btn photo-pick' : 'btn photo-pick is-disabled'}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="visually-hidden"
+                  disabled={!enabled || preparing}
+                  onChange={choosePhoto}
+                />
+                {preparing ? 'Opening photo…' : photo ? 'Change photo' : 'Choose a photo'}
+              </label>
+              {photo && (
+                <>
+                  <img className="photo-preview" src={`data:image/jpeg;base64,${photo.base64}`} alt={`Your photo: ${photo.name}`} />
+                  <span className="photo-name" title={photo.name}>{photo.name}</span>
+                  <button type="button" className="btn photo-remove" onClick={() => setPhoto(null)} aria-label={`Remove photo ${photo.name}`}>
+                    Remove
+                  </button>
+                </>
+              )}
+            </div>
+            {photoProblem && <p className="notice" role="status">{photoProblem}</p>}
           </div>
           <div className="segmented" role="radiogroup" aria-label="Difficulty for your subject">
             {DIFFICULTIES.map((d) => (
@@ -289,7 +317,7 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest
               </button>
             ))}
           </div>
-          <button type="submit" className="btn btn-primary" disabled={!enabled || (!prompt.trim() && !photo)}>
+          <button type="submit" className="btn btn-primary" disabled={!enabled || preparing || (!prompt.trim() && !photo)}>
             Make my lesson
           </button>
         </form>
