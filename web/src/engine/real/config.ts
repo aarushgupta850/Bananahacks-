@@ -72,6 +72,7 @@ export const config = {
   maxWeaknesses: 3,
   lineWeakBelow: 0.7,       // line confidence under this is reported as a weakness
   proportionTolerance: 0.2, // size and position errors up to 20% cost nothing in the proportion score (M2)
+  proportionSlope: 1.5,     // ...beyond that, each 10% of error costs a part 15% of its proportion score
   proportionWorstShare: 0.25, // 0 = proportion is the mean over parts; 0.5 = half mean, half the worst part.
                             // Was 0: with 6 parts a forgotten tail cost only 7 points, and a tailless cat scored 93
   creditFullShape: 0.7,     // proportion and line earn full credit from a shape score of 0.7 up, less below (score())

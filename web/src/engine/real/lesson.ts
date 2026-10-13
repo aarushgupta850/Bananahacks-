@@ -91,7 +91,9 @@ export function buildLesson(pack: Pack, weaknesses: Weakness[]): Step[] {
     })
 }
 
-// Each part scores max(0, 1 - |size error| - |dx| - |dy|) (errors within config.proportionTolerance are free),
+// Each part scores max(0, 1 - slope * (|size error| + |dx| + |dy|)), where errors within
+// config.proportionTolerance are free and config.proportionSlope makes bigger ones count faster (a tail drawn
+// 70% too small is nearly a forgotten tail, and scored 0.5 with a slope of 1),
 // and a missing part 0. proportion mixes the mean of those with the worst one (config.proportionWorstShare),
 // so one badly sized part can't hide behind the rest. A pack without parts uses the shape for proportion.
 //
@@ -111,7 +113,7 @@ export function score(analysis: Analysis): Score {
   const over = (error: number) => Math.max(0, Math.abs(error) - config.proportionTolerance)
   const perPart = analysis.parts.map((m) => (m.missing
     ? 0
-    : Math.max(0, 1 - over(m.sizeError) - over(m.offset.dx) - over(m.offset.dy))))
+    : Math.max(0, 1 - config.proportionSlope * (over(m.sizeError) + over(m.offset.dx) + over(m.offset.dy)))))
   const mean = perPart.reduce((sum, p) => sum + p, 0) / Math.max(perPart.length, 1)
   const proportion = (perPart.length === 0
     ? shape
@@ -189,7 +191,8 @@ export function coach(_pack: Pack, test: Analysis, retest: Analysis): Coaching {
   // in the test and is drawn now isn't "new" whatever its size: the fix item above already covers it.
   const listed = (w: Weakness) => testWeaknesses.some((t) => t.partId === w.partId && (t.kind === w.kind || t.kind === 'missing'))
   const newProblem = allWeaknesses(retest).find((w) => !listed(w))
-  if (newProblem) fix.push({ text: `New this time: ${newProblem.message}`, partId: newProblem.partId, status: 'not-yet' })
+  // (Not for an empty retest: every part is "new" there, and the report says the round was skipped.)
+  if (newProblem && retest.alignedStrokes.length > 0) fix.push({ text: `New this time: ${newProblem.message}`, partId: newProblem.partId, status: 'not-yet' })
 
   // Good items: the retest's best parts that weren't already a fix item, by their best measure. Only for a
   // retest that looks like the subject: part boxes measured from random lines say nothing worth praising.
