@@ -5,12 +5,82 @@
 // - a ghost that moves (the guides settle onto the user's drawing during the first strokes) glides there in
 //   300 ms instead of jumping
 // - with prefers-reduced-motion the CSS turns every animation off, so ghosts simply appear and disappear (and jump)
-import { useEffect, useRef, useState } from 'react'
-import type { Ghost } from '../engine/types'
+// - a guide line shows where to start and which way to go (a dot and a small arrow at its start)
+// - with `ink` (the user's strokes), the stretches of a guide already traced are drawn stronger, so the user sees
+//   what is left of the line. This is only a picture: the teacher alone decides when a guide is drawn.
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Ghost, Point, UserStroke } from '../engine/types'
 import { TARGET_SIZE, toSvgPoints } from './geometry'
 import './canvas.css'
 
 const FADE_OUT_MS = 200
+const TRACED_PX = 16 // a guide point counts as traced when ink passes this close (target space)
+const ARROW_AT_PX = 34 // the direction arrow sits this far along the guide from its start
+
+// Each stretch of the guide that ink has passed close to (runs of 2+ points), for the "already traced" overlay.
+function tracedRuns(points: Point[], ink: Point[][]): Point[][] {
+  if (ink.length === 0) return []
+  const cell = TRACED_PX
+  const grid = new Map<string, Point[]>()
+  for (const line of ink) for (const p of line) {
+    const key = `${Math.floor(p[0] / cell)},${Math.floor(p[1] / cell)}`
+    const bucket = grid.get(key)
+    if (bucket) bucket.push(p)
+    else grid.set(key, [p])
+  }
+  const near = ([x, y]: Point) => {
+    const cx = Math.floor(x / cell), cy = Math.floor(y / cell)
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      for (const q of grid.get(`${cx + i},${cy + j}`) ?? []) if ((q[0] - x) ** 2 + (q[1] - y) ** 2 <= cell * cell) return true
+    }
+    return false
+  }
+  const runs: Point[][] = []
+  let run: Point[] = []
+  for (const p of points) {
+    if (near(p)) run.push(p)
+    else {
+      if (run.length >= 2) runs.push(run)
+      run = []
+    }
+  }
+  if (run.length >= 2) runs.push(run)
+  return runs
+}
+
+// The point ARROW_AT_PX along the line, and the direction there (unit vector), for the start arrow.
+function arrowAlong(points: Point[]): { at: Point; dir: Point } | null {
+  let walked = 0
+  for (let i = 1; i < points.length; i++) {
+    const [ax, ay] = points[i - 1], [bx, by] = points[i]
+    const d = Math.hypot(bx - ax, by - ay)
+    if (d > 0 && walked + d >= ARROW_AT_PX) {
+      const t = (ARROW_AT_PX - walked) / d
+      return { at: [ax + (bx - ax) * t, ay + (by - ay) * t], dir: [(bx - ax) / d, (by - ay) / d] }
+    }
+    walked += d
+  }
+  return null // shorter than ARROW_AT_PX: a dot is enough
+}
+
+// Where to start and which way to go: a dot at the start, and a small chevron a little way along.
+function StartMarker({ points }: { points: Point[] }) {
+  const arrow = arrowAlong(points)
+  const [x, y] = points[0]
+  return (
+    <g className="ghost-start">
+      <circle cx={x} cy={y} r={7} />
+      {arrow && (() => {
+        const { at: [ax, ay], dir: [dx, dy] } = arrow
+        const size = 10
+        // A chevron pointing along the line: two short arms back from the tip.
+        const left = [ax - dx * size - dy * size * 0.7, ay - dy * size + dx * size * 0.7]
+        const right = [ax - dx * size + dy * size * 0.7, ay - dy * size - dx * size * 0.7]
+        return <polyline points={`${left[0]},${left[1]} ${ax},${ay} ${right[0]},${right[1]}`} />
+      })()}
+    </g>
+  )
+}
 const GLIDE_MS = 300
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -69,8 +139,9 @@ function GhostShape({ ghost, leaving }: { ghost: Ghost; leaving: boolean }) {
   )
 }
 
-export default function GhostLayer({ ghosts: target }: { ghosts: Ghost[] }) {
+export default function GhostLayer({ ghosts: target, ink }: { ghosts: Ghost[]; ink?: UserStroke[] }) {
   const ghosts = useGlide(target)
+  const inkPoints = useMemo(() => (ink ?? []).map((s) => s.points.map(([x, y]): Point => [x, y])), [ink])
   // Ghosts that were just removed, kept on screen while they fade out.
   const [leaving, setLeaving] = useState<Ghost[]>([])
   const previous = useRef<Ghost[]>(ghosts)
@@ -101,6 +172,11 @@ export default function GhostLayer({ ghosts: target }: { ghosts: Ghost[] }) {
         <GhostShape key={`leaving-${ghostKey(ghost)}`} ghost={ghost} leaving />
       ))}
       {ghosts.map((ghost) => <GhostShape key={ghostKey(ghost)} ghost={ghost} leaving={false} />)}
+      {/* Stretches already traced, stronger; then where each full guide line starts and which way it goes. */}
+      {ghosts.filter((g) => g.kind !== 'keypoints').flatMap((g) => tracedRuns(g.points, inkPoints)
+        .map((run, i) => <polyline key={`traced-${ghostKey(g)}-${i}`} className="ghost-traced" points={toSvgPoints(run)} />))}
+      {ghosts.filter((g) => g.kind === 'stroke' && g.points.length > 1)
+        .map((g) => <StartMarker key={`start-${ghostKey(g)}`} points={g.points} />)}
     </svg>
   )
 }

@@ -10,11 +10,13 @@ interface CanvasToolbarProps {
   onUndo: () => void
   onClear: () => void
   canUndo: boolean // false when there is nothing to undo or clear
+  tool?: 'pen' | 'eraser'                       // with onTool: shows the eraser next to the pen sizes
+  onTool?: (tool: 'pen' | 'eraser') => void
 }
 
 const SIZE_NAMES: Record<PenSize, string> = { fine: 'Fine pen', medium: 'Medium pen', bold: 'Bold pen' }
 
-export default function CanvasToolbar({ penSize, onPenSize, onUndo, onClear, canUndo }: CanvasToolbarProps) {
+export default function CanvasToolbar({ penSize, onPenSize, onUndo, onClear, canUndo, tool = 'pen', onTool }: CanvasToolbarProps) {
   // Ctrl+Z (Cmd+Z on a Mac) undoes the last stroke, like in every drawing app. Typing in a text box is left alone.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -29,22 +31,32 @@ export default function CanvasToolbar({ penSize, onPenSize, onUndo, onClear, can
 
   return (
     <div className="canvas-toolbar" role="toolbar" aria-label="Drawing tools">
-      <div className="pen-sizes" role="radiogroup" aria-label="Pen size">
+      <div className="pen-sizes" role="radiogroup" aria-label="Pen size or eraser">
         {(Object.keys(PEN_SIZES) as PenSize[]).map((size) => (
           <button
             key={size}
             type="button"
             role="radio"
-            aria-checked={penSize === size}
+            aria-checked={tool === 'pen' && penSize === size}
             aria-label={SIZE_NAMES[size]}
             title={SIZE_NAMES[size]}
-            className={penSize === size ? 'tool-btn is-active' : 'tool-btn'}
-            onClick={() => onPenSize(size)}
+            className={tool === 'pen' && penSize === size ? 'tool-btn is-active' : 'tool-btn'}
+            onClick={() => { onPenSize(size); onTool?.('pen') }}
           >
             {/* A dot as wide as the pen, so the size is visible and not only named. */}
             <span className="pen-dot" style={{ width: PEN_SIZES[size] * 1.4, height: PEN_SIZES[size] * 1.4 }} />
           </button>
         ))}
+        {onTool && (
+          // Erases only the parts of lines it passes over; picking a pen size goes back to drawing.
+          <button type="button" role="radio" aria-checked={tool === 'eraser'} aria-label="Eraser" title="Eraser: rub out part of a line"
+            className={tool === 'eraser' ? 'tool-btn tool-eraser is-active' : 'tool-btn tool-eraser'} onClick={() => onTool('eraser')}>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M15.5 4.5l4 4L10 18H6l-2-2 11.5-11.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+              <path d="M9 11l4 4M10 18h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
       </div>
       <div className="canvas-actions">
         <button type="button" className="tool-btn" onClick={onUndo} disabled={!canUndo} aria-label="Undo last stroke" title="Undo (Ctrl+Z)">

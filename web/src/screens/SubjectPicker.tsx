@@ -253,15 +253,21 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack) => void }) {
               disabled={!enabled}
             />
           </label>
-          <label className="field">
+          {/* The real file input is hidden; its label is drawn as a button, with the chosen file's name beside it. */}
+          <div className="field">
             <span>or a photo</span>
-            <input
-              type="file"
-              accept="image/*"
-              disabled={!enabled}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setPhoto(e.target.files?.[0] ?? null)}
-            />
-          </label>
+            <label className={enabled ? 'btn photo-pick' : 'btn photo-pick is-disabled'}>
+              <input
+                type="file"
+                accept="image/*"
+                className="visually-hidden"
+                disabled={!enabled}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setPhoto(e.target.files?.[0] ?? null)}
+              />
+              {photo ? 'Change photo' : 'Choose a photo'}
+            </label>
+            {photo && <span className="photo-name" title={photo.name}>{photo.name}</span>}
+          </div>
           <div className="segmented" role="radiogroup" aria-label="Difficulty for your subject">
             {DIFFICULTIES.map((d) => (
               <button

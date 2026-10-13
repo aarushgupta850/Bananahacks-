@@ -2,8 +2,10 @@
 // stroke as a UserStroke in 768 x 768 target space ([x, y, pressure, ms since stroke start], see types.ts).
 // The parent owns the list of strokes, so undo and clear are just "drop the last one" and "empty the list"
 // (CanvasToolbar has the buttons). SVG keeps lines sharp on high-DPI screens at any size.
+// With tool="eraser" a drag erases only the parts of lines it passes over (erase.ts) and reports what is left.
 import { useRef, useState, type PointerEvent } from 'react'
 import type { TimedPoint, UserStroke } from '../engine/types'
+import { ERASER_RADIUS, eraseAlong } from './erase'
 import { isPalm, PEN_SIZES, strokeToPath, TARGET_SIZE, toTargetPoint, type PenSize } from './geometry'
 import './canvas.css'
 
@@ -13,6 +15,8 @@ interface DrawingCanvasProps {
   readOnly?: boolean
   penSize?: PenSize                        // the size new strokes are drawn with
   label?: string                           // accessible name, e.g. "Your test drawing"
+  tool?: 'pen' | 'eraser'
+  onErase?: (strokes: UserStroke[]) => void // the strokes left after an eraser drag step (needed for the eraser)
 }
 
 // Which pen size each stroke was drawn with. Keyed by the stroke object itself, so it stays right
@@ -24,13 +28,34 @@ function pressureOf(e: PointerEvent): number {
   return e.pointerType === 'pen' ? e.pressure : 0.5
 }
 
-export default function DrawingCanvas({ strokes, onStroke, readOnly = false, penSize = 'medium', label }: DrawingCanvasProps) {
+export default function DrawingCanvas({
+  strokes, onStroke, readOnly = false, penSize = 'medium', label, tool = 'pen', onErase,
+}: DrawingCanvasProps) {
   // The stroke being drawn lives in a ref (so pointer handlers always see the latest points)
   // and is copied into state to re-render.
   const current = useRef<{ pointerId: number; start: number; points: TimedPoint[] } | null>(null)
   const penSeen = useRef(false) // palm rejection: set once a stylus touches the canvas
   const [livePoints, setLivePoints] = useState<TimedPoint[] | null>(null)
   const size = PEN_SIZES[penSize]
+  const erasing = useRef<{ pointerId: number; last: [number, number]; strokes: UserStroke[] } | null>(null)
+  const [eraserAt, setEraserAt] = useState<[number, number] | null>(null) // where the eraser circle is drawn
+  const eraser = tool === 'eraser' && !!onErase
+
+  // One eraser step: cut the lines along the eraser's path, keep each piece's pen size, report what is left.
+  function eraseTo(to: [number, number]) {
+    const state = erasing.current
+    if (!state) return
+    const pieces = eraseAlong(state.strokes, state.last, to)
+    const next = pieces.map(({ stroke, source }) => {
+      if (stroke !== state.strokes[source]) strokeSizes.set(stroke, strokeSizes.get(state.strokes[source]) ?? PEN_SIZES.medium)
+      return stroke
+    })
+    state.last = to
+    if (next.length !== state.strokes.length || next.some((s, i) => s !== state.strokes[i])) {
+      state.strokes = next
+      onErase?.(next)
+    }
+  }
 
   function pointAt(e: PointerEvent<SVGSVGElement>, start: number): TimedPoint {
     const [x, y] = toTargetPoint(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())
@@ -41,7 +66,14 @@ export default function DrawingCanvas({ strokes, onStroke, readOnly = false, pen
     if (e.pointerType === 'pen') penSeen.current = true
     if (isPalm(e.pointerType, penSeen.current)) return
     // Only the main button, and only one stroke at a time (a second finger is ignored).
-    if (e.button !== 0 || current.current) return
+    if (e.button !== 0 || current.current || erasing.current) return
+    if (eraser) {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      const at = toTargetPoint(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())
+      erasing.current = { pointerId: e.pointerId, last: at, strokes }
+      eraseTo(at)
+      return
+    }
     // Capture keeps the stroke going even if the pointer leaves the canvas.
     e.currentTarget.setPointerCapture(e.pointerId)
     current.current = { pointerId: e.pointerId, start: e.timeStamp, points: [pointAt(e, e.timeStamp)] }
@@ -49,6 +81,12 @@ export default function DrawingCanvas({ strokes, onStroke, readOnly = false, pen
   }
 
   function handlePointerMove(e: PointerEvent<SVGSVGElement>) {
+    if (eraser) {
+      const at = toTargetPoint(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())
+      setEraserAt(at)
+      if (erasing.current?.pointerId === e.pointerId) eraseTo(at)
+      return
+    }
     // A pen hovering above an iPad also sends moves; only the pointer that started the stroke counts.
     const stroke = current.current
     if (!stroke || e.pointerId !== stroke.pointerId) return
@@ -67,6 +105,10 @@ export default function DrawingCanvas({ strokes, onStroke, readOnly = false, pen
   }
 
   function handlePointerEnd(e: PointerEvent<SVGSVGElement>) {
+    if (erasing.current?.pointerId === e.pointerId) {
+      erasing.current = null
+      return
+    }
     const stroke = current.current
     if (!stroke || e.pointerId !== stroke.pointerId) return
     current.current = null
@@ -85,11 +127,12 @@ export default function DrawingCanvas({ strokes, onStroke, readOnly = false, pen
         onPointerMove: handlePointerMove,
         onPointerUp: handlePointerEnd,
         onPointerCancel: handlePointerEnd,
+        onPointerLeave: () => setEraserAt(null),
       }
 
   return (
     <svg
-      className={readOnly ? 'drawing-canvas is-readonly' : 'drawing-canvas'}
+      className={readOnly ? 'drawing-canvas is-readonly' : eraser ? 'drawing-canvas is-erasing' : 'drawing-canvas'}
       viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`}
       role="img"
       aria-label={label ?? (readOnly ? 'Your drawing' : 'Drawing canvas. Draw here with a mouse, finger or stylus.')}
@@ -99,6 +142,7 @@ export default function DrawingCanvas({ strokes, onStroke, readOnly = false, pen
         <path key={i} d={strokeToPath(stroke.points, true, strokeSizes.get(stroke) ?? PEN_SIZES.medium)} />
       ))}
       {livePoints && <path d={strokeToPath(livePoints, false, size)} />}
+      {eraser && eraserAt && <circle className="eraser-cursor" cx={eraserAt[0]} cy={eraserAt[1]} r={ERASER_RADIUS} />}
     </svg>
   )
 }
