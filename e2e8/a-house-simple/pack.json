@@ -1,0 +1,1669 @@
+{
+ "id": "live-house-simple",
+ "subject": "house",
+ "title": "A house",
+ "difficulty": "simple",
+ "size": 768,
+ "source": {
+  "kind": "prompt",
+  "prompt": "a house"
+ },
+ "parts": [
+  {
+   "id": "roof",
+   "label": "Roof",
+   "box": [
+    120,
+    104,
+    544,
+    293
+   ]
+  },
+  {
+   "id": "wall",
+   "label": "Wall",
+   "box": [
+    137,
+    344,
+    505,
+    224
+   ]
+  },
+  {
+   "id": "door",
+   "label": "Door",
+   "box": [
+    450,
+    402,
+    79,
+    146
+   ]
+  },
+  {
+   "id": "window_left",
+   "label": "Left window",
+   "box": [
+    206,
+    394,
+    65,
+    85
+   ]
+  },
+  {
+   "id": "window_right",
+   "label": "Right window",
+   "box": [
+    370,
+    164,
+    32,
+    49
+   ]
+  },
+  {
+   "id": "chimney",
+   "label": "Chimney",
+   "box": [
+    495,
+    136,
+    51,
+    122
+   ]
+  }
+ ],
+ "strokes": [
+  {
+   "id": "c-wall",
+   "points": [
+    [
+     137,
+     344
+    ],
+    [
+     642,
+     344
+    ],
+    [
+     642,
+     568
+    ],
+    [
+     137,
+     568
+    ],
+    [
+     137,
+     344
+    ]
+   ],
+   "tier": "construction",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     137,
+     344
+    ],
+    [
+     642,
+     344
+    ],
+    [
+     642,
+     568
+    ],
+    [
+     137,
+     568
+    ]
+   ]
+  },
+  {
+   "id": "s-2",
+   "points": [
+    [
+     148,
+     376
+    ],
+    [
+     612,
+     376
+    ]
+   ],
+   "tier": "outline",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     148,
+     376
+    ],
+    [
+     612,
+     376
+    ]
+   ]
+  },
+  {
+   "id": "s-3",
+   "points": [
+    [
+     601,
+     350
+    ],
+    [
+     480,
+     350
+    ],
+    [
+     334,
+     344
+    ],
+    [
+     208,
+     350
+    ],
+    [
+     160,
+     356
+    ]
+   ],
+   "tier": "outline",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     601,
+     350
+    ],
+    [
+     160,
+     356
+    ]
+   ]
+  },
+  {
+   "id": "s-4",
+   "points": [
+    [
+     633,
+     384
+    ],
+    [
+     631,
+     386
+    ],
+    [
+     611,
+     387
+    ],
+    [
+     151,
+     388
+    ]
+   ],
+   "tier": "outline",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     633,
+     384
+    ],
+    [
+     151,
+     388
+    ]
+   ]
+  },
+  {
+   "id": "s-5",
+   "points": [
+    [
+     158,
+     553
+    ],
+    [
+     153,
+     541
+    ],
+    [
+     156,
+     423
+    ],
+    [
+     153,
+     401
+    ],
+    [
+     155,
+     397
+    ],
+    [
+     154,
+     389
+    ]
+   ],
+   "tier": "outline",
+   "partId": "wall",
+   "keyPoints": [
+    [
+     158,
+     553
+    ],
+    [
+     154,
+     389
+    ]
+   ]
+  },
+  {
+   "id": "s-6",
+   "points": [
+    [
+     618,
+     365
+    ],
+    [
+     614,
+     368
+    ],
+    [
+     508,
+     366
+    ],
+    [
+     161,
+     367
+    ],
+    [
+     150,
+     368
+    ],
+    [
+     145,
+     374
+    ],
+    [
+     125,
+     377
+    ],
+    [
+     119,
+     381
+    ],
+    [
+     98,
+     383
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     618,
+     365
+    ],
+    [
+     98,
+     383
+    ],
+    [
+     161,
+     367
+    ]
+   ]
+  },
+  {
+   "id": "s-7",
+   "points": [
+    [
+     138,
+     315
+    ],
+    [
+     167,
+     316
+    ],
+    [
+     168,
+     309
+    ],
+    [
+     184,
+     295
+    ],
+    [
+     186,
+     288
+    ],
+    [
+     191,
+     286
+    ],
+    [
+     217,
+     258
+    ],
+    [
+     245,
+     236
+    ],
+    [
+     255,
+     222
+    ],
+    [
+     321,
+     148
+    ],
+    [
+     333,
+     150
+    ],
+    [
+     380,
+     103
+    ],
+    [
+     383,
+     103
+    ],
+    [
+     412,
+     136
+    ],
+    [
+     492,
+     215
+    ],
+    [
+     491,
+     217
+    ],
+    [
+     497,
+     226
+    ],
+    [
+     516,
+     247
+    ],
+    [
+     633,
+     364
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     138,
+     315
+    ],
+    [
+     633,
+     364
+    ],
+    [
+     167,
+     316
+    ],
+    [
+     492,
+     215
+    ],
+    [
+     491,
+     217
+    ],
+    [
+     321,
+     148
+    ],
+    [
+     333,
+     150
+    ],
+    [
+     186,
+     288
+    ]
+   ]
+  },
+  {
+   "id": "s-8",
+   "points": [
+    [
+     331,
+     151
+    ],
+    [
+     325,
+     161
+    ],
+    [
+     260,
+     235
+    ],
+    [
+     178,
+     315
+    ],
+    [
+     171,
+     317
+    ],
+    [
+     164,
+     327
+    ],
+    [
+     158,
+     330
+    ],
+    [
+     157,
+     334
+    ],
+    [
+     148,
+     341
+    ],
+    [
+     147,
+     345
+    ],
+    [
+     149,
+     347
+    ],
+    [
+     140,
+     359
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     331,
+     151
+    ],
+    [
+     140,
+     359
+    ],
+    [
+     149,
+     347
+    ],
+    [
+     147,
+     345
+    ],
+    [
+     158,
+     330
+    ]
+   ]
+  },
+  {
+   "id": "s-9",
+   "points": [
+    [
+     495,
+     217
+    ],
+    [
+     498,
+     217
+    ],
+    [
+     505,
+     225
+    ],
+    [
+     511,
+     227
+    ],
+    [
+     534,
+     251
+    ],
+    [
+     537,
+     251
+    ],
+    [
+     539,
+     256
+    ],
+    [
+     634,
+     351
+    ],
+    [
+     640,
+     353
+    ],
+    [
+     647,
+     346
+    ],
+    [
+     653,
+     329
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     495,
+     217
+    ],
+    [
+     653,
+     329
+    ],
+    [
+     537,
+     251
+    ],
+    [
+     640,
+     353
+    ],
+    [
+     498,
+     217
+    ],
+    [
+     534,
+     251
+    ]
+   ]
+  },
+  {
+   "id": "s-10",
+   "points": [
+    [
+     86,
+     257
+    ],
+    [
+     100,
+     253
+    ],
+    [
+     119,
+     254
+    ],
+    [
+     124,
+     251
+    ],
+    [
+     136,
+     256
+    ],
+    [
+     160,
+     274
+    ],
+    [
+     175,
+     302
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     86,
+     257
+    ],
+    [
+     175,
+     302
+    ],
+    [
+     124,
+     251
+    ]
+   ]
+  },
+  {
+   "id": "s-11",
+   "points": [
+    [
+     214,
+     204
+    ],
+    [
+     215,
+     177
+    ],
+    [
+     210,
+     163
+    ],
+    [
+     195,
+     152
+    ],
+    [
+     182,
+     151
+    ],
+    [
+     173,
+     153
+    ],
+    [
+     162,
+     162
+    ],
+    [
+     155,
+     162
+    ],
+    [
+     144,
+     168
+    ],
+    [
+     127,
+     187
+    ],
+    [
+     123,
+     201
+    ],
+    [
+     111,
+     208
+    ],
+    [
+     105,
+     220
+    ],
+    [
+     104,
+     245
+    ]
+   ],
+   "tier": "outline",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     214,
+     204
+    ],
+    [
+     104,
+     245
+    ],
+    [
+     173,
+     153
+    ]
+   ]
+  },
+  {
+   "id": "s-12",
+   "points": [
+    [
+     456,
+     545
+    ],
+    [
+     456,
+     407
+    ],
+    [
+     458,
+     405
+    ],
+    [
+     524,
+     405
+    ],
+    [
+     525,
+     543
+    ],
+    [
+     527,
+     548
+    ]
+   ],
+   "tier": "outline",
+   "partId": "door",
+   "keyPoints": [
+    [
+     456,
+     545
+    ],
+    [
+     527,
+     548
+    ],
+    [
+     524,
+     405
+    ],
+    [
+     456,
+     407
+    ]
+   ]
+  },
+  {
+   "id": "s-13",
+   "points": [
+    [
+     493,
+     487
+    ],
+    [
+     499,
+     490
+    ],
+    [
+     499,
+     535
+    ],
+    [
+     495,
+     539
+    ],
+    [
+     491,
+     539
+    ],
+    [
+     488,
+     536
+    ],
+    [
+     488,
+     496
+    ],
+    [
+     489,
+     490
+    ],
+    [
+     493,
+     487
+    ]
+   ],
+   "tier": "outline",
+   "partId": "door",
+   "keyPoints": [
+    [
+     493,
+     487
+    ],
+    [
+     499,
+     490
+    ],
+    [
+     499,
+     535
+    ],
+    [
+     495,
+     539
+    ]
+   ]
+  },
+  {
+   "id": "s-14",
+   "points": [
+    [
+     725,
+     604
+    ],
+    [
+     56,
+     604
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     725,
+     604
+    ],
+    [
+     56,
+     604
+    ]
+   ]
+  },
+  {
+   "id": "s-15",
+   "points": [
+    [
+     681,
+     328
+    ],
+    [
+     677,
+     350
+    ],
+    [
+     684,
+     355
+    ],
+    [
+     687,
+     365
+    ],
+    [
+     679,
+     376
+    ],
+    [
+     668,
+     381
+    ],
+    [
+     668,
+     394
+    ],
+    [
+     665,
+     399
+    ],
+    [
+     657,
+     404
+    ],
+    [
+     645,
+     405
+    ],
+    [
+     640,
+     413
+    ],
+    [
+     621,
+     429
+    ],
+    [
+     612,
+     428
+    ],
+    [
+     604,
+     423
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     681,
+     328
+    ],
+    [
+     604,
+     423
+    ],
+    [
+     668,
+     381
+    ],
+    [
+     677,
+     350
+    ],
+    [
+     645,
+     405
+    ],
+    [
+     687,
+     365
+    ],
+    [
+     621,
+     429
+    ]
+   ]
+  },
+  {
+   "id": "s-16",
+   "points": [
+    [
+     332,
+     620
+    ],
+    [
+     375,
+     621
+    ],
+    [
+     377,
+     625
+    ],
+    [
+     574,
+     625
+    ],
+    [
+     577,
+     622
+    ],
+    [
+     583,
+     624
+    ],
+    [
+     655,
+     624
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     332,
+     620
+    ],
+    [
+     655,
+     624
+    ],
+    [
+     377,
+     625
+    ],
+    [
+     577,
+     622
+    ],
+    [
+     375,
+     621
+    ]
+   ]
+  },
+  {
+   "id": "s-17",
+   "points": [
+    [
+     238,
+     567
+    ],
+    [
+     228,
+     569
+    ],
+    [
+     225,
+     572
+    ],
+    [
+     177,
+     571
+    ],
+    [
+     29,
+     576
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     238,
+     567
+    ],
+    [
+     29,
+     576
+    ],
+    [
+     225,
+     572
+    ]
+   ]
+  },
+  {
+   "id": "s-18",
+   "points": [
+    [
+     226,
+     572
+    ],
+    [
+     483,
+     571
+    ],
+    [
+     603,
+     573
+    ],
+    [
+     608,
+     576
+    ],
+    [
+     618,
+     576
+    ],
+    [
+     620,
+     574
+    ],
+    [
+     658,
+     575
+    ],
+    [
+     663,
+     573
+    ],
+    [
+     676,
+     573
+    ],
+    [
+     687,
+     576
+    ],
+    [
+     729,
+     576
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     226,
+     572
+    ],
+    [
+     729,
+     576
+    ],
+    [
+     620,
+     574
+    ],
+    [
+     618,
+     576
+    ]
+   ]
+  },
+  {
+   "id": "s-19",
+   "points": [
+    [
+     103,
+     621
+    ],
+    [
+     150,
+     620
+    ],
+    [
+     156,
+     625
+    ],
+    [
+     278,
+     625
+    ],
+    [
+     282,
+     623
+    ]
+   ],
+   "tier": "outline",
+   "partId": null,
+   "keyPoints": [
+    [
+     103,
+     621
+    ],
+    [
+     282,
+     623
+    ]
+   ]
+  },
+  {
+   "id": "s-20",
+   "points": [
+    [
+     315,
+     317
+    ],
+    [
+     313,
+     324
+    ],
+    [
+     316,
+     330
+    ],
+    [
+     367,
+     330
+    ],
+    [
+     369,
+     324
+    ],
+    [
+     368,
+     317
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     315,
+     317
+    ],
+    [
+     368,
+     317
+    ],
+    [
+     367,
+     330
+    ],
+    [
+     316,
+     330
+    ]
+   ]
+  },
+  {
+   "id": "s-21",
+   "points": [
+    [
+     362,
+     316
+    ],
+    [
+     362,
+     251
+    ],
+    [
+     350,
+     250
+    ],
+    [
+     348,
+     252
+    ],
+    [
+     348,
+     317
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     362,
+     316
+    ],
+    [
+     348,
+     317
+    ],
+    [
+     362,
+     251
+    ],
+    [
+     350,
+     250
+    ],
+    [
+     348,
+     252
+    ]
+   ]
+  },
+  {
+   "id": "s-22",
+   "points": [
+    [
+     338,
+     317
+    ],
+    [
+     336,
+     285
+    ],
+    [
+     337,
+     251
+    ],
+    [
+     324,
+     252
+    ],
+    [
+     323,
+     317
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     338,
+     317
+    ],
+    [
+     323,
+     317
+    ],
+    [
+     337,
+     251
+    ],
+    [
+     324,
+     252
+    ]
+   ]
+  },
+  {
+   "id": "s-23",
+   "points": [
+    [
+     368,
+     317
+    ],
+    [
+     370,
+     243
+    ],
+    [
+     368,
+     241
+    ],
+    [
+     348,
+     240
+    ],
+    [
+     317,
+     241
+    ],
+    [
+     315,
+     243
+    ],
+    [
+     315,
+     317
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     368,
+     317
+    ],
+    [
+     315,
+     317
+    ],
+    [
+     370,
+     243
+    ],
+    [
+     315,
+     243
+    ]
+   ]
+  },
+  {
+   "id": "s-24",
+   "points": [
+    [
+     575,
+     328
+    ],
+    [
+     529,
+     283
+    ],
+    [
+     502,
+     252
+    ],
+    [
+     429,
+     177
+    ],
+    [
+     390,
+     131
+    ],
+    [
+     384,
+     125
+    ],
+    [
+     381,
+     125
+    ],
+    [
+     266,
+     257
+    ],
+    [
+     229,
+     295
+    ],
+    [
+     174,
+     344
+    ],
+    [
+     167,
+     351
+    ],
+    [
+     167,
+     355
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     575,
+     328
+    ],
+    [
+     167,
+     355
+    ],
+    [
+     381,
+     125
+    ]
+   ]
+  },
+  {
+   "id": "s-25",
+   "points": [
+    [
+     218,
+     303
+    ],
+    [
+     217,
+     301
+    ],
+    [
+     223,
+     289
+    ],
+    [
+     276,
+     235
+    ],
+    [
+     354,
+     142
+    ],
+    [
+     379,
+     113
+    ],
+    [
+     382,
+     112
+    ],
+    [
+     530,
+     274
+    ],
+    [
+     600,
+     346
+    ],
+    [
+     602,
+     351
+    ],
+    [
+     608,
+     352
+    ],
+    [
+     620,
+     366
+    ],
+    [
+     645,
+     374
+    ],
+    [
+     645,
+     379
+    ],
+    [
+     642,
+     382
+    ],
+    [
+     634,
+     384
+    ]
+   ],
+   "tier": "structure",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     218,
+     303
+    ],
+    [
+     634,
+     384
+    ],
+    [
+     645,
+     374
+    ],
+    [
+     382,
+     112
+    ],
+    [
+     602,
+     351
+    ],
+    [
+     217,
+     301
+    ]
+   ]
+  },
+  {
+   "id": "s-26",
+   "points": [
+    [
+     315,
+     317
+    ],
+    [
+     368,
+     317
+    ]
+   ],
+   "tier": "detail",
+   "partId": "roof",
+   "keyPoints": [
+    [
+     315,
+     317
+    ],
+    [
+     368,
+     317
+    ]
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "id": "step-1",
+   "label": "Block in the wall",
+   "tip": "Keep the wall about 43% of the drawing height.",
+   "tier": "construction",
+   "strokeIds": [
+    "c-wall"
+   ]
+  },
+  {
+   "id": "step-2",
+   "label": "Outline the wall",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-2",
+    "s-3",
+    "s-4",
+    "s-5"
+   ]
+  },
+  {
+   "id": "step-3",
+   "label": "Outline the roof",
+   "tip": "Keep the roof about 56% of the drawing height.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-6",
+    "s-7",
+    "s-8",
+    "s-9"
+   ]
+  },
+  {
+   "id": "step-4",
+   "label": "Outline the roof (continued)",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-10",
+    "s-11"
+   ]
+  },
+  {
+   "id": "step-5",
+   "label": "Outline the door",
+   "tip": "Keep the door about 28% of the drawing height.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-12",
+    "s-13"
+   ]
+  },
+  {
+   "id": "step-6",
+   "label": "Outline the shape",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-14",
+    "s-15",
+    "s-16",
+    "s-17"
+   ]
+  },
+  {
+   "id": "step-7",
+   "label": "Outline the shape (continued)",
+   "tip": "Follow the outer edge in smooth, confident strokes.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-18",
+    "s-19"
+   ]
+  },
+  {
+   "id": "step-8",
+   "label": "Add the roof",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-20",
+    "s-21",
+    "s-22",
+    "s-23"
+   ]
+  },
+  {
+   "id": "step-9",
+   "label": "Add the roof (continued)",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-24",
+    "s-25"
+   ]
+  },
+  {
+   "id": "step-10",
+   "label": "Add the roof",
+   "tip": "Press lightly and match the angle of the guide.",
+   "tier": "detail",
+   "strokeIds": [
+    "s-26"
+   ]
+  }
+ ],
+ "pipeline": [
+  {
+   "id": "source",
+   "label": "Prompt",
+   "text": "minimalist line icon of a house, very simple, few lines, minimal detail, full body, bold uniform pure black outline, smooth even symmetrical curves, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white background"
+  },
+  {
+   "id": "candidates",
+   "label": "2 AI drafts",
+   "text": "SDXL-Lightning drew 2 line-art drafts, 4 steps each."
+  },
+  {
+   "id": "chosen",
+   "label": "Chosen drawing",
+   "text": "The cleanest draft, traced into 159 strokes (a lesson keeps 6-60)."
+  },
+  {
+   "id": "skeleton",
+   "label": "Traced lines",
+   "text": "Thinned to 1 px lines, then traced into 159 strokes."
+  },
+  {
+   "id": "parts",
+   "label": "Parts found",
+   "text": "OWLv2 found: roof, wall, door, left window, right window, chimney."
+  },
+  {
+   "id": "order",
+   "label": "Your lesson",
+   "text": "26 strokes in 10 steps: big shapes first, then outlines, inner lines and details."
+  }
+ ]
+}

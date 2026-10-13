@@ -1,0 +1,807 @@
+{
+ "id": "live-mug-medium",
+ "subject": "mug",
+ "title": "A mug",
+ "difficulty": "simple",
+ "size": 768,
+ "source": {
+  "kind": "photo",
+  "prompt": "a mug"
+ },
+ "parts": [
+  {
+   "id": "body",
+   "label": "Body",
+   "box": [
+    58,
+    83,
+    663,
+    602
+   ]
+  },
+  {
+   "id": "handle",
+   "label": "Handle",
+   "box": [
+    515,
+    171,
+    198,
+    383
+   ]
+  },
+  {
+   "id": "rim",
+   "label": "Rim",
+   "box": [
+    515,
+    171,
+    198,
+    383
+   ]
+  }
+ ],
+ "strokes": [
+  {
+   "id": "c-body",
+   "points": [
+    [
+     58,
+     83
+    ],
+    [
+     721,
+     83
+    ],
+    [
+     721,
+     685
+    ],
+    [
+     58,
+     685
+    ],
+    [
+     58,
+     83
+    ]
+   ],
+   "tier": "construction",
+   "partId": "body",
+   "keyPoints": [
+    [
+     58,
+     83
+    ],
+    [
+     721,
+     83
+    ],
+    [
+     721,
+     685
+    ],
+    [
+     58,
+     685
+    ]
+   ]
+  },
+  {
+   "id": "s-2",
+   "points": [
+    [
+     520,
+     185
+    ],
+    [
+     563,
+     177
+    ],
+    [
+     598,
+     178
+    ],
+    [
+     627,
+     187
+    ],
+    [
+     649,
+     198
+    ],
+    [
+     667,
+     211
+    ],
+    [
+     688,
+     234
+    ],
+    [
+     699,
+     257
+    ],
+    [
+     709,
+     315
+    ],
+    [
+     710,
+     349
+    ],
+    [
+     706,
+     394
+    ],
+    [
+     698,
+     427
+    ],
+    [
+     681,
+     463
+    ],
+    [
+     660,
+     488
+    ],
+    [
+     651,
+     491
+    ],
+    [
+     627,
+     517
+    ],
+    [
+     599,
+     534
+    ],
+    [
+     587,
+     538
+    ],
+    [
+     559,
+     542
+    ],
+    [
+     517,
+     540
+    ]
+   ],
+   "tier": "outline",
+   "partId": "handle",
+   "keyPoints": [
+    [
+     520,
+     185
+    ],
+    [
+     517,
+     540
+    ],
+    [
+     710,
+     349
+    ]
+   ]
+  },
+  {
+   "id": "s-3",
+   "points": [
+    [
+     446,
+     106
+    ],
+    [
+     449,
+     185
+    ],
+    [
+     449,
+     308
+    ],
+    [
+     442,
+     477
+    ],
+    [
+     440,
+     602
+    ],
+    [
+     433,
+     627
+    ],
+    [
+     419,
+     642
+    ]
+   ],
+   "tier": "structure",
+   "partId": "body",
+   "keyPoints": [
+    [
+     446,
+     106
+    ],
+    [
+     419,
+     642
+    ],
+    [
+     440,
+     602
+    ]
+   ]
+  },
+  {
+   "id": "s-4",
+   "points": [
+    [
+     445,
+     105
+    ],
+    [
+     114,
+     109
+    ],
+    [
+     106,
+     112
+    ],
+    [
+     100,
+     119
+    ],
+    [
+     94,
+     141
+    ],
+    [
+     93,
+     182
+    ],
+    [
+     98,
+     230
+    ],
+    [
+     118,
+     351
+    ],
+    [
+     123,
+     458
+    ],
+    [
+     125,
+     601
+    ],
+    [
+     131,
+     626
+    ],
+    [
+     144,
+     638
+    ],
+    [
+     169,
+     642
+    ],
+    [
+     269,
+     646
+    ],
+    [
+     394,
+     645
+    ],
+    [
+     449,
+     641
+    ],
+    [
+     466,
+     635
+    ],
+    [
+     475,
+     625
+    ],
+    [
+     480,
+     606
+    ],
+    [
+     479,
+     445
+    ],
+    [
+     489,
+     316
+    ],
+    [
+     489,
+     235
+    ],
+    [
+     483,
+     153
+    ],
+    [
+     478,
+     118
+    ],
+    [
+     465,
+     105
+    ],
+    [
+     445,
+     105
+    ]
+   ],
+   "tier": "structure",
+   "partId": "body",
+   "keyPoints": [
+    [
+     465,
+     105
+    ]
+   ]
+  },
+  {
+   "id": "s-5",
+   "points": [
+    [
+     67,
+     260
+    ],
+    [
+     64,
+     263
+    ],
+    [
+     58,
+     453
+    ],
+    [
+     59,
+     606
+    ],
+    [
+     62,
+     646
+    ],
+    [
+     67,
+     666
+    ],
+    [
+     77,
+     674
+    ],
+    [
+     130,
+     673
+    ],
+    [
+     282,
+     683
+    ],
+    [
+     406,
+     683
+    ],
+    [
+     446,
+     680
+    ],
+    [
+     476,
+     674
+    ],
+    [
+     493,
+     666
+    ],
+    [
+     504,
+     656
+    ],
+    [
+     511,
+     645
+    ],
+    [
+     516,
+     627
+    ],
+    [
+     516,
+     523
+    ],
+    [
+     519,
+     508
+    ],
+    [
+     517,
+     506
+    ],
+    [
+     517,
+     489
+    ],
+    [
+     526,
+     328
+    ],
+    [
+     526,
+     277
+    ],
+    [
+     518,
+     172
+    ],
+    [
+     518,
+     114
+    ],
+    [
+     513,
+     103
+    ],
+    [
+     507,
+     97
+    ],
+    [
+     493,
+     91
+    ],
+    [
+     423,
+     90
+    ],
+    [
+     354,
+     86
+    ],
+    [
+     258,
+     87
+    ],
+    [
+     141,
+     95
+    ],
+    [
+     85,
+     93
+    ],
+    [
+     73,
+     102
+    ],
+    [
+     65,
+     121
+    ],
+    [
+     63,
+     145
+    ],
+    [
+     68,
+     259
+    ],
+    [
+     74,
+     264
+    ],
+    [
+     84,
+     347
+    ],
+    [
+     95,
+     619
+    ],
+    [
+     100,
+     637
+    ],
+    [
+     111,
+     647
+    ]
+   ],
+   "tier": "structure",
+   "partId": "body",
+   "keyPoints": [
+    [
+     67,
+     260
+    ],
+    [
+     111,
+     647
+    ],
+    [
+     519,
+     508
+    ],
+    [
+     68,
+     259
+    ],
+    [
+     517,
+     506
+    ]
+   ]
+  },
+  {
+   "id": "s-6",
+   "points": [
+    [
+     603,
+     461
+    ],
+    [
+     595,
+     472
+    ],
+    [
+     575,
+     490
+    ],
+    [
+     549,
+     501
+    ],
+    [
+     519,
+     508
+    ]
+   ],
+   "tier": "structure",
+   "partId": "handle",
+   "keyPoints": [
+    [
+     603,
+     461
+    ],
+    [
+     519,
+     508
+    ],
+    [
+     575,
+     490
+    ]
+   ]
+  },
+  {
+   "id": "s-7",
+   "points": [
+    [
+     647,
+     378
+    ],
+    [
+     640,
+     427
+    ],
+    [
+     631,
+     454
+    ],
+    [
+     619,
+     479
+    ],
+    [
+     608,
+     495
+    ],
+    [
+     589,
+     514
+    ],
+    [
+     572,
+     524
+    ],
+    [
+     561,
+     523
+    ]
+   ],
+   "tier": "structure",
+   "partId": "handle",
+   "keyPoints": [
+    [
+     647,
+     378
+    ],
+    [
+     561,
+     523
+    ],
+    [
+     619,
+     479
+    ]
+   ]
+  },
+  {
+   "id": "s-8",
+   "points": [
+    [
+     523,
+     227
+    ],
+    [
+     540,
+     226
+    ],
+    [
+     559,
+     221
+    ],
+    [
+     578,
+     211
+    ],
+    [
+     587,
+     202
+    ],
+    [
+     595,
+     202
+    ],
+    [
+     621,
+     213
+    ],
+    [
+     637,
+     224
+    ],
+    [
+     656,
+     244
+    ],
+    [
+     669,
+     266
+    ],
+    [
+     679,
+     305
+    ],
+    [
+     681,
+     333
+    ],
+    [
+     680,
+     363
+    ],
+    [
+     670,
+     432
+    ],
+    [
+     662,
+     460
+    ],
+    [
+     652,
+     482
+    ],
+    [
+     651,
+     490
+    ]
+   ],
+   "tier": "structure",
+   "partId": "handle",
+   "keyPoints": [
+    [
+     523,
+     227
+    ],
+    [
+     651,
+     490
+    ],
+    [
+     669,
+     266
+    ]
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "id": "step-1",
+   "label": "Block in the body",
+   "tip": "Draw light, loose shapes. They are only a guide.",
+   "tier": "construction",
+   "strokeIds": [
+    "c-body"
+   ]
+  },
+  {
+   "id": "step-2",
+   "label": "Outline the handle",
+   "tip": "Keep the handle about 64% of the drawing height.",
+   "tier": "outline",
+   "strokeIds": [
+    "s-2"
+   ]
+  },
+  {
+   "id": "step-3",
+   "label": "Add the body",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-3",
+    "s-4",
+    "s-5"
+   ]
+  },
+  {
+   "id": "step-4",
+   "label": "Add the handle",
+   "tip": "Place the big inner lines before any small details.",
+   "tier": "structure",
+   "strokeIds": [
+    "s-6",
+    "s-7",
+    "s-8"
+   ]
+  }
+ ],
+ "pipeline": [
+  {
+   "id": "source",
+   "label": "Photo",
+   "text": "OWLv2 recognized your photo as a mug, and the AI drew a mug from scratch. Prompt: minimalist line icon of a mug, full body, bold uniform pure black outline, smooth even symmetrical curves, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white background"
+  },
+  {
+   "id": "candidates",
+   "label": "2 AI drafts",
+   "text": "SDXL-Lightning drew 2 line-art drafts, 4 steps each."
+  },
+  {
+   "id": "chosen",
+   "label": "Chosen drawing",
+   "text": "The cleanest draft, traced into 7 strokes (a lesson keeps 6-60)."
+  },
+  {
+   "id": "skeleton",
+   "label": "Traced lines",
+   "text": "Thinned to 1 px lines, then traced into 7 strokes."
+  },
+  {
+   "id": "parts",
+   "label": "Parts found",
+   "text": "OWLv2 found: body, handle, rim."
+  },
+  {
+   "id": "order",
+   "label": "Your lesson",
+   "text": "8 strokes in 4 steps: big shapes first, then outlines, inner lines and details."
+  }
+ ]
+}

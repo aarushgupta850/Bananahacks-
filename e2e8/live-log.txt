@@ -1,0 +1,215 @@
+﻿2026-10-13 01:50:52,867 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:51:08,854 INFO   candidate 0 (seed 65381): 41 strokes, score 182.2
+2026-10-13 01:51:09,114 INFO   candidate 1 (seed 65382): 34 strokes, score 155.9
+2026-10-13 01:51:09,952 INFO generate prompt 'a cat' (medium, 0 image bytes): ok in 16.9 s
+2026-10-13 01:51:09,955 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:51:10,200 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:51:24,621 INFO   candidate 0 (seed 13790): 12 strokes, score 18.7
+2026-10-13 01:51:24,916 INFO   candidate 1 (seed 13791): 47 strokes, score 24.8
+2026-10-13 01:51:25,474 INFO generate prompt 'a dog' (medium, 0 image bytes): ok in 15.1 s
+2026-10-13 01:51:25,476 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:51:25,694 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:51:40,532 INFO   candidate 0 (seed 39710): 86 strokes, score 273.2
+2026-10-13 01:51:40,922 INFO   candidate 1 (seed 39711): 92 strokes, score 90.7
+2026-10-13 01:51:40,923 INFO   no candidate fit 6-60 strokes: using candidate 1, simplified
+2026-10-13 01:51:41,621 INFO generate prompt 'a horse' (medium, 0 image bytes): ok in 15.8 s
+2026-10-13 01:51:41,625 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:51:41,955 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:51:56,420 INFO   candidate 0 (seed 3917): 46 strokes, score 19.1
+2026-10-13 01:51:56,873 INFO   candidate 1 (seed 3918): 101 strokes, score 72.7
+2026-10-13 01:51:57,441 INFO generate prompt 'an elephant' (medium, 0 image bytes): ok in 15.4 s
+2026-10-13 01:51:57,443 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:51:57,903 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:52:12,753 INFO   candidate 0 (seed 89956): 54 strokes, score 183.0, ring around the subject
+2026-10-13 01:52:13,095 INFO   candidate 1 (seed 89957): 47 strokes, score 14.1
+2026-10-13 01:52:13,700 INFO generate prompt 'an owl' (medium, 0 image bytes): ok in 15.6 s
+2026-10-13 01:52:13,705 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:52:14,086 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:52:28,597 INFO   candidate 0 (seed 50865): 63 strokes, score 15.7
+2026-10-13 01:52:28,907 INFO   candidate 1 (seed 50866): 41 strokes, score 196.9
+2026-10-13 01:52:28,907 INFO   candidate 0 is cleaner, counting what simplifying removes: using it, simplified
+2026-10-13 01:52:29,845 INFO generate prompt 'a fish' (medium, 0 image bytes): ok in 15.6 s
+2026-10-13 01:52:29,849 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:52:30,177 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:52:45,105 INFO   candidate 0 (seed 57961): 133 strokes, score 31.0
+2026-10-13 01:52:45,599 INFO   candidate 1 (seed 57962): 111 strokes, score 97.5, ring around the subject
+2026-10-13 01:52:45,601 INFO   no candidate fit 6-60 strokes: using candidate 0, simplified
+2026-10-13 01:52:46,320 INFO generate prompt 'a turtle' (medium, 0 image bytes): ok in 16.0 s
+2026-10-13 01:52:46,324 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:52:46,718 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:53:01,266 INFO   candidate 0 (seed 74282): 61 strokes, score 17.1
+2026-10-13 01:53:01,565 INFO   candidate 1 (seed 74283): 33 strokes, score 15.7
+2026-10-13 01:53:02,150 INFO generate prompt 'a butterfly' (medium, 0 image bytes): ok in 15.3 s
+2026-10-13 01:53:02,153 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:53:02,574 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:53:16,840 INFO   candidate 0 (seed 67175): 39 strokes, score 29.5
+2026-10-13 01:53:17,093 INFO   candidate 1 (seed 67176): 30 strokes, score 11.7
+2026-10-13 01:53:19,744 INFO generate prompt 'a rabbit' (medium, 0 image bytes): ok in 17.0 s
+2026-10-13 01:53:19,747 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:53:19,981 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:53:34,916 INFO   candidate 0 (seed 98093): 29 strokes, score 45.1
+2026-10-13 01:53:35,331 INFO   candidate 1 (seed 98094): 61 strokes, score 71.7
+2026-10-13 01:53:35,901 INFO generate prompt 'a penguin' (medium, 0 image bytes): ok in 15.8 s
+2026-10-13 01:53:35,905 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:53:36,179 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:53:51,041 INFO   candidate 0 (seed 46845): 63 strokes, score 15.3, ring around the subject
+2026-10-13 01:53:51,355 INFO   candidate 1 (seed 46846): 74 strokes, score 41.1
+2026-10-13 01:53:51,357 INFO   no candidate fit 6-60 strokes: using candidate 1, simplified
+2026-10-13 01:53:52,050 INFO generate prompt 'a lion' (medium, 0 image bytes): ok in 15.7 s
+2026-10-13 01:53:52,053 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:53:52,645 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:54:07,516 INFO   candidate 0 (seed 27060): 96 strokes, score 428.7
+2026-10-13 01:54:08,308 INFO   candidate 1 (seed 27061): 179 strokes, score 196.9, ring around the subject
+2026-10-13 01:54:08,311 INFO   no candidate fit 6-60 strokes: using candidate 1, simplified
+2026-10-13 01:54:09,092 INFO generate prompt 'a dragon' (medium, 0 image bytes): ok in 16.3 s
+2026-10-13 01:54:09,097 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:54:09,891 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:54:24,971 INFO   candidate 0 (seed 57845): 47 strokes, score 23.4
+2026-10-13 01:54:25,335 INFO   candidate 1 (seed 57846): 41 strokes, score 36.5
+2026-10-13 01:54:25,895 INFO generate prompt 'a dinosaur' (medium, 0 image bytes): ok in 15.8 s
+2026-10-13 01:54:25,898 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:54:26,181 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:54:40,945 INFO   candidate 0 (seed 28825): 41 strokes, score 29.8
+2026-10-13 01:54:41,280 INFO   candidate 1 (seed 28826): 46 strokes, score 286.6
+2026-10-13 01:54:41,836 INFO generate prompt 'a unicorn' (medium, 0 image bytes): ok in 15.5 s
+2026-10-13 01:54:41,840 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:54:42,153 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:54:57,250 INFO   candidate 0 (seed 61397): 94 strokes, score 57.7
+2026-10-13 01:54:57,798 INFO   candidate 1 (seed 61398): 134 strokes, score 63.4
+2026-10-13 01:54:57,799 INFO   no candidate fit 6-60 strokes: using candidate 0, simplified
+2026-10-13 01:54:58,472 INFO generate prompt 'a robot' (medium, 0 image bytes): ok in 16.1 s
+2026-10-13 01:54:58,475 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:54:58,813 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:55:13,381 INFO   candidate 0 (seed 72811): 67 strokes, score 20.5
+2026-10-13 01:55:13,760 INFO   candidate 1 (seed 72812): 42 strokes, score 29.6
+2026-10-13 01:55:16,424 INFO generate prompt 'a car' (medium, 0 image bytes): ok in 17.5 s
+2026-10-13 01:55:16,428 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:55:16,925 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:55:31,406 INFO   candidate 0 (seed 22622): 58 strokes, score 23.1
+2026-10-13 01:55:31,734 INFO   candidate 1 (seed 22623): 47 strokes, score 179.2
+2026-10-13 01:55:32,426 INFO generate prompt 'a bicycle' (medium, 0 image bytes): ok in 15.3 s
+2026-10-13 01:55:32,430 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:55:32,779 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:55:47,036 INFO   candidate 0 (seed 84518): 29 strokes, score 12.2
+2026-10-13 01:55:47,281 INFO   candidate 1 (seed 84519): 45 strokes, score 16.0
+2026-10-13 01:55:47,281 INFO   candidate 0 is cleaner, counting what simplifying removes: using it, simplified
+2026-10-13 01:55:47,866 INFO generate prompt 'an airplane' (medium, 0 image bytes): ok in 14.9 s
+2026-10-13 01:55:47,868 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:55:48,150 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:56:02,460 INFO   candidate 0 (seed 62393): 22 strokes, score 271.5
+2026-10-13 01:56:02,774 INFO   candidate 1 (seed 62394): 43 strokes, score 19.9
+2026-10-13 01:56:03,347 INFO generate prompt 'a rocket' (medium, 0 image bytes): ok in 15.0 s
+2026-10-13 01:56:03,350 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:56:03,666 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:56:18,124 INFO   candidate 0 (seed 56930): 24 strokes, score 18.4
+2026-10-13 01:56:18,432 INFO   candidate 1 (seed 56931): 23 strokes, score 13.4
+2026-10-13 01:56:18,985 INFO generate prompt 'a sailboat' (medium, 0 image bytes): ok in 15.2 s
+2026-10-13 01:56:18,987 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:56:19,399 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:56:34,061 INFO   candidate 0 (seed 93304): 135 strokes, score 66.6
+2026-10-13 01:56:34,477 INFO   candidate 1 (seed 93305): 106 strokes, score 42.9
+2026-10-13 01:56:34,479 INFO   no candidate fit 6-60 strokes: using candidate 1, simplified
+2026-10-13 01:56:35,364 INFO generate prompt 'a house' (medium, 0 image bytes): ok in 15.8 s
+2026-10-13 01:56:35,367 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:56:35,709 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:56:50,192 INFO   candidate 0 (seed 40729): 52 strokes, score 29.5
+2026-10-13 01:56:50,778 INFO   candidate 1 (seed 40730): 170 strokes, score 55.5
+2026-10-13 01:56:51,453 INFO generate prompt 'a castle' (medium, 0 image bytes): ok in 15.6 s
+2026-10-13 01:56:51,456 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:56:51,734 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:57:06,167 INFO   candidate 0 (seed 61611): 110 strokes, score 26.6
+2026-10-13 01:57:06,473 INFO   candidate 1 (seed 61612): 39 strokes, score 19.6
+2026-10-13 01:57:07,050 INFO generate prompt 'a tree' (medium, 0 image bytes): ok in 15.2 s
+2026-10-13 01:57:07,052 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:57:07,508 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:57:21,613 INFO   candidate 0 (seed 65161): 32 strokes, score 25.4
+2026-10-13 01:57:21,843 INFO   candidate 1 (seed 65162): 32 strokes, score 13.5
+2026-10-13 01:57:22,421 INFO generate prompt 'a flower' (medium, 0 image bytes): ok in 14.8 s
+2026-10-13 01:57:22,424 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:57:22,839 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:57:37,496 INFO   candidate 0 (seed 57865): 41 strokes, score 27.7
+2026-10-13 01:57:38,135 INFO   candidate 1 (seed 57866): 83 strokes, score 44.9
+2026-10-13 01:57:38,732 INFO generate prompt 'a mushroom' (medium, 0 image bytes): ok in 15.7 s
+2026-10-13 01:57:38,735 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:57:39,090 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:57:53,279 INFO   candidate 0 (seed 56629): 9 strokes, score 11.1, ring around the subject
+2026-10-13 01:57:53,715 INFO   candidate 1 (seed 56630): 13 strokes, score 176.1
+2026-10-13 01:57:54,279 INFO generate prompt 'an apple' (medium, 0 image bytes): ok in 15.1 s
+2026-10-13 01:57:54,281 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:57:54,573 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:58:08,747 INFO   candidate 0 (seed 88733): 33 strokes, score 209.9
+2026-10-13 01:58:08,895 INFO   candidate 1 (seed 88734): 21 strokes, score 547.3
+2026-10-13 01:58:09,446 INFO generate prompt 'an ice cream cone' (medium, 0 image bytes): ok in 14.7 s
+2026-10-13 01:58:09,448 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:58:09,721 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:58:24,146 INFO   candidate 0 (seed 27830): 80 strokes, score 544.7
+2026-10-13 01:58:24,479 INFO   candidate 1 (seed 27831): 53 strokes, score 503.8
+2026-10-13 01:58:25,134 INFO generate prompt 'a guitar' (medium, 0 image bytes): ok in 15.3 s
+2026-10-13 01:58:25,137 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:58:25,528 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:58:39,968 INFO   candidate 0 (seed 86468): 63 strokes, score 69.8
+2026-10-13 01:58:40,390 INFO   candidate 1 (seed 86469): 15 strokes, score 40.7, ring around the subject
+2026-10-13 01:58:40,391 INFO   candidate 0 is cleaner, counting what simplifying removes: using it, simplified
+2026-10-13 01:58:41,071 INFO generate prompt 'a basketball' (medium, 0 image bytes): ok in 15.3 s
+2026-10-13 01:58:41,075 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:58:41,460 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:58:55,595 INFO   candidate 0 (seed 8558): 8 strokes, score 11.4
+2026-10-13 01:58:55,923 INFO   candidate 1 (seed 8559): 11 strokes, score 95.9
+2026-10-13 01:58:56,619 INFO generate prompt 'a mug' (medium, 0 image bytes): ok in 15.0 s
+2026-10-13 01:58:56,620 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:58:56,829 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:59:10,955 INFO   candidate 0 (seed 20074): 11 strokes, score 10.0
+2026-10-13 01:59:11,272 INFO   candidate 1 (seed 20075): 9 strokes, score 12.1
+2026-10-13 01:59:11,782 INFO generate prompt 'a teapot' (medium, 0 image bytes): ok in 14.8 s
+2026-10-13 01:59:11,784 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:59:12,011 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:59:25,864 INFO   candidate 0 (seed 50956): 42 strokes, score 95.3
+2026-10-13 01:59:26,190 INFO   candidate 1 (seed 50957): 41 strokes, score 75.4
+2026-10-13 01:59:26,956 INFO generate prompt 'a sneaker' (medium, 0 image bytes): ok in 14.8 s
+2026-10-13 01:59:26,959 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:59:27,495 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:59:41,390 INFO   candidate 0 (seed 28900): 28 strokes, score 252.9
+2026-10-13 01:59:41,793 INFO   candidate 1 (seed 28901): 29 strokes, score 14.1
+2026-10-13 01:59:42,643 INFO generate prompt 'a cat' (simple, 0 image bytes): ok in 14.9 s
+2026-10-13 01:59:42,645 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:59:42,970 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 01:59:56,807 INFO   candidate 0 (seed 39072): 40 strokes, score 401.2
+2026-10-13 01:59:57,126 INFO   candidate 1 (seed 39073): 41 strokes, score 34.5
+2026-10-13 01:59:57,821 INFO generate prompt 'a dog' (simple, 0 image bytes): ok in 14.7 s
+2026-10-13 01:59:57,824 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 01:59:58,136 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 02:00:12,482 INFO   candidate 0 (seed 37426): 159 strokes, score 51.6
+2026-10-13 02:00:13,024 INFO   candidate 1 (seed 37427): 159 strokes, score 53.9
+2026-10-13 02:00:13,025 INFO   no candidate fit 6-60 strokes: using candidate 0, simplified
+2026-10-13 02:00:13,920 INFO generate prompt 'a house' (simple, 0 image bytes): ok in 15.7 s
+2026-10-13 02:00:13,922 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 02:00:14,344 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 02:00:28,311 INFO   candidate 0 (seed 6156): 48 strokes, score 160.3
+2026-10-13 02:00:28,658 INFO   candidate 1 (seed 6157): 41 strokes, score 36.1
+2026-10-13 02:00:29,532 INFO generate prompt 'a fish' (simple, 0 image bytes): ok in 15.1 s
+2026-10-13 02:00:29,535 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 02:00:29,947 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 02:00:30,950 INFO   photo recognized as 'a cat'
+2026-10-13 02:00:44,912 INFO   candidate 0 (seed 21441): 42 strokes, score 24.4
+2026-10-13 02:00:45,211 INFO   candidate 1 (seed 21442): 54 strokes, score 274.3
+2026-10-13 02:00:46,154 INFO generate photo None (simple, 467220 image bytes): ok in 15.7 s
+2026-10-13 02:00:46,156 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 02:00:46,469 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 02:00:47,415 INFO   photo recognized as 'a cat'
+2026-10-13 02:01:01,276 INFO   candidate 0 (seed 43040): 42 strokes, score 28.5
+2026-10-13 02:01:01,588 INFO   candidate 1 (seed 43041): 36 strokes, score 21.5
+2026-10-13 02:01:02,405 INFO generate photo None (medium, 467220 image bytes): ok in 15.4 s
+2026-10-13 02:01:02,408 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 02:01:02,916 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 02:01:03,990 INFO   photo recognized as 'a mug'
+2026-10-13 02:01:17,755 INFO   candidate 0 (seed 7324): 7 strokes, score 131.2
+2026-10-13 02:01:18,007 INFO   candidate 1 (seed 7325): 11 strokes, score 375.7, cut off at the edge
+2026-10-13 02:01:18,814 INFO generate photo None (medium, 632379 image bytes): ok in 15.3 s
+2026-10-13 02:01:18,816 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200
+2026-10-13 02:01:19,168 INFO 173.54.16.28:0 - "GET /health HTTP/1.1" 200
+2026-10-13 02:01:20,134 INFO   photo recognized as 'a bicycle'
+2026-10-13 02:01:34,412 INFO   candidate 0 (seed 25890): 82 strokes, score 29.2
+2026-10-13 02:01:34,737 INFO   candidate 1 (seed 25891): 54 strokes, score 879.5
+2026-10-13 02:01:34,738 INFO   candidate 0 is cleaner, counting what simplifying removes: using it, simplified
+2026-10-13 02:01:35,543 INFO generate photo None (simple, 561214 image bytes): ok in 15.9 s
+2026-10-13 02:01:35,546 INFO 173.54.16.28:0 - "POST /generate HTTP/1.1" 200

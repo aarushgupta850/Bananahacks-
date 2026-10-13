@@ -1,0 +1,362 @@
+[
+ {
+  "prompt": "a cat",
+  "difficulty": "medium",
+  "seconds": 17.1,
+  "strokes": 34,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a dog",
+  "difficulty": "medium",
+  "seconds": 15.4,
+  "strokes": 12,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a horse",
+  "difficulty": "medium",
+  "seconds": 16.1,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "an elephant",
+  "difficulty": "medium",
+  "seconds": 15.7,
+  "strokes": 46,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "an owl",
+  "difficulty": "medium",
+  "seconds": 16.0,
+  "strokes": 47,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a fish",
+  "difficulty": "medium",
+  "seconds": 16.0,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a turtle",
+  "difficulty": "medium",
+  "seconds": 16.4,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a butterfly",
+  "difficulty": "medium",
+  "seconds": 15.6,
+  "strokes": 33,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a rabbit",
+  "difficulty": "medium",
+  "seconds": 17.2,
+  "strokes": 30,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a penguin",
+  "difficulty": "medium",
+  "seconds": 16.1,
+  "strokes": 29,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a lion",
+  "difficulty": "medium",
+  "seconds": 16.3,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a dragon",
+  "difficulty": "medium",
+  "seconds": 17.0,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a dinosaur",
+  "difficulty": "medium",
+  "seconds": 16.1,
+  "strokes": 47,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a unicorn",
+  "difficulty": "medium",
+  "seconds": 15.8,
+  "strokes": 41,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a robot",
+  "difficulty": "medium",
+  "seconds": 16.5,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a car",
+  "difficulty": "medium",
+  "seconds": 17.8,
+  "strokes": 42,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a bicycle",
+  "difficulty": "medium",
+  "seconds": 15.7,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "an airplane",
+  "difficulty": "medium",
+  "seconds": 15.2,
+  "strokes": 29,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a rocket",
+  "difficulty": "medium",
+  "seconds": 15.3,
+  "strokes": 43,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a sailboat",
+  "difficulty": "medium",
+  "seconds": 15.4,
+  "strokes": 23,
+  "rated": "simple",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a house",
+  "difficulty": "medium",
+  "seconds": 16.1,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a castle",
+  "difficulty": "medium",
+  "seconds": 15.9,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a tree",
+  "difficulty": "medium",
+  "seconds": 15.6,
+  "strokes": 39,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a flower",
+  "difficulty": "medium",
+  "seconds": 15.1,
+  "strokes": 32,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a mushroom",
+  "difficulty": "medium",
+  "seconds": 16.1,
+  "strokes": 41,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "an apple",
+  "difficulty": "medium",
+  "seconds": 15.3,
+  "strokes": 9,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "an ice cream cone",
+  "difficulty": "medium",
+  "seconds": 15.0,
+  "strokes": 33,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a guitar",
+  "difficulty": "medium",
+  "seconds": 15.6,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a basketball",
+  "difficulty": "medium",
+  "seconds": 15.7,
+  "strokes": 50,
+  "rated": "medium",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a mug",
+  "difficulty": "medium",
+  "seconds": 15.2,
+  "strokes": 8,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a teapot",
+  "difficulty": "medium",
+  "seconds": 15.0,
+  "strokes": 11,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a sneaker",
+  "difficulty": "medium",
+  "seconds": 15.2,
+  "strokes": 41,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a cat",
+  "difficulty": "simple",
+  "seconds": 15.3,
+  "strokes": 25,
+  "rated": "simple",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a dog",
+  "difficulty": "simple",
+  "seconds": 15.0,
+  "strokes": 25,
+  "rated": "simple",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "a house",
+  "difficulty": "simple",
+  "seconds": 16.1,
+  "strokes": 25,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "a fish",
+  "difficulty": "simple",
+  "seconds": 15.3,
+  "strokes": 25,
+  "rated": "simple",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "photo 02-cat",
+  "difficulty": "simple",
+  "seconds": 16.3,
+  "strokes": 25,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "photo 02-cat",
+  "difficulty": "medium",
+  "seconds": 16.3,
+  "strokes": 36,
+  "rated": "medium",
+  "chosen": 1,
+  "drafts": 2
+ },
+ {
+  "prompt": "photo 03-mug-on-table",
+  "difficulty": "medium",
+  "seconds": 16.1,
+  "strokes": 7,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ },
+ {
+  "prompt": "photo 04-bicycle",
+  "difficulty": "simple",
+  "seconds": 16.8,
+  "strokes": 25,
+  "rated": "simple",
+  "chosen": 0,
+  "drafts": 2
+ }
+]
