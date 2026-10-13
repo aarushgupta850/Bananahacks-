@@ -2,13 +2,49 @@
 // It ignores the pointer, so drawing goes straight through it.
 // - a new 'stroke' ghost draws itself on in 400 ms; key points and construction shapes fade in
 // - a ghost that disappears (its step was completed) fades out over 200 ms instead of vanishing
-// - with prefers-reduced-motion the CSS turns every animation off, so ghosts simply appear and disappear
+// - a ghost that moves (the guides settle onto the user's drawing during the first strokes) glides there in
+//   300 ms instead of jumping
+// - with prefers-reduced-motion the CSS turns every animation off, so ghosts simply appear and disappear (and jump)
 import { useEffect, useRef, useState } from 'react'
 import type { Ghost } from '../engine/types'
 import { TARGET_SIZE, toSvgPoints } from './geometry'
 import './canvas.css'
 
 const FADE_OUT_MS = 200
+const GLIDE_MS = 300
+
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+// The ghosts as drawn: the same as `ghosts`, except that a ghost which moved (same line, new place) eases from
+// where it was to where it is now, so the guides glide instead of jumping.
+function useGlide(ghosts: Ghost[]): Ghost[] {
+  const [shown, setShown] = useState(ghosts)
+  const drawn = useRef(ghosts) // what is on screen right now (mid-glide too)
+  useEffect(() => {
+    const from = new Map(drawn.current.map((g) => [ghostKey(g), g.points]))
+    const moves = ghosts.some((g) => {
+      const old = from.get(ghostKey(g))
+      return old && old.length === g.points.length && old.some((p, i) => p[0] !== g.points[i][0] || p[1] !== g.points[i][1])
+    })
+    let frame = 0
+    const start = performance.now()
+    const step = (now: number) => {
+      const t = moves && !reducedMotion() ? Math.min(1, (now - start) / GLIDE_MS) : 1
+      const e = 1 - (1 - t) ** 3 // ease out
+      const next = ghosts.map((g) => {
+        const old = from.get(ghostKey(g))
+        if (!old || old.length !== g.points.length || t >= 1) return g
+        return { ...g, points: g.points.map(([x, y], i) => [old[i][0] + (x - old[i][0]) * e, old[i][1] + (y - old[i][1]) * e] as [number, number]) }
+      })
+      drawn.current = next
+      setShown(next)
+      if (t < 1) frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [ghosts])
+  return shown
+}
 
 const ghostKey = (ghost: Ghost) => `${ghost.strokeId}-${ghost.kind}`
 
@@ -33,7 +69,8 @@ function GhostShape({ ghost, leaving }: { ghost: Ghost; leaving: boolean }) {
   )
 }
 
-export default function GhostLayer({ ghosts }: { ghosts: Ghost[] }) {
+export default function GhostLayer({ ghosts: target }: { ghosts: Ghost[] }) {
+  const ghosts = useGlide(target)
   // Ghosts that were just removed, kept on screen while they fade out.
   const [leaving, setLeaving] = useState<Ghost[]>([])
   const previous = useRef<Ghost[]>(ghosts)

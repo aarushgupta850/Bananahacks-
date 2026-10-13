@@ -1631,6 +1631,11 @@ dialog.pipeline-panel {
   stroke-linejoin: round;
 }
 
+.trace-move {
+  transform-origin: 0 0;
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1); /* the same ease-out as the guides' glide */
+}
+
 .trace-layer {
   transition: opacity 400ms ease-out;
 }

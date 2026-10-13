@@ -23,8 +23,13 @@ export const config = {
                             // finishes a line drawn in several strokes is scored against that line
 
   // ---------- teacher (teacher.ts) ----------
-  adaptMaxRotationDeg: 10,  // guides may turn at most this much to follow the user
-  adaptBlend: 0.6,          // after each stroke, move 60% of the way to the newly fitted transform
+  adaptMaxRotationDeg: 0,   // guides never turn: a tilting guide made the whole drawing look off (Oct 13)
+  adaptBlend: 0.6,          // during calibration, move 60% of the way to the newly fitted transform...
+  adaptCalibrationStrokes: 3, // ...for the first 3 good strokes (the last lands exactly on the fit), then the
+                            // guides are locked for the rest of the lesson, like a printed shadow: guides that
+                            // kept sliding after every stroke left the lines already drawn looking off (Oct 13)
+  adaptMinAccuracy: 0,      // a stroke must score above this to calibrate. Not higher: someone drawing 50 px
+                            // off-centre scores low against the guides not yet moved, and is who calibration is for
   adaptMaxPairs: 512,       // keep at most this many matched point pairs (the most recent ones)
   autoWindow: 5,            // auto mode looks at the last 5 matched strokes
   autoFadeAbove: 0.8,       // ...and gives less help when their mean accuracy is above this
