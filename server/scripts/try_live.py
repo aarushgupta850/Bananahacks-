@@ -1,6 +1,7 @@
 """Sends typed prompts to a running live server, the way the site does, and saves what comes back. No GPU needed here.
 
     python server/scripts/try_live.py <server url> <out dir> "a cat:simple" "a robot:medium" ...
+    python server/scripts/try_live.py <server url> <out dir> "photo=C:/photos/mug.jpg:medium"
 
 For each prompt it prints how long the lesson took to arrive and how many strokes it has, and saves the lesson's
 reference (target.png) and the AI drafts it was chosen from into <out dir>/<prompt>-<difficulty>/, with the
@@ -38,7 +39,14 @@ def wait_until_free(server: str, limit_s: float = 120) -> None:
 
 
 def try_prompt(server: str, out: Path, prompt: str, difficulty: str) -> dict:
-    body = json.dumps({"prompt": prompt, "difficulty": difficulty}).encode()
+    """One lesson. A prompt of the form "photo=<path>" sends that photo instead, as the site does (base64)."""
+    if prompt.startswith("photo="):
+        photo = Path(prompt[len("photo="):])
+        payload = {"imageBase64": base64.b64encode(photo.read_bytes()).decode(), "difficulty": difficulty}
+        prompt = f"photo {photo.stem}"
+    else:
+        payload = {"prompt": prompt, "difficulty": difficulty}
+    body = json.dumps(payload).encode()
     request = urllib.request.Request(f"{server.rstrip('/')}/generate", data=body,
                                      headers={"Content-Type": "application/json"})
     start = time.perf_counter()
@@ -64,6 +72,13 @@ def try_prompt(server: str, out: Path, prompt: str, difficulty: str) -> dict:
             "rated": pack["difficulty"], "chosen": chosen, "drafts": len(stages["candidates"]["images"])}
 
 
+def split_item(item: str) -> tuple[str, str]:
+    """("a cat", "simple") from "a cat:simple"; a missing or unknown difficulty means medium. Only the last ":"
+    counts, so a Windows photo path ("photo=C:/photos/mug.jpg:simple") keeps its drive letter."""
+    head, _, tail = item.rpartition(":")
+    return (head, tail) if head and tail in ("simple", "medium", "detailed") else (item, "medium")
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 3:
         sys.exit(__doc__)
@@ -71,12 +86,12 @@ def main(argv: list[str]) -> int:
     out.mkdir(parents=True, exist_ok=True)
     results = []
     for item in argv[2:]:
-        prompt, _, difficulty = item.partition(":")
+        prompt, difficulty = split_item(item)
         wait_until_free(server)
-        result = try_prompt(server, out, prompt, difficulty or "medium")
+        result = try_prompt(server, out, prompt, difficulty)
         if "HTTP 503" in result.get("error", ""):  # someone else's job started first: wait for it, then try again
             wait_until_free(server)
-            result = try_prompt(server, out, prompt, difficulty or "medium")
+            result = try_prompt(server, out, prompt, difficulty)
         print(result, flush=True)
         results.append(result)
     (out / "results.json").write_text(json.dumps(results, indent=1))
