@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeModeHistory, describeScale, formatChange, harderDifficulty } from '../reportText'
+import { changeWords, describeModeHistory, describeScale, emptyRoundNote, formatChange, harderDifficulty } from '../reportText'
 
 describe('describeModeHistory', () => {
   it('says when the help level never changed', () => {
@@ -39,5 +39,23 @@ describe('harderDifficulty', () => {
     expect(harderDifficulty('simple', { simple: 'a', detailed: 'c' })).toBe('detailed')
     expect(harderDifficulty('medium', { medium: 'b', detailed: 'c' })).toBe('detailed')
     expect(harderDifficulty('detailed', { detailed: 'c' })).toBeNull()
+  })
+})
+
+describe('changeWords', () => {
+  it('says which way the score moved, never "better" for a drop', () => {
+    expect(changeWords(48, 79)).toBe('points better')
+    expect(changeWords(60, 56)).toBe('points lower')
+    expect(changeWords(60, 61)).toBe('point better')
+    expect(changeWords(50, 50)).toBe('no change')
+  })
+})
+
+describe('emptyRoundNote', () => {
+  it('explains a 0 from a round with nothing drawn', () => {
+    expect(emptyRoundNote(false, false)).toBeNull()
+    expect(emptyRoundNote(true, false)).toMatch(/test was skipped/)
+    expect(emptyRoundNote(false, true)).toMatch(/retest was skipped/)
+    expect(emptyRoundNote(true, true)).toMatch(/either round/)
   })
 })

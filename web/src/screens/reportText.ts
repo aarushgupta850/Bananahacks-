@@ -28,6 +28,21 @@ export function formatChange(before: number, after: number): string {
   return '±0'
 }
 
+// The words under the change badge: "points better", "points lower" or "no change".
+export function changeWords(before: number, after: number): string {
+  if (after > before) return after - before === 1 ? 'point better' : 'points better'
+  if (after < before) return before - after === 1 ? 'point lower' : 'points lower'
+  return 'no change'
+}
+
+// Why a round scored 0 when nothing was drawn in it (Skip, or the timer ran out), or null when both had lines.
+export function emptyRoundNote(testEmpty: boolean, retestEmpty: boolean): string | null {
+  if (testEmpty && retestEmpty) return 'Nothing was drawn in either round, so there is nothing to compare yet. Try the lesson again and draw both times.'
+  if (testEmpty) return 'The test was skipped with nothing drawn, so it counts as 0. The retest score is your real result.'
+  if (retestEmpty) return 'The retest was skipped with nothing drawn, so it counts as 0. Draw the retest to see how much the lesson helped.'
+  return null
+}
+
 // The next harder difficulty the subject has, if any (simple -> medium -> detailed).
 export function harderDifficulty(current: Difficulty, available: Partial<Record<Difficulty, string>>): Difficulty | null {
   const order: Difficulty[] = ['simple', 'medium', 'detailed']
