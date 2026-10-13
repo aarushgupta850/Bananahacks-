@@ -27,12 +27,13 @@ export default function PlaceholderScreen({
 }: PlaceholderScreenProps) {
   // Move focus to the heading on every new screen, so keyboard and screen-reader users start at the top.
   const heading = useRef<HTMLHeadingElement>(null)
+  // When the screen appeared, so the second click of a double-click on the previous screen's main button doesn't
+  // also press this one (see clickGuard.ts). Set once the screen is on the page, not during render.
+  const shownAt = useRef(Infinity)
   useEffect(() => {
     heading.current?.focus()
+    shownAt.current = performance.now()
   }, [])
-  // When the screen appeared, so the second click of a double-click on the previous screen's main button doesn't
-  // also press this one (see clickGuard.ts).
-  const shownAt = useRef(performance.now())
   const next = () => {
     if (clickCounts(shownAt.current, performance.now())) onNext?.()
   }
