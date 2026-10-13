@@ -280,7 +280,7 @@ export default function Home({ onStart }: { onStart: () => void }) {
           <h2>Type a subject, or upload a photo</h2>
           <p className="home-section-lede">
             When our GPU server is online, image AI builds a brand-new lesson from whatever you type or photograph,
-            in about twenty seconds. Ready-made subjects always work, online or not.
+            in under a minute. Ready-made subjects always work, online or not.
           </p>
           <button type="button" className="btn btn-primary btn-large" onClick={onStart}>
             Pick something to draw <ArrowIcon />

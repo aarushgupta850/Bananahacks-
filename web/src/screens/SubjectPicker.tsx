@@ -10,6 +10,7 @@ import { emptySession, useSession } from '../session'
 import PlaceholderScreen from './PlaceholderScreen'
 import ProgressPanel from './ProgressPanel'
 import SketchLoader from './SketchLoader'
+import { liveWaitText, useSecondsSince } from './liveWait'
 
 type Subject = SubjectIndex['subjects'][number]
 
@@ -233,6 +234,7 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest
   }
 
   const enabled = live.kind === 'online' || live.kind === 'problem'
+  const waited = useSecondsSince(live.kind === 'generating')
 
   return (
     <section className="make-own" aria-labelledby="make-own-title">
@@ -243,9 +245,7 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest
       <p className="muted">Type anything, or upload a photo. Image AI draws it, traces it and turns it into a lesson.</p>
 
       {live.kind === 'generating' ? (
-        <SketchLoader text={live.waiting
-          ? 'Someone else is drawing right now. You\u2019re next, hold on…'
-          : 'Drawing your lesson… this takes about 20 seconds.'} />
+        <SketchLoader text={liveWaitText(waited, live.waiting === true)} />
       ) : (
         <form className="make-own-form" onSubmit={submit}>
           <label className="field">
