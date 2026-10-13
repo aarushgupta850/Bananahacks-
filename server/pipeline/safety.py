@@ -37,10 +37,12 @@ def blocked_prompt(prompt: str) -> bool:
     return any(w in BLOCKED_WORDS for w in words) or any(term in joined for term in BLOCKED_ANYWHERE)
 
 
-# OWLv2 text queries for the picture check. A picture is refused when one of them scores at least THRESHOLD and
-# beats the matching harmless query (so an ordinary person or a kitchen photo isn't refused).
+# OWLv2 text queries for the picture check. A picture is refused when one of them scores at least THRESHOLD on some
+# box (part of the picture) and beats every harmless query on that same box, so an ordinary person or a kitchen
+# photo isn't refused. Comparing on the same box matters: a close-up portrait scored 0.32 "a naked person" on the
+# whole-picture box, but 0.33 "a person wearing clothes" on that same box.
 UNSAFE_QUERIES = ["a naked person", "a nude body", "exposed breasts", "genitals", "a gun", "a knife", "blood"]
-SAFE_QUERY = "a clothed person"
+SAFE_QUERIES = ["a clothed person", "a person wearing clothes"]
 THRESHOLD = 0.3
 # Weapons and blood need a surer match: in plain line drawings a raised hand scored 0.30 as "a knife" and a
 # harmless "a person waving" was refused. (Typed prompts naming weapons are already refused by blocked_prompt.)
@@ -51,6 +53,17 @@ class UnsafeContent(Exception):
     """The picture looks explicit or violent."""
 
 
+def unsafe_match(scores: np.ndarray) -> str | None:
+    """The first unsafe query that wins on some box, as "query (score)", or None. scores is OWLv2's (boxes, queries)
+    for UNSAFE_QUERIES followed by SAFE_QUERIES. Kept apart from check_picture so it can be tested without the GPU."""
+    unsafe, safe = scores[:, : len(UNSAFE_QUERIES)], scores[:, len(UNSAFE_QUERIES) :].max(axis=1)
+    for j, query in enumerate(UNSAFE_QUERIES):
+        hits = (unsafe[:, j] >= STRICTER.get(query, THRESHOLD)) & (unsafe[:, j] > safe)
+        if hits.any():
+            return f"{query} ({unsafe[hits, j].max():.2f})"
+    return None
+
+
 def check_picture(image: Image.Image) -> None:
     """Raises UnsafeContent if OWLv2 finds nudity or a weapon in the picture. Needs the GPU."""
     import torch
@@ -58,12 +71,9 @@ def check_picture(image: Image.Image) -> None:
     from pipeline.parts import owl
 
     processor, model = owl()
-    queries = [*UNSAFE_QUERIES, SAFE_QUERY]
-    inputs = processor(text=[queries], images=image.convert("RGB"), return_tensors="pt").to("cuda")
+    inputs = processor(text=[[*UNSAFE_QUERIES, *SAFE_QUERIES]], images=image.convert("RGB"), return_tensors="pt")
     with torch.no_grad():
-        scores = model(**inputs).logits[0].sigmoid().cpu().numpy()  # (boxes, queries)
-    best = np.max(scores, axis=0)
-    safe = best[-1]
-    for query, score in zip(UNSAFE_QUERIES, best[:-1]):
-        if score >= STRICTER.get(query, THRESHOLD) and score > safe:
-            raise UnsafeContent(f"{query} ({score:.2f})")
+        scores = model(**inputs.to("cuda")).logits[0].sigmoid().cpu().numpy()  # (boxes, queries)
+    found = unsafe_match(scores)
+    if found:
+        raise UnsafeContent(found)

@@ -44,6 +44,14 @@ VARIANTS = {
         "no sketch lines, no double lines, flat, very few lines, no details, no shading, no solid black areas, "
         "no text, no logo, isolated on plain white background"
     ),
+    # "icon_single" with "full body" back (it came from "icon_clean"): without it, live lessons for animals were often
+    # head close-ups cut off at the edge (a cat's face, a fox's face, a giraffe's head and neck). Chosen on Oct 12.
+    # "full body" comes early, so it is never cut off by the 77-token limit; "flat" made room for it.
+    "icon_whole": (
+        "minimalist line icon of {subject}, full body, bold uniform black outline only, single clean continuous lines, "
+        "no sketch lines, no double lines, very few lines, no details, no shading, no solid black areas, "
+        "no text, no logo, isolated on plain white background"
+    ),
     # "icon_clean" plus "black and white, no frame". Tried in the third speed test and rejected: it removed
     # color but made drawings more detailed, and frames stayed. Kept here so the comparison can be rerun.
     "icon_mono": (
@@ -54,7 +62,7 @@ VARIANTS = {
 }
 
 # The variant the pipeline uses. Set from the speed test results (see server/SPEEDTEST.md).
-CHOSEN = "icon_single"  # the shipped packs were built with "icon_clean"
+CHOSEN = "icon_whole"  # the shipped packs were built with "icon_clean"
 
 # Extra words per difficulty, placed right after the subject. Must match Difficulty in types.ts.
 DIFFICULTY_HINTS = {

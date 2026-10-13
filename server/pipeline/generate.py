@@ -19,29 +19,46 @@ from pipeline.prompts import line_art_prompt
 GEN_SIZE = 1024  # SDXL's native size
 TARGET_SIZE = 768  # all app coordinates are in 768 x 768 space
 CONTROLNET_SCALE = 0.8  # how strictly a photo redraw follows the photo's lines (1.0 = strictly)
-# The live server's photo path and Happy accidents use img2img instead of the ControlNet: on an 8 GB card the
-# UNet and the ControlNet don't fit together, so each ControlNet step swapped them over PCIe (about 8 s a step,
-# far past the 23 s limit). img2img reuses the text pipeline and runs as fast as a text prompt.
+# Happy accidents uses img2img instead of the ControlNet: on an 8 GB card the UNet and the ControlNet don't fit
+# together, so each ControlNet step swapped them over PCIe (about 8 s a step, far past the live 23 s limit).
+# img2img reuses the text pipeline and runs as fast as a text prompt.
 IMG2IMG_STRENGTH = 0.75  # how much a Happy-accidents redraw may change the canvas (1 = ignore it entirely)
-# Photos keep more of their own shape: at 0.75 a side-view F1 car came back as a fighter jet. With 4 Lightning
-# steps, 0.6 runs the last 2, which cleans the photo's lines up without inventing a different object.
-PHOTO_STRENGTH = 0.6
-# A real photo's line map is full of faint texture (grass, fur, shadows, a car park). Redrawn as it is, it came back
-# as a gray photo that traced to almost no strokes, so every real photo failed. Only lines at least this strong
-# (0-1) are kept, and only connected lines covering at least SPECK_PIXELS pixels (at 1024 x 1024).
-LINE_LEVEL = 0.35
-SPECK_PIXELS = 120
-# The photo is first cropped to its main subject, found by OWLv2 (the prompt if there is one, else these), so the
-# outlines come from the subject and not the background: a dog's lesson was mostly the forest behind it.
-SUBJECT_QUERIES = ["an animal", "a person", "a car", "a vehicle", "a plant", "a building", "food", "an object"]
-SUBJECT_MIN_SCORE = 0.1   # a weaker best match keeps the whole photo
-SUBJECT_MARGIN = 0.08     # room around the subject's box, as a share of its size
+# The live server's photo path names what the photo shows, then draws that from text (see name_subject). Redrawing
+# real photos themselves came back as hundreds of broken strokes, so almost every photo was refused.
+# OWLv2 scores each of these against the photo; the best one names it. All are things a beginner can draw.
+PHOTO_SUBJECTS = [
+    # animals
+    "a dog", "a cat", "a bird", "a horse", "a cow", "a sheep", "a pig", "a rabbit", "a fish", "a duck", "a chicken",
+    "a frog", "a turtle", "a butterfly", "an elephant", "a giraffe", "a lion", "a bear", "a teddy bear",
+    # people
+    "a face", "a person",
+    # vehicles
+    "a car", "a bicycle", "a motorcycle", "a bus", "a truck", "a train", "an airplane", "a boat", "a helicopter",
+    # around the house
+    "a mug", "a cup", "a teapot", "a bottle", "a glass", "a bowl", "a plate", "a spoon", "a chair", "a table",
+    "a sofa", "a bed", "a lamp", "a clock", "a vase", "a book", "a pencil", "an umbrella",
+    "a key", "a candle",
+    # things people carry and wear
+    "a shoe", "a sneaker", "a boot", "a hat", "a backpack", "a handbag", "a pair of glasses", "a watch",
+    "a t-shirt",
+    # technology
+    "a phone", "a laptop", "a keyboard", "a computer mouse", "headphones", "a camera", "a television",
+    # music, sport and toys
+    "a guitar", "a piano", "a ball", "a basketball", "a soccer ball", "a skateboard", "a kite", "a toy",
+    # food
+    "an apple", "a banana", "an orange", "a pear", "a strawberry", "a pineapple", "a carrot", "a pizza",
+    "a cake", "a cupcake", "an ice cream cone", "a donut", "a sandwich",
+    # nature and places
+    "a flower", "a potted plant", "a tree", "a leaf", "a cactus", "a mushroom", "a house", "a lighthouse",
+]
+NAME_MIN_SCORE = 0.1  # OWLv2's sigmoid score: a clear object scores about 0.2 to 0.6; under this, nothing is named
+NAME_MIN_BOX = 0.15   # a box narrower or shorter than this share of the photo is a detail, not the subject
 
 _cache: dict[str, object] = {}  # "text" or "photo" -> pipeline, "detector" -> LineartDetector
 
 
 def keep_both_pipelines() -> bool:
-    """The live server sets GHOSTLINES_KEEP_BOTH_PIPELINES=1 (run_live.ps1). Then the photo (ControlNet)
+    """With GHOSTLINES_KEEP_BOTH_PIPELINES=1 (for a process that builds both kinds of pack), the photo (ControlNet)
     pipeline is built on the text pipeline's weights instead of replacing it."""
     return os.environ.get("GHOSTLINES_KEEP_BOTH_PIPELINES") == "1"
 
@@ -119,44 +136,36 @@ def photo_lines(photo: str | Path | Image.Image) -> Image.Image:
     return pad_to_square(lines.convert("RGB"), (0, 0, 0)).resize((GEN_SIZE, GEN_SIZE))
 
 
-def clean_photo_lines(lines: Image.Image) -> Image.Image:
-    """The detector's soft line map (white lines on black) as crisp black outlines on white: weak lines (photo
-    texture) and small specks are dropped, and the lines are thickened a little, like drawn lines."""
-    from scipy import ndimage
+def best_subject(scores: np.ndarray, boxes: np.ndarray, photo_size: tuple[int, int]) -> tuple[int, float] | None:
+    """(index of the best-matching subject, its score) from OWLv2's output, or None if nothing matches well enough.
+    scores is (boxes, subjects); boxes is (boxes, 4) as (cx, cy, w, h), normalized on the photo padded to a square.
+    Boxes too small to be the photo's subject are ignored (a bottle on a shelf behind the dog), unless every box
+    is small. Kept separate from name_subject so it can be tested without the GPU."""
+    width, height = photo_size
+    side = max(photo_size)
+    big = (boxes[:, 2] * side >= NAME_MIN_BOX * width) & (boxes[:, 3] * side >= NAME_MIN_BOX * height)
+    if big.any():
+        scores = scores[big]
+    per_subject = scores.max(axis=0)  # each subject's best box
+    best = int(per_subject.argmax())
+    if per_subject[best] < NAME_MIN_SCORE:
+        return None
+    return best, float(per_subject[best])
 
-    strength = np.asarray(lines.convert("L"), dtype=np.float32) / 255.0
-    mask = strength >= LINE_LEVEL
-    labels, count = ndimage.label(mask, structure=np.ones((3, 3)))
-    if count:
-        sizes = ndimage.sum(mask, labels, range(1, count + 1))
-        mask = np.isin(labels, 1 + np.flatnonzero(sizes >= SPECK_PIXELS))
-    mask = ndimage.binary_dilation(mask, iterations=1)
-    return Image.fromarray(np.where(mask, 0, 255).astype(np.uint8), "L")
 
-
-def crop_to_subject(photo: Image.Image, subject: str | None) -> Image.Image:
-    """The photo cropped to its main subject plus a margin, or the whole photo if no subject is found clearly."""
+def name_subject(photo: Image.Image) -> str | None:
+    """What the photo shows, from PHOTO_SUBJECTS (e.g. "a mug"), or None if OWLv2 can't tell."""
     import torch
 
     from pipeline.parts import owl
 
     processor, model = owl()
-    queries = [subject, *SUBJECT_QUERIES] if subject else SUBJECT_QUERIES
-    inputs = processor(text=[queries], images=photo.convert("RGB"), return_tensors="pt").to("cuda")
+    inputs = processor(text=[PHOTO_SUBJECTS], images=photo.convert("RGB"), return_tensors="pt").to("cuda")
     with torch.no_grad():
         outputs = model(**inputs)
-    scores = outputs.logits[0].sigmoid().cpu().numpy().max(axis=1)  # each box's best query
-    best = int(scores.argmax())
-    if scores[best] < SUBJECT_MIN_SCORE:
-        return photo
-    # OWLv2 boxes are (cx, cy, w, h), normalized on the photo padded to a square at the bottom and right.
-    side = max(photo.size)
-    cx, cy, w, h = outputs.pred_boxes[0][best].cpu().numpy() * side
-    w, h = w * (1 + 2 * SUBJECT_MARGIN), h * (1 + 2 * SUBJECT_MARGIN)
-    box = (max(0, cx - w / 2), max(0, cy - h / 2), min(photo.width, cx + w / 2), min(photo.height, cy + h / 2))
-    if box[2] - box[0] < 0.15 * photo.width or box[3] - box[1] < 0.15 * photo.height:
-        return photo  # a tiny box is more likely a detail than the subject
-    return photo.crop(tuple(round(v) for v in box))
+    scores = outputs.logits[0].sigmoid().cpu().numpy()  # (boxes, subjects)
+    found = best_subject(scores, outputs.pred_boxes[0].cpu().numpy(), photo.size)
+    return PHOTO_SUBJECTS[found[0]] if found else None
 
 
 def from_photo(
@@ -195,19 +204,6 @@ def _img2img(pipe, prompt: str, seed: int, start: Image.Image, strength: float =
         generator=torch.Generator("cpu").manual_seed(seed),
     ).images[0]
     return image.resize((TARGET_SIZE, TARGET_SIZE), Image.LANCZOS)
-
-
-def from_photo_fast(photo: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:
-    """The live server's photo path: the photo's cleaned outlines (black on white) redrawn with img2img, n times.
-    Follows the photo's shapes a little more loosely than from_photo's ControlNet, but fits in the live time limit.
-    (The cleaned outlines themselves were tried as a fallback lesson: on real photos they were fragments and
-    background, so a photo with no clean redraw is refused with a hint instead.)"""
-    start = clean_photo_lines(photo_lines(photo))
-    pipe = _pipeline("img2img")
-    prompt = line_art_prompt(subject, difficulty=difficulty)
-    # In gray: a redraw keeps a faint tint of the photo (a blue-gray car), which the cleanliness score counts as a
-    # colored drawing and rejects, although the lines themselves were fine.
-    return [_img2img(pipe, prompt, seed + i, start, strength=PHOTO_STRENGTH).convert("L").convert("RGB") for i in range(n)]
 
 
 def from_drawing(drawing: Image.Image, subject: str, difficulty: str = "medium", n: int = 3, seed: int = 0) -> list[Image.Image]:

@@ -36,13 +36,15 @@ redrawn with a line-art detector and the MistoLine ControlNet.
 
 **Live lessons** (optional; setup in [server/LIVE.md](server/LIVE.md)): when our GPU server is online,
 "Make your own" on the subject picker builds a lesson from anything you type, or from a photo. It takes about
-15 to 20 seconds on an RTX 4060 Ti: about 15 s for a prompt, 18 to 20 s for a photo.
+15 to 20 seconds on an RTX 4060 Ti.
 
 - **Photos:** the browser turns the photo into a JPEG of at most 1536 px, so WebP and iPhone HEIC photos (in
-  Safari) work. The server runs a line-art detector on it, then SDXL-Lightning img2img (strength 0.6) redraws
-  the line art cleanly, on the same weights as the text path. On an 8 GB card the UNet and the ControlNet
-  don't fit together, so the live path uses img2img instead of MistoLine.
-- **Every allowed prompt or photo gets a lesson.** If no AI draft fits the 60-stroke limit, the cleanest one is
+  Safari) work. OWLv2 recognizes what the photo shows, from a list of about 100 drawable subjects ("a mug",
+  "a dog", "a bicycle"), and SDXL-Lightning draws that subject fresh, exactly like a typed one. The lesson's
+  "How this lesson was made" panel shows your photo and what it was recognized as. (Redrawing the photo itself
+  came out as hundreds of broken strokes on real photos, so nearly every photo was refused.) If you type a name
+  with the photo, that name is used. A photo OWLv2 can't name gets a hint to type what it is.
+- **Every allowed prompt gets a lesson.** If no AI draft fits the 60-stroke limit, the cleanest one is
   simplified to its 60 longest lines.
 - **Safety:** prompts are checked against a blocklist that also catches disguised words (leetspeak like
   "n4k3d", "p.o.r.n", explicit words inside other words), and the prompt is always wrapped in the line-art
@@ -104,9 +106,9 @@ The full rules are in [CLAUDE.md](CLAUDE.md), [web/CLAUDE.md](web/CLAUDE.md) and
   own part of the project to plan, write and test code, and we directed and reviewed what it wrote. We also
   used it to review the drawing engine and to click through the app in a headless browser before merging.
 - **Image AI models** are part of the product itself: the pack pipeline in [`/server`](server) uses
-  SDXL with SDXL-Lightning to draw the line art (and, with img2img, to redraw live photos), a line-art
-  detector for photos, the MistoLine ControlNet for photo packs built offline, and OWLv2 to find each
-  drawing's parts and to check pictures for nudity and weapons. They are listed with their licenses in
+  SDXL with SDXL-Lightning to draw the line art (and, with img2img, for Happy accidents), a line-art
+  detector and the MistoLine ControlNet for photo packs built offline, and OWLv2 to find each drawing's
+  parts, to recognize what a live photo shows, and to check pictures for nudity and weapons. They are listed with their licenses in
   [CREDITS.md](CREDITS.md).
 
 ## Credits

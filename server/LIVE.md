@@ -13,10 +13,14 @@ powershell -ExecutionPolicy Bypass -File server\run_live.ps1
 It loads the models, builds one test pack (about 30 s), then listens on http://localhost:8000.
 Check it: open http://localhost:8000/health and look for `"ok": true` and `"busy": false`.
 
-Photos and Happy accidents use img2img on the text pipeline's own weights, so they load nothing extra and run
-about as fast as a text prompt (about 18-20 s versus 15 s). The MistoLine ControlNet is only used for photo packs
-built offline with `build_pack.py --photo`: on an 8 GB card the UNet and the ControlNet don't fit together, so
-every ControlNet step swaps them and takes about 8 s.
+A photo is named by OWLv2 (about 1 s) and then drawn from that name like a typed prompt, so it takes about as
+long as a prompt. Happy accidents uses img2img on the text pipeline's own weights, so it loads nothing extra.
+The MistoLine ControlNet is only used for photo packs built offline with `build_pack.py --photo`: on an 8 GB card
+the UNet and the ControlNet don't fit together, so every ControlNet step swaps them and takes about 8 s.
+
+Every request is also logged, with the date and time, to `server\out\live.log` (never committed): the prompt (or
+what a photo was recognized as), the result and how long it took, and who asked. The window only keeps its last
+few screens.
 
 **Keep both windows open.** Run run_live.ps1 and cloudflared in your own PowerShell windows, not as background
 jobs of an assistant session (those stop after 2 hours). Closing either window takes "Make your own" offline.
@@ -44,9 +48,10 @@ apps that use the GPU.
 - `GET /health` returns `{"ok": true, "gpu": "<name>", "busy": <bool>}`.
 - `POST /generate` with `{"prompt": "a teapot", "difficulty": "medium"}` or `{"imageBase64": "...", ...}`.
 - One job at a time: a second request while one runs gets HTTP 503 ("busy").
-- It answers within 23 seconds or returns 504, because the site stops waiting at 25 seconds.
-- Every allowed prompt or photo gets a lesson. If no drawing fits the 60-stroke limit, the cleanest one is
-  simplified to its 60 longest lines.
+- It answers within 35 seconds or returns 504, because the site stops waiting at 38 seconds.
+- Every allowed prompt gets a lesson. If no drawing fits the 60-stroke limit, the cleanest one is
+  simplified to its 60 longest lines. A photo is named by OWLv2 and drawn from that name; one it can't name
+  gets HTTP 422 with a hint to type what it is.
 - Prompts: 80 characters or less (letters, numbers, spaces, simple punctuation), checked against a blocklist that
   also catches disguised words ("n4k3d", "p.o.r.n"), and always wrapped in the line-art prompt. Photos: the browser
   sends a JPEG of at most 1536 px (so iPhone HEIC and WebP work); the server takes JPEG, PNG or WebP up to 15 MB

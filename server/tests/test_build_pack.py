@@ -91,13 +91,27 @@ def test_choose_takes_the_cleanest_inside_the_gate_and_skips_rejected():
     assert choose([c(20, 30.0), c(12, 30.0)]) == 1  # a tie goes to fewer strokes
 
 
+def test_choose_prefers_a_whole_subject_then_one_that_fits_the_lesson_as_drawn():
+    def c(n, score=10.0, cut_off=False):
+        return Candidate(None, [[(0, 0), (1, 1)]] * n, score, cut_off)
+
+    # The cleanest draft runs off the edge, so the next one wins.
+    assert choose([c(20, 5.0, cut_off=True), c(22, 9.0)]) == 1
+    # For a simple lesson (25 strokes), a clean 40-stroke draft would lose 15 lines; a 22-stroke one keeps all.
+    assert choose([c(40, 5.0), c(22, 9.0)], limit=25) == 1
+    assert choose([c(40, 5.0), c(22, 9.0)]) == 0  # with the usual limit both fit, so the cleanest wins
+
+
 def test_choose_anyway_and_simplify_keep_the_big_lines():
     from build_pack import choose_anyway, simplify
 
     def c(n, score=10.0):
         return Candidate(None, [[(0, 0), (1, 1)]] * n, score)
 
-    assert choose_anyway([c(3, 1.0), c(140, 80.0), c(90, 50.0)]) == 2  # cleanest with enough lines
+    assert choose_anyway([c(3, 1.0), c(140, 80.0), c(90, 50.0)]) == 2  # enough lines, and the fewest
+    assert choose_anyway([c(100, 10.0), c(70, 50.0)]) == 1  # 70 strokes lose less to simplifying than 100
+    assert choose_anyway([c(73, 489.2), c(82, 131.1)]) == 1  # nearly as few strokes, and far cleaner
+    assert choose_anyway([c(70, 1050.0), c(90, 50.0)]) == 1  # a colored drawing only if nothing else
     assert choose_anyway([c(0, 1000.0)]) is None  # blank
     strokes = [[(0, 0), (k, 0)] for k in range(1, 101)]  # lengths 1..100
     kept = simplify(strokes, limit=60)
@@ -123,15 +137,18 @@ def test_update_index_merges_without_touching_other_subjects(subjects):
     assert index["subjects"][1]["packs"] == {"medium": "cat-medium"}  # the other subject is untouched
 
 
-def test_render_target_smooths_curves_but_keeps_the_ends():
-    from build_pack import smooth
+def test_without_strokes_paints_out_the_dropped_lines_and_keeps_the_rest():
+    from build_pack import without_strokes
 
-    line = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0)]
-    out = smooth(line)
-    assert out[0] == line[0] and out[-1] == line[-1]
-    assert len(out) > len(line)
-    loop = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 0.0)]
-    assert smooth(loop)[0] == smooth(loop)[-1]  # a closed stroke stays closed
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.line([(100, 200), (600, 200)], fill=INK, width=9)    # kept
+    draw.line([(350, 200), (350, 600)], fill=INK, width=9)    # dropped: it meets the kept line at (350, 200)
+    out = np.asarray(without_strokes(drawing, kept=[[(100, 200), (600, 200)]],
+                                     dropped=[[(350, 200), (350, 600)]]).convert("L"))
+    assert (out[197:204, 100:600] < 128).mean() > 0.95   # the kept line is untouched, junction included
+    assert (out[215:600, 340:361] < 128).sum() == 0      # the dropped line is gone
+    assert abs(int(out[400, 350]) - 220) <= 1            # painted in the page's own gray
 
 
 # ---------------------------------------------------------------- the whole build
@@ -240,7 +257,7 @@ def test_a_simple_lesson_keeps_few_strokes_and_its_reference_shows_just_those():
                              log=lambda *a: None, always=True, rate=True, limit=25)
     assert len([s for s in pack["strokes"] if s["tier"] != "construction"]) <= 25
     assert pack["difficulty"] == "simple"
-    # The reference is drawn from the kept strokes: far less ink than the 90-line picture.
+    # The reference shows only the kept strokes (the others are painted out): far less ink than 90 lines.
     ink = (np.asarray(Image.open(io.BytesIO(assets["target.png"])).convert("L")) < 128).mean()
     original = (np.asarray(busy.convert("L")) < 128).mean()
     assert ink < 0.5 * original
@@ -280,3 +297,85 @@ def test_a_higher_stroke_minimum_refuses_a_drawing_of_a_few_fragments():
     make_pack(**common)  # a handful of strokes passes the usual gate of 6...
     with pytest.raises(build_pack.NoCleanCandidate, match="No candidate had 40-60"):
         make_pack(**common, min_strokes=40)  # ...but not a photo's higher minimum
+
+
+def test_fit_to_page_scales_a_small_subject_up_to_fill_the_page():
+    from pipeline.frame import FIT_MARGIN, fit_to_page
+
+    small = Image.new("RGB", (768, 768), (225, 225, 225))
+    ImageDraw.Draw(small).rectangle((300, 500, 450, 600), outline=INK, width=6)  # 150 x 100, low on the page
+    ink = np.asarray(fit_to_page(small).convert("L")) < 128
+    rows, cols = np.nonzero(ink.any(axis=1))[0], np.nonzero(ink.any(axis=0))[0]
+    assert cols[-1] - cols[0] > 1.7 * 150                    # scaled up (at most 1.8x: more would blur the lines)
+    assert abs((cols[0] + cols[-1]) / 2 - 384) < 4 and abs((rows[0] + rows[-1]) / 2 - 384) < 4  # centered
+    big = Image.new("RGB", (768, 768), (225, 225, 225))
+    ImageDraw.Draw(big).rectangle((40, 60, 720, 700), outline=INK, width=6)
+    assert fit_to_page(big) is big                           # already fills the page
+    assert FIT_MARGIN < 0.1
+
+
+def test_simplify_keeps_the_features_inside_detail_parts():
+    from build_pack import simplify
+
+    outline = [(100.0, 100.0), (600.0, 100.0), (600.0, 600.0)]   # 1000 px: always kept
+    fur = [(150.0, 500.0), (150.0, 550.0)]                       # 50 px, outside the head
+    nose = [(300.0, 300.0), (330.0, 300.0)]                      # 30 px, inside the head
+    head = [250, 250, 150, 150]
+    assert simplify([outline, fur, nose], 2) == [outline, fur]   # by length alone the nose would go...
+    assert simplify([outline, fur, nose], 2, [head]) == [outline, nose]  # ...but inside the head it counts more
+
+
+def test_without_strokes_keeps_a_short_piece_joining_two_kept_lines():
+    from build_pack import without_strokes
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.line([(100, 300), (300, 300)], fill=INK, width=9)    # kept
+    draw.line([(330, 300), (600, 300)], fill=INK, width=9)    # kept
+    draw.line([(300, 300), (330, 300)], fill=INK, width=9)    # dropped, but it joins the two (a knee)
+    out = np.asarray(without_strokes(drawing, kept=[[(100, 300), (300, 300)], [(330, 300), (600, 300)]],
+                                     dropped=[[(300, 300), (330, 300)]]).convert("L"))
+    assert (out[298:303, 300:331] < 128).all()               # no gap in the line
+
+
+def test_the_live_server_prefers_a_whole_subject_over_a_cut_off_one_that_fits():
+    from build_pack import make_pack
+
+    cropped = Image.new("RGB", (768, 768), (220, 220, 220))
+    cropped.paste(cat_drawing().crop((0, 0, 768, 618)), (0, 150))  # the cat moved down: its legs run off the page
+    whole = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(whole)
+    for k in range(90):  # 90 separate short lines, none near the edge: whole, but over the 60-stroke gate
+        x, y = 40 + (k % 10) * 70, 40 + (k // 10) * 75
+        draw.line([(x, y), (x + 30 + k % 7 * 3, y + 20)], fill=INK, width=6)
+    lines = []
+    pack, _ = make_pack(pack_id="live-cat-simple", subject="cat", title="Cat", difficulty="simple",
+                        source_kind="prompt", prompt="cat", subject_words="cat", seed=0,
+                        generate=lambda seed: [cropped, whole], detect=lambda image: [], retries=0, log=lines.append,
+                        always=True, rate=True, limit=25)
+    assert pack["pipeline"][2]["image"].endswith("candidate-1.webp")  # the whole one, simplified to 25 strokes
+    assert any("cut off" in line for line in lines) and any("whole subject" in line for line in lines)
+
+
+def test_without_strokes_keeps_dropped_lines_inside_protected_parts():
+    from build_pack import without_strokes
+
+    drawing = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(drawing)
+    draw.line([(100, 600), (600, 600)], fill=INK, width=9)    # kept
+    draw.line([(300, 300), (330, 300)], fill=INK, width=9)    # dropped: a nose, inside the head
+    out = np.asarray(without_strokes(drawing, kept=[[(100, 600), (600, 600)]], dropped=[[(300, 300), (330, 300)]],
+                                     protect=[[250, 250, 150, 150]]).convert("L"))
+    assert (out[298:303, 300:331] < 128).all()               # the nose stays on the reference
+
+
+def test_clean_drawing_turns_gray_fills_and_halos_white_and_keeps_lines_black():
+    from build_pack import clean_drawing
+
+    drawing = Image.new("RGB", (768, 768), (228, 228, 228))
+    draw = ImageDraw.Draw(drawing)
+    draw.ellipse((150, 150, 618, 618), fill=(205, 205, 205))             # a pale disc behind the subject
+    draw.rectangle((300, 300, 470, 470), fill=(170, 170, 170), outline=(25, 25, 25), width=8)  # gray-filled box
+    out = np.asarray(clean_drawing(drawing))
+    assert out[385, 385] == 255 and out[200, 384] == 255 and out[150, 384] == 255  # fill, disc and its edge: white
+    assert out[303, 385] < 60                                            # the outline stays black

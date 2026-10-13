@@ -12,14 +12,15 @@ Endpoints:
 - POST /generate {prompt?, imageBase64?, difficulty} -> a Pack whose images are data: URLs.
 - POST /regenerate {prompt, canvasBase64, difficulty} -> "Happy accidents" (behind ?happy=1 in the app): a new
   Pack whose drawing is redrawn around what the user has drawn so far, without the lines they already drew.
-  One job at a time (busy: 503). Answers within 23 s or gives up (504), because the web app stops
-  waiting at 25 s. Bad input: 400, with a message. No clean drawing: 422.
+  One job at a time (busy: 503). Answers within 35 s or gives up (504), because the web app stops
+  waiting at 38 s. Bad input: 400, with a message. No clean drawing: 422.
 
 Safety (see pipeline/safety.py): prompts are 80 characters or less, letters, numbers, spaces and simple
 punctuation, checked against a blocklist that also catches disguised words, and always wrapped in the line-art
 prompt. Photos are 15 MB or less, JPEG, PNG or WebP, and both the photo and the chosen drawing are checked for
 nudity and weapons with OWLv2. Requests are logged, but photos are never stored.
-Any allowed prompt or photo gets a lesson: if no drawing fits the stroke limit, the cleanest one is simplified.
+Any allowed prompt gets a lesson: if no drawing fits the stroke limit, the cleanest one is simplified. A photo is
+named by OWLv2 ("a mug") and drawn from that name; a photo it can't name gets a hint instead (422).
 """
 
 from __future__ import annotations
@@ -53,20 +54,21 @@ ALLOWED_ORIGINS = [
 MAX_PROMPT_CHARS = 80  # the same as the input box in SubjectPicker.tsx
 PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, spaces and simple punctuation
 MAX_IMAGE_BYTES = 15 * 1024 * 1024  # phone photos are often 3 to 10 MB
-MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: the line-art detector works at 1024 anyway
-TIMEOUT_S = 23  # the web app (web/src/lib/live.ts) gives up after 25 s, so answer before that
+MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: OWLv2 looks at them at 960 x 960 anyway
+# A lesson takes about 18-24 s on the RTX 4060 Ti (more when the PC is short of memory). The web app
+# (web/src/lib/live.ts) gives up after 38 s, so answer before that.
+TIMEOUT_S = 35
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
-# Photos take longer (finding the subject, cleaning its outlines, tracing busy redraws): with 3 drafts a dog photo
-# went past the time limit every time, so a photo gets 2. A photo redraw needs at least PHOTO_MIN_STROKES strokes:
-# a car photo's redraw of a dozen scattered fragments passed the usual gate of 6 but wasn't a car.
-PHOTO_CANDIDATES = 2
-PHOTO_MIN_STROKES = 15
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 15 s of generation instead of 20
 
 log = logging.getLogger("ghostlines.live")
+log.setLevel(logging.INFO)  # whatever level the root logger has, our request lines are always written
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# run_live.ps1 also keeps a log file (GHOSTLINES_LOG=1), so we can see afterwards who used the live server and how
+# it went: the window only shows its last few screens. server/out is never committed.
+LOG_FILE = Path(__file__).resolve().parent / "out" / "live.log"
 _lock = asyncio.Lock()  # one job at a time: the GPU can only build one pack at once
 _gpu_name: str | None = None
 
@@ -187,46 +189,54 @@ def with_data_urls(pack: dict, assets: dict[str, bytes]) -> dict:
     return pack
 
 
+class UnknownPhoto(Exception):
+    """OWLv2 couldn't tell what the photo shows, so there is nothing to draw."""
+
+
 def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) -> dict:
-    """Builds a pack with the same pipeline as build_pack.py, in memory. Needs the GPU."""
+    """Builds a pack with the same pipeline as build_pack.py, in memory. Needs the GPU.
+
+    A photo is not redrawn: redraws of real photos traced into hundreds of broken strokes, so nearly every photo
+    was refused. Instead OWLv2 names what the photo shows (gen.name_subject, e.g. "a mug") and the lesson is drawn
+    from that name, exactly like a typed subject. A name typed with the photo is used as it is."""
     from PIL import Image
 
-    from build_pack import MIN_STROKES, make_pack
+    from build_pack import make_pack
     from pipeline import models
 
     models.setup_hf_env()  # before the Hugging Face libraries load
     from pipeline import generate as gen
     from pipeline.parts import detect_parts, subject_slug
 
-    words = prompt or "the object in the photo"  # neutral: "a simple object" pushed the redraw away from the photo
-    slug = re.sub(r"[^a-z0-9-]", "", subject_slug(prompt)) if prompt else "photo"
-    slug = slug or "drawing"
-    title = prompt[:1].upper() + prompt[1:] if prompt else "Your photo"
     photo = Image.open(io.BytesIO(image)) if image else None
+    note = None  # how the photo became a subject, for the "How this lesson was made" panel
     if photo is not None:
         from PIL import ImageOps
 
         photo = ImageOps.exif_transpose(photo).convert("RGB")  # phone photos the right way up
         photo.thumbnail((MAX_PHOTO_SIDE, MAX_PHOTO_SIDE))  # a 12-megapixel photo slows every step down
-        safety.check_picture(photo)  # before any drawing is made from it
-        subject_photo = gen.crop_to_subject(photo, prompt)  # outlines from the subject, not the background
-
-        def generate(seed):
-            return gen.from_photo_fast(subject_photo, words, difficulty, n=PHOTO_CANDIDATES, seed=seed)
-    else:
-        def generate(seed):
-            return gen.from_prompt(words, difficulty, n=LIVE_CANDIDATES, seed=seed)
-
+        safety.check_picture(photo)  # before anything is done with it
+        if prompt:
+            note = f"You named your photo \"{prompt}\", and the AI drew that."
+        else:
+            prompt = gen.name_subject(photo)
+            if prompt is None:
+                raise UnknownPhoto("OWLv2 matched none of the photo subjects well enough")
+            log.info("  photo recognized as %r", prompt)
+            note = f"OWLv2 recognized your photo as {prompt}, and the AI drew {prompt} from scratch."
+    words = prompt
+    slug = re.sub(r"[^a-z0-9-]", "", subject_slug(words)) or "drawing"
     pack, assets = make_pack(
-        pack_id=f"live-{slug}-{difficulty}", subject=slug, title=title, difficulty=difficulty,
-        source_kind="photo" if photo is not None else "prompt", prompt=prompt, subject_words=words,
+        pack_id=f"live-{slug}-{difficulty}", subject=slug, title=words[:1].upper() + words[1:], difficulty=difficulty,
+        source_kind="photo" if photo is not None else "prompt", prompt=words, subject_words=words,
         seed=secrets.randbelow(100_000),  # a new drawing every time
-        generate=generate, detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
+        generate=lambda seed: gen.from_prompt(words, difficulty, n=LIVE_CANDIDATES, seed=seed),
+        detect=lambda drawing: detect_parts(drawing, words), retries=0, photo=photo,
         log=log.info, check_drawing=safety.check_picture,
         rate=True,  # label the lesson by how hard the drawing came out, not by what was asked for
         limit=LIVE_STROKE_LIMITS[difficulty],
-        always=photo is None,  # a typed subject always gets a lesson; a photo with no clean drawing gets a hint
-        min_strokes=PHOTO_MIN_STROKES if photo is not None else MIN_STROKES,
+        always=True,  # every allowed subject gets a lesson: a busy drawing is simplified to the stroke limit
+        source_note=note,
     )
     return with_data_urls(pack, assets)
 
@@ -268,16 +278,28 @@ REBUILD = rebuild_live_pack
 WARM_UP_PHOTO = Path(__file__).resolve().parent.parent / "web" / "public" / "subjects" / "mug-medium" / "target.png"
 
 
+def log_to_file(path: Path = LOG_FILE) -> logging.Handler:
+    """Also writes every log line to `path`, with the date and time: our own lines (each request's prompt, result
+    and time taken) and uvicorn's access line for each request (who asked, which endpoint, the status code).
+    Called after uvicorn has set up its loggers, which don't pass their lines on to the root logger."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(path, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    for name in ("", "uvicorn", "uvicorn.access"):  # "" is the root logger, which our own lines reach
+        logging.getLogger(name).addHandler(handler)
+    return handler
+
+
 def warm_up() -> None:
-    """Loads every model and builds throwaway packs, so the first real request is fast. With both pipelines
-    kept (see pipeline.generate.keep_both_pipelines) it warms the photo path too."""
+    """Loads every model and builds throwaway packs (a typed subject, then a photo), so the first real request is
+    fast."""
     start = time.perf_counter()
     BUILD("a cat", None, "medium")
     log.info("warm-up (text) done in %.1f s", time.perf_counter() - start)
-    if os.environ.get("GHOSTLINES_KEEP_BOTH_PIPELINES") == "1" and WARM_UP_PHOTO.exists():
+    if WARM_UP_PHOTO.exists():
         start = time.perf_counter()
         try:
-            BUILD("a mug", WARM_UP_PHOTO.read_bytes(), "medium")
+            BUILD(None, WARM_UP_PHOTO.read_bytes(), "medium")  # no name, so OWLv2 names it, as for a visitor
         except Exception as error:  # noqa: BLE001 - a warm-up drawing that fails the gate is fine
             log.info("warm-up (photo) built no pack (%s); the models are loaded anyway", error)
         log.info("warm-up (photo) done in %.1f s", time.perf_counter() - start)
@@ -285,6 +307,8 @@ def warm_up() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    if os.environ.get("GHOSTLINES_LOG") == "1":  # set by run_live.ps1
+        log_to_file()
     if os.environ.get("GHOSTLINES_WARMUP") == "1":  # set by run_live.ps1
         async with _lock:  # report busy while warming up
             await asyncio.to_thread(warm_up)
@@ -349,9 +373,13 @@ async def run_job(name: str, prompt: str | None, difficulty: str, job, image_byt
     except safety.UnsafeContent as error:
         log.info("%s %r: refused by the picture check (%s)", name, prompt, error)
         return JSONResponse({"error": REFUSED}, status_code=400)
+    except UnknownPhoto as error:
+        log.info("%s: couldn't tell what the photo shows (%s)", name, error)
+        return JSONResponse({"error": "Couldn't tell what's in that photo. Try one object on a plain background, "
+                                      "or type what it is."}, status_code=422)
     except NoCleanCandidate as error:
         log.info("%s %r: no clean drawing (%s)", name, prompt, error)
-        hint = ("Try a photo of one object on a plain background." if image_bytes else "Try a simpler subject.")
+        hint = "Try another photo, or type what it is." if image_bytes else "Try a simpler subject."
         return JSONResponse({"error": f"Couldn't make a clean drawing of that. {hint}"}, status_code=422)
     except Exception:  # noqa: BLE001 - log it, tell the app it failed
         log.exception("%s %r failed", name, prompt)

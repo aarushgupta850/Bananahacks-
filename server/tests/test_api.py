@@ -140,7 +140,74 @@ def test_no_clean_drawing_is_a_422(monkeypatch):
     assert status(response) == 422 and "simpler subject" in body(response)["error"]
     # A photo with no clean drawing gets a hint about photos instead.
     response = run(api.generate(api.GenerateRequest(imageBase64=png_base64())))
-    assert status(response) == 422 and "plain background" in body(response)["error"]
+    assert status(response) == 422 and "type what it is" in body(response)["error"]
+
+
+def test_a_photo_nothing_can_be_named_in_is_a_422_with_a_hint(monkeypatch):
+    def build(*args):
+        raise api.UnknownPhoto("nothing matched")
+
+    monkeypatch.setattr(api, "BUILD", build)
+    response = run(api.generate(api.GenerateRequest(imageBase64=png_base64())))
+    assert status(response) == 422 and "Couldn't tell what's in that photo" in body(response)["error"]
+    assert not api._lock.locked()
+
+
+def live_pack_fakes(monkeypatch, name):
+    """Fakes for build_live_pack's GPU steps: OWLv2 names the photo `name`, and the AI draws a simple cat."""
+    from pipeline import generate, parts
+    from test_build_pack import cat_drawing
+
+    calls = {"named": 0, "drawn": [], "checked": 0}
+
+    def name_subject(photo):
+        calls["named"] += 1
+        return name
+
+    def from_prompt(words, difficulty, n, seed):
+        calls["drawn"].append(words)
+        return [cat_drawing()] * n
+
+    def check_picture(image):
+        calls["checked"] += 1
+
+    monkeypatch.setattr(generate, "name_subject", name_subject)
+    monkeypatch.setattr(generate, "from_prompt", from_prompt)
+    monkeypatch.setattr(parts, "detect_parts", lambda image, subject: [])
+    monkeypatch.setattr(api.safety, "check_picture", check_picture)
+    return calls
+
+
+def jpeg_bytes() -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), "white").save(buffer, "JPEG")
+    return buffer.getvalue()
+
+
+def test_a_photo_is_named_by_owlv2_and_drawn_from_that_name(monkeypatch):
+    calls = live_pack_fakes(monkeypatch, "a mug")
+    pack = api.build_live_pack(None, jpeg_bytes(), "medium")
+    assert calls["named"] == 1 and calls["drawn"] == ["a mug"]  # drawn from the name, like a typed subject
+    assert calls["checked"] == 2  # the photo and the chosen drawing were both checked
+    assert pack["title"] == "A mug"
+    assert pack["source"] == {"kind": "photo", "prompt": "a mug"}
+    source = pack["pipeline"][0]
+    assert source["label"] == "Photo" and source["image"].startswith("data:image/webp")  # the panel shows the photo
+    assert "recognized your photo as a mug" in source["text"]  # and says honestly what happened to it
+
+
+def test_a_photo_with_a_typed_name_uses_the_name(monkeypatch):
+    calls = live_pack_fakes(monkeypatch, "a cat")
+    pack = api.build_live_pack("a teapot", jpeg_bytes(), "medium")
+    assert calls["named"] == 0 and calls["drawn"] == ["a teapot"]
+    assert pack["title"] == "A teapot" and "You named your photo" in pack["pipeline"][0]["text"]
+
+
+def test_a_photo_nothing_is_recognized_in_is_refused_before_any_drawing(monkeypatch):
+    calls = live_pack_fakes(monkeypatch, None)
+    with pytest.raises(api.UnknownPhoto):
+        api.build_live_pack(None, jpeg_bytes(), "medium")
+    assert calls["drawn"] == []
 
 
 def test_pack_images_become_data_urls():
@@ -158,14 +225,9 @@ def test_pack_images_become_data_urls():
     assert pack["target"] == "target.png"  # the original is not changed
 
 
-def test_warm_up_also_warms_the_photo_path_when_both_pipelines_stay(monkeypatch, fake_build):
-    monkeypatch.setenv("GHOSTLINES_KEEP_BOTH_PIPELINES", "1")
+def test_warm_up_builds_a_typed_lesson_then_a_photo_lesson(fake_build):
     api.warm_up()
-    assert fake_build == [("a cat", False, "medium"), ("a mug", True, "medium")]
-    monkeypatch.delenv("GHOSTLINES_KEEP_BOTH_PIPELINES")
-    fake_build.clear()
-    api.warm_up()
-    assert fake_build == [("a cat", False, "medium")]
+    assert fake_build == [("a cat", False, "medium"), (None, True, "medium")]  # the photo unnamed, as from a visitor
 
 
 def test_a_refused_picture_is_a_400(monkeypatch):
@@ -234,3 +296,51 @@ def test_webp_photos_are_accepted_and_broken_files_refused():
     truncated = base64.b64decode(png_base64())[:20]  # a PNG header with nothing after it
     with pytest.raises(api.InputError, match="couldn't be read"):
         api.decode_image(base64.b64encode(truncated).decode())
+
+
+def test_the_log_file_gets_our_lines_and_uvicorns_access_lines_with_the_time(tmp_path):
+    import logging
+
+    path = tmp_path / "out" / "live.log"
+    handler = api.log_to_file(path)
+    try:
+        api.log.info("generate prompt 'a teapot' (medium): ok in 18.2 s")
+        access = logging.getLogger("uvicorn.access")
+        access.setLevel(logging.INFO)
+        access.propagate = False  # as uvicorn sets it up: its lines never reach the root logger
+        access.info('%s - "%s %s HTTP/%s" %d', "203.0.113.7:0", "POST", "/generate", "1.1", 200)
+    finally:
+        for name in ("", "uvicorn", "uvicorn.access"):
+            logging.getLogger(name).removeHandler(handler)
+        handler.close()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert lines[0].endswith("ok in 18.2 s") and lines[1].endswith('"POST /generate HTTP/1.1" 200')
+    assert all(line[:4].isdigit() and line[4] == "-" for line in lines)  # each starts with the date
+
+
+def test_the_picture_check_compares_on_the_same_box():
+    import numpy as np
+
+    from pipeline import safety
+
+    n_unsafe, n_safe = len(safety.UNSAFE_QUERIES), len(safety.SAFE_QUERIES)
+
+    def scores(*boxes):  # each box: {query: score}; other queries score 0.01
+        out = np.full((len(boxes), n_unsafe + n_safe), 0.01)
+        names = [*safety.UNSAFE_QUERIES, *safety.SAFE_QUERIES]
+        for b, values in enumerate(boxes):
+            for query, value in values.items():
+                out[b, names.index(query)] = value
+        return out
+
+    # The close-up portrait refused before: 0.319 "a naked person", but 0.332 "a person wearing clothes", same box.
+    assert safety.unsafe_match(scores({"a naked person": 0.319, "a clothed person": 0.281,
+                                       "a person wearing clothes": 0.332})) is None
+    # Nudity on one box isn't excused by a clothed person on another box (two people in the picture).
+    found = safety.unsafe_match(scores({"a naked person": 0.6, "a clothed person": 0.1},
+                                       {"a clothed person": 0.8}))
+    assert found and found.startswith("a naked person")
+    # Weapons need the surer match.
+    assert safety.unsafe_match(scores({"a knife": 0.35})) is None
+    assert safety.unsafe_match(scores({"a knife": 0.5})).startswith("a knife")

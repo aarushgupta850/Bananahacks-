@@ -51,3 +51,14 @@ def test_a_drawing_without_a_frame_is_unchanged():
     image, draw = page()
     draw.ellipse([150, 150, 618, 618], outline=INK, width=8)
     assert np.array_equal(np.asarray(remove_frame(image)), np.asarray(image))
+
+
+def test_lines_along_two_opposite_edges_are_a_frame():
+    # A close-up framed by a line along the top and one along the bottom (the cat's head that filled the page).
+    image, draw = page()
+    draw.line([(30, 25), (740, 25)], fill=INK, width=5)
+    draw.line([(30, 742), (740, 742)], fill=INK, width=5)
+    draw.ellipse((250, 250, 520, 520), outline=INK, width=8)
+    out = ink(remove_frame(image))
+    assert not out[:45].any() and not out[-45:].any()
+    assert out[250:521, 250:521].any()
