@@ -39,6 +39,7 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
   let helpLevel: HelpLevel = startMode === 'auto' ? 'guided' : startMode
   let transform: Transform = { ...IDENTITY } // plan space -> where the user is drawing
   let pairs: { from: Point; to: Point }[] = [] // matched plan point -> user point, for the fit
+  let calibrations = 0 // good strokes the guides have followed so far (they lock at config.adaptCalibrationStrokes)
   const done = new Set<string>()             // plan stroke ids drawn well enough
   const covered = new Map<string, Set<number>>() // plan stroke id -> guide points traced well so far (see match.ts)
   const recent: number[] = []                // accuracies of the last few matched strokes
@@ -109,21 +110,28 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
 
   // Moves the guides toward where the user draws: fit plan -> user over all matched points so far
   // (rotation limited to 10 degrees), then go 60% of the way there, so one wobbly stroke can't throw them off.
+  // Calibrate, then lock: the guides follow the user's first few good strokes (so a drawing that is a bit bigger
+  // or off-centre still lines up), then never move again, so the lines already drawn and the guides stay together.
   function adapt(guide: Point[], user: Point[]) {
+    if (calibrations >= config.adaptCalibrationStrokes) return // locked
     const back = invertTransform(transform)
     const planPoints = applyToAll(back, guide) // the guide as it is in the plan, before adapting
     pairs.push(...planPoints.map((from, i) => ({ from, to: user[i] })))
     if (pairs.length > config.adaptMaxPairs) pairs = pairs.slice(-config.adaptMaxPairs)
     const fit = procrustes(pairs, config.adaptMaxRotationDeg)
-    const next = lerpTransform(transform, fit, config.adaptBlend)
+    // The last calibration stroke lands exactly on the fit, so the guides lock where they fit best.
+    const blend = calibrations === config.adaptCalibrationStrokes - 1 ? 1 : config.adaptBlend
+    const next = lerpTransform(transform, fit, blend)
     // Adapting must bring the guide closer to this stroke. A stroke matched to the wrong stretch (e.g. one long
     // line over several guides) can pair points badly and make a fit that moves the guides away: skip that one.
     const gap = (t: Transform) => planPoints.reduce((sum, p, i) => {
       const [x, y] = applyToAll(t, [p])[0]
       return sum + Math.hypot(x - user[i][0], y - user[i][1])
     }, 0)
-    if (gap(next) <= 1.1 * gap(transform)) transform = next // a little worse is fine: the fit uses earlier strokes too
-    else pairs.splice(pairs.length - planPoints.length, planPoints.length)
+    if (gap(next) <= 1.1 * gap(transform)) { // a little worse is fine: the fit uses earlier strokes too
+      transform = next
+      calibrations++
+    } else pairs.splice(pairs.length - planPoints.length, planPoints.length)
   }
 
   // A gentle warning when a stroke is much bigger or smaller than its guide, e.g. "The head is getting large".
@@ -234,6 +242,7 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
         if (matchStroke(userPoints, original, baseDiagonal) || coverByCloseness(userPoints, original).byGuide.size > 0) {
           transform = { ...IDENTITY }
           pairs = []
+          calibrations = 0 // calibrate again from where the user really draws
           ;({ match, closeness, shownIds } = look())
         }
       }
@@ -279,7 +288,9 @@ export function createTeacher(pack: Pack, steps: Step[], startMode: Mode): Teach
         // a short tick is too small to say how big the user is drawing. A stroke along several guides can't be
         // paired point by point with the one it matched, and pairing it anyway would pull the guides away from
         // the user, so it doesn't move them.
-        if (match.accuracy > 0 && !spansGuides && length(match.guide) >= config.minAdaptLength) adapt(match.guide, match.user)
+        if (match.accuracy > config.adaptMinAccuracy && !spansGuides && length(match.guide) >= config.minAdaptLength) {
+          adapt(match.guide, match.user)
+        }
         recent.push(lastAccuracy) // Auto judges the same score the user sees
         if (recent.length > config.autoWindow) recent.shift()
       } else {

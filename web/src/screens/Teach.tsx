@@ -302,7 +302,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
             {/* Under everything: a faint trace of the real drawing, revealed part by part as the lesson goes on. */}
             <svg className="trace-layer" viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`} aria-hidden="true"
               style={{ opacity: TRACE_OPACITY[result.done ? 'guided' : result.helpLevel] }}>
-              <g transform={`matrix(${movement.a} ${movement.b} ${-movement.b} ${movement.a} ${movement.tx} ${movement.ty})`}>
+              {/* A CSS transform (not the SVG attribute) so the trace glides with the guides when they settle. */}
+              <g className="trace-move" style={{ transform: `matrix(${movement.a}, ${movement.b}, ${-movement.b}, ${movement.a}, ${movement.tx}, ${movement.ty})` }}>
                 {traced.map((t) => <polyline key={t.id} points={toSvgPoints(t.points)} vectorEffect="non-scaling-stroke" />)}
               </g>
             </svg>
