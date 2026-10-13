@@ -7,11 +7,13 @@ import ReplayPlayer from '../canvas/ReplayPlayer'
 import { engine } from '../engine'
 import type { Analysis, Box, Pack, Score, UserStroke } from '../engine/types'
 import { loadIndex, loadPack, resolveAsset } from '../lib/packs'
+import { loadHistory, makeRecord, reportHighlights, saveSession, sessionIdFor } from '../lib/progress'
 import { usePack, useSession } from '../session'
 import PipelinePanel from './PipelinePanel'
 import PlaceholderScreen from './PlaceholderScreen'
 import { changeWords, describeModeHistory, describeScale, emptyRoundNote, formatChange, harderDifficulty } from './reportText'
 import { timingLabel } from './timeLimit'
+import '../styles/progress.css'
 
 const LEVEL_UP_SCORE = 75 // "Level up" shows when the retest total is at least this
 const COUNT_UP_MS = 900
@@ -93,6 +95,17 @@ function ReportBody({ pack, test, retest, overlay, setOverlay, onStartPack }: Bo
     coaching: engine.coach(pack, test, retest),
   }))
   const { testScore, retestScore, coaching } = results
+  // This session for "Your progress": the engine's two totals, saved once. The id is tied to the retest
+  // analysis, so re-rendering or remounting the report (or StrictMode's double effects) never saves it twice.
+  // The highlight lines are worked out from the history saved before this session.
+  const [progress] = useState(() => {
+    const now = Date.now()
+    const record = makeRecord(pack, testScore.total, retestScore.total, sessionIdFor(retest, now), now)
+    return { record, highlights: reportHighlights(loadHistory(), record, now) }
+  })
+  useEffect(() => {
+    saveSession(progress.record)
+  }, [progress])
   const card = useRef<HTMLDivElement>(null)
   const [downloadProblem, setDownloadProblem] = useState(false)
 
@@ -140,6 +153,11 @@ function ReportBody({ pack, test, retest, overlay, setOverlay, onStartPack }: Bo
         </div>
 
         <Scores before={testScore} after={retestScore} />
+        {progress.highlights.length > 0 && (
+          <ul className="report-highlights" aria-label="Your progress">
+            {progress.highlights.map((h) => <li key={h.kind} className={`is-${h.kind}`}>{h.text}</li>)}
+          </ul>
+        )}
       </div>
 
       {/* A round with nothing drawn (Skip, or the timer ran out) scores 0: say why, so a 0 never looks like a bug. */}
