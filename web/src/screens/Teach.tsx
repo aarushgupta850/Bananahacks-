@@ -73,6 +73,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const [mode, setModeState] = useState<Mode>('auto')
   const [strokes, setStrokes] = useState<UserStroke[]>([])
   const [penSize, setPenSize] = useState<PenSize>('medium')
+  const [tool, setTool] = useState<'pen' | 'eraser'>('pen') // the eraser only tidies ink: strokes were already checked
   const [meter, setMeter] = useState<number | null>(null) // eased accuracy, 0-1; null before the first match
   const [showMe, setShowMe] = useState<Ghost[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -311,9 +312,10 @@ export default function Teach({ onBack, onNext }: NavProps) {
             <svg className="assist-layer" viewBox={`0 0 ${TARGET_SIZE} ${TARGET_SIZE}`} aria-hidden="true">
               {assisted.map((stroke, i) => <path key={i} d={strokeToPath(stroke.points, true, PEN_SIZES.medium)} />)}
             </svg>
-            <DrawingCanvas strokes={strokes} onStroke={handleStroke} penSize={penSize} label="Lesson canvas. Draw over the ghost lines." />
+            <DrawingCanvas strokes={strokes} onStroke={handleStroke} penSize={penSize} tool={tool} onErase={setStrokes}
+              label="Lesson canvas. Draw over the ghost lines." />
             {fadingGhosts && <div className="ghost-swap is-out"><GhostLayer ghosts={fadingGhosts} /></div>}
-            <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} /></div>
+            <div key={swaps} className={swaps > 0 ? 'ghost-swap is-in' : 'ghost-swap'}><GhostLayer ghosts={ghosts} ink={strokes} /></div>
             {redrawing && <p className="teach-redrawing" role="status">Working your line into the drawing…</p>}
             {cheer && !result.done && <p key={cheer.id} className="teach-cheer" role="status"><span aria-hidden="true">✓ </span>{cheer.text}</p>}
             {toast && !result.done && (
@@ -329,6 +331,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
             onUndo={() => setStrokes((s) => s.slice(0, -1))}
             onClear={() => { setStrokes([]); setAssisted([]) }}
             canUndo={strokes.length > 0}
+            tool={tool}
+            onTool={setTool}
           />
         </div>
 
@@ -342,7 +346,7 @@ export default function Teach({ onBack, onNext }: NavProps) {
           </div>
 
           <div className="panel-block">
-            <span className="panel-label" id="accuracy-label">Accuracy</span>
+            <span className="panel-label" id="accuracy-label">Accuracy <span className="panel-sublabel">(this lesson so far)</span></span>
             <div className="meter" role="meter" aria-labelledby="accuracy-label" aria-valuemin={0} aria-valuemax={100}
               aria-valuenow={meter === null ? undefined : Math.round(meter * 100)}>
               <div className="meter-fill" style={{ width: `${(meter ?? 0) * 100}%` }} />

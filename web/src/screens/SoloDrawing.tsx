@@ -24,6 +24,7 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
   const { session, update } = useSession()
   const strokes = round === 'test' ? session.testStrokes : session.retestStrokes
   const [penSize, setPenSize] = useState<PenSize>('medium')
+  const [tool, setTool] = useState<'pen' | 'eraser'>('pen')
 
   // The latest strokes, for finish() when the timer calls it (it may run from an old render).
   const latest = useRef(strokes)
@@ -76,6 +77,8 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
               strokes={strokes}
               onStroke={(stroke) => setStrokes([...strokes, stroke])}
               penSize={penSize}
+              tool={tool}
+              onErase={setStrokes}
               label={`${TEXT[round].title} canvas. Copy the reference here.`}
             />
           </div>
@@ -85,6 +88,8 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
             onUndo={() => setStrokes(strokes.slice(0, -1))}
             onClear={() => setStrokes([])}
             canUndo={strokes.length > 0}
+            tool={tool}
+            onTool={setTool}
           />
         </div>
       </div>
