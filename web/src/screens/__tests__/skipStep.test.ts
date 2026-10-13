@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { engine } from '../../engine'
 import type { Mode, Pack, TimedPoint } from '../../engine/types'
 import { parsePack } from '../../lib/packs'
-import { skipStep } from '../skipStep'
+import { ownStrokeNumber, skipStep } from '../skipStep'
 
 const files = import.meta.glob('../../../public/subjects/*/pack.json', { query: '?raw', import: 'default', eager: true })
 const packs: Pack[] = Object.entries(files).map(([path, text]) => parsePack(JSON.parse(text as string), path))
@@ -51,5 +51,20 @@ describe('skipStep', () => {
     const teacher = engine.createTeacher(pack, steps, 'guided')
     while (!teacher.state().done) skipStep(teacher, steps, 'guided')
     expect(skipStep(teacher, steps, 'guided').drawn).toEqual([])
+  })
+})
+
+// Regression: the user drew 1 stroke, pressed Skip step 4 times (drawing 4 strokes), then changed help, and the
+// report said "after stroke 5". Only the user's own strokes count.
+describe('ownStrokeNumber', () => {
+  it('leaves out the strokes Skip step drew before the change', () => {
+    const skips: Array<[number, number]> = [[1, 1], [2, 1], [3, 1], [4, 1]]
+    expect(ownStrokeNumber(5, skips)).toBe(1)
+    expect(ownStrokeNumber(7, skips)).toBe(3) // two more of the user's own after the skips
+  })
+
+  it('counts strokes from earlier, redrawn lessons and ignores skips after the change', () => {
+    expect(ownStrokeNumber(3, [[3, 2]], 10)).toBe(13)
+    expect(ownStrokeNumber(2, [], 0)).toBe(2)
   })
 })

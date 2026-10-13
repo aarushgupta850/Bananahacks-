@@ -15,7 +15,7 @@ import { checkLive, regenerate } from '../lib/live'
 import { usePack, useSession, type TeachRecording } from '../session'
 import CountdownRing from './CountdownRing'
 import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
-import { skipStep } from './skipStep'
+import { ownStrokeNumber, skipStep } from './skipStep'
 import { IDENTITY, isTap, lineLength, revealFor, traceMovement, traceReveal, type Similarity } from './trace'
 import { useCountdown } from './useCountdown'
 
@@ -91,6 +91,11 @@ export default function Teach({ onBack, onNext }: NavProps) {
   const [stuck, setStuck] = useState(false) // several strokes on this step without finishing it
   const triesHere = useRef(0)
   const skipNoise = useRef(new Set<number>()) // help-level changes (indices in teacher.history()) made by skips
+  // The teacher counts every stroke it is given, including the ones "Skip step" draws, and a redrawn lesson starts
+  // a new teacher at 0. These turn its count back into the user's own strokes, for "Hints after stroke 5".
+  const counted = useRef(0) // strokes the current teacher has counted so far
+  const skipped = useRef<Array<[number, number]>>([]) // [teacher count before a skip, strokes the skip drew]
+  const ownBefore = useRef(0) // the user's own strokes in earlier (redrawn) lessons
   const happyCount = useRef(0)
   // How much of the real drawing's trace is revealed (pixels of line). Every stroke adds to it; undo and
   // clear never take it back.
@@ -137,7 +142,10 @@ export default function Teach({ onBack, onNext }: NavProps) {
     inkHistory.push(stroke)
     // A tap stays on the canvas as ink, but the teacher ignored it, so it reveals no trace and isn't a try.
     const tap = isTap(stroke.points.map(([x, y]): [number, number] => [x, y]))
-    if (!tap) reveal([stroke])
+    if (!tap) {
+      reveal([stroke])
+      counted.current++
+    }
     // A quick "Step done" when this stroke finished a step (not on the last one: the panel above says so).
     if (!next.done && next.completedStepIds.length > result.completedStepIds.length) flash('Step done')
     setResult(next)
@@ -178,6 +186,8 @@ export default function Teach({ onBack, onNext }: NavProps) {
   function skip() {
     const { result: next, drawn, ignoreHistory: [from, to] } = skipStep(lesson.teacher, lesson.steps, mode)
     for (let i = from; i < to; i++) skipNoise.current.add(i)
+    skipped.current.push([counted.current, drawn.length])
+    counted.current += drawn.length
     const t = sinceStart(startedAt.current)
     drawn.forEach((stroke) => recording.current.events.push({ t, type: 'stroke', stroke }))
     recording.current.events.push({ t, type: 'ghosts', ghosts: next.ghosts })
@@ -192,7 +202,11 @@ export default function Teach({ onBack, onNext }: NavProps) {
   }
 
   // A teacher's help-level changes, without the ones "Skip step" caused (those weren't the user's doing).
-  const realHistory = (teacher: typeof lesson.teacher) => teacher.history().filter((_, i) => !skipNoise.current.has(i))
+  // Each change's stroke number is the user's own: strokes "Skip step" drew before it don't count.
+  const ownStroke = (at: number) => ownStrokeNumber(at, skipped.current, ownBefore.current)
+  const realHistory = (teacher: typeof lesson.teacher) => teacher.history()
+    .filter((_, i) => !skipNoise.current.has(i))
+    .map((change) => ({ ...change, atStroke: ownStroke(change.atStroke) }))
 
   function showToast(text: string, kind: 'warning' | 'happy') {
     setToast(text)
@@ -222,6 +236,9 @@ export default function Teach({ onBack, onNext }: NavProps) {
         if (fresh.done) return // the AI kept nothing new to draw: stay on the current lesson
         earlierHistory.current.push(...realHistory(now.teacher))
         skipNoise.current = new Set()
+        ownBefore.current = ownStroke(counted.current) // the new teacher counts from 0 again
+        counted.current = 0
+        skipped.current = []
         triesHere.current = 0
         setStuck(false)
         // Crossfade: the old guides fade out while the new ones fade in.

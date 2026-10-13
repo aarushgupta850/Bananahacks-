@@ -1528,9 +1528,12 @@ dialog.pipeline-panel {
   transition: background-color var(--transition), color var(--transition), box-shadow var(--transition);
 }
 
-.time-option:hover {
-  background: var(--surface);
-  color: var(--ink);
+/* Only where a pointer really hovers: on touch screens a tapped option kept the hover look after the tap. */
+@media (hover: hover) {
+  .time-option:hover {
+    background: var(--surface);
+    color: var(--ink);
+  }
 }
 
 /* The real radio stays in the page for keyboards and screen readers, just not drawn. */
