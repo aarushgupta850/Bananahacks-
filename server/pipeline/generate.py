@@ -68,6 +68,10 @@ def _pipeline(kind: str):
     "img2img" is built on the text pipeline's weights (nothing new to load), and so is "photo" when both are
     kept (keep_both_pipelines). Pipelines that share weights share CPU-offload hooks, so the hooks are
     re-attached whenever a different pipeline runs next."""
+    if kind == "flux":  # FLUX.1-schnell (GHOSTLINES_MODEL=flux): its own pipeline, for typed subjects only
+        if "flux" not in _cache:
+            _cache["flux"] = models.load_flux()  # comes ready to run, with its own CPU-offload hooks
+        return _cache["flux"]
     if kind == "img2img":
         base = _pipeline("text")
         if "img2img" not in _cache:
@@ -94,12 +98,18 @@ def _pipeline(kind: str):
 def _generate(pipe, prompt: str, seed: int, **extra) -> Image.Image:
     import torch
 
+    if models.is_flux(pipe):
+        # FLUX draws at any size: straight at 768 px, which is about half the work of SDXL's 1024 px.
+        extra = {"num_inference_steps": models.FLUX_STEPS, "max_sequence_length": 256, **extra}
+        size = TARGET_SIZE
+    else:
+        extra = {"num_inference_steps": models.lightning_steps(), **extra}  # what the Lightning UNet was distilled for
+        size = GEN_SIZE
     image = pipe(
         prompt,
-        num_inference_steps=models.lightning_steps(),  # the steps the loaded Lightning UNet was distilled for
-        guidance_scale=0.0,  # Lightning is trained without classifier-free guidance
-        height=GEN_SIZE,
-        width=GEN_SIZE,
+        guidance_scale=0.0,  # both Lightning and schnell are trained without classifier-free guidance
+        height=size,
+        width=size,
         generator=torch.Generator("cpu").manual_seed(seed),
         **extra,
     ).images[0]
@@ -128,8 +138,11 @@ def from_prompt(subject: str, difficulty: str = "medium", n: int = 4, seed: int 
     """n candidate drawings of `subject`, 768 x 768, using seeds seed, seed+1, ... so a build can be repeated.
     They are drawn one by one. (In one batch, 3 drafts took 9-11 s instead of 16-17 s in a test script, but in the
     live server, with OWLv2 also on the 8 GB card, a batch of 4 overflowed into shared memory and took 30 s.)"""
-    pipe = _pipeline("text")
+    pipe = _pipeline("flux" if models.image_model() == "flux" else "text")
     prompt = line_art_prompt(subject, variant=active_variant(), difficulty=difficulty)
+    words = os.environ.get("GHOSTLINES_LORA_WORDS", "").strip()  # a style LoRA's trigger words, e.g. "Coloring Book"
+    if words and not models.is_flux(pipe):
+        prompt = f"{words}, {prompt}"
     return [_generate(pipe, prompt, seed + i) for i in range(n)]
 
 

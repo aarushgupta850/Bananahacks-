@@ -15,6 +15,11 @@ $env:GHOSTLINES_LIGHTNING_STEPS = "8"   # cleaner, more even lines; about twice 
 $env:GHOSTLINES_PROMPT = "icon_even"    # asks for smooth, symmetrical curves (balls, faces)
 $env:GHOSTLINES_PREFER_SYMMETRY = "1"   # of near-equally clean drafts, keep the most mirror-symmetric one
 # $env:GHOSTLINES_LIVE_CANDIDATES = "3"   # drafts per live lesson (default: 3, or 2 with 8 steps)
+# A different model for typed subjects (see server/LIVE.md, "Image models"). Download it first with
+# server/scripts/download_models.py, with the same settings.
+# $env:GHOSTLINES_MODEL = "flux"          # FLUX.1-schnell: much better at one clean subject; 4-bit to fit 8 GB
+# $env:GHOSTLINES_LORA = "<repo id>:<file>"   # a style LoRA merged into SDXL-Lightning (e.g. coloring-book pages)
+# $env:GHOSTLINES_LORA_WORDS = "<its trigger words>"
 
 # If the server stops (it exits by itself when a GPU job hangs, see STUCK_S in api.py), start it again.
 # Close this window, or press Ctrl+C, to stop it for good.

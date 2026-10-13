@@ -88,6 +88,15 @@ VARIANTS = {
         "curves, closed shapes, white inside, very few lines, simple flat vector style, isolated on plain white "
         "background"
     ),
+    # For FLUX.1-schnell (GHOSTLINES_MODEL=flux), not SDXL. FLUX reads the prompt with T5, a language model: there's
+    # no 77-token limit, and it understands plain sentences and "no ..." the way a person would, so this says what a
+    # lesson needs directly: one whole subject, outlines only, nothing else on the page.
+    "flux_line": (
+        "A simple black-and-white line drawing of {subject}, like a page in a children's coloring book. "
+        "Just one of it, whole and centered, with plenty of white space around it. Clean, smooth, bold black "
+        "outlines of even width, closed shapes with white insides, very few lines. No shading, no gray, no color, no "
+        "filled black areas, no background, no frame, no text, nothing else in the picture."
+    ),
     # "icon_clean" plus "black and white, no frame". Tried in the third speed test and rejected: it removed
     # color but made drawings more detailed, and frames stayed. Kept here so the comparison can be rerun.
     "icon_mono": (
@@ -99,6 +108,7 @@ VARIANTS = {
 
 # The variant the pipeline uses. Set from the speed test results (see server/SPEEDTEST.md).
 CHOSEN = "icon_plain"  # the shipped packs were built with "icon_clean"
+FLUX_CHOSEN = "flux_line"  # the variant for FLUX.1-schnell (GHOSTLINES_MODEL=flux)
 
 # Extra words per difficulty, placed right after the subject. Must match Difficulty in types.ts.
 DIFFICULTY_HINTS = {
@@ -110,8 +120,11 @@ DIFFICULTY_HINTS = {
 
 def active_variant() -> str:
     """The variant to generate with: GHOSTLINES_PROMPT when it's set (to try another variant on the live server
-    without editing code), else CHOSEN."""
-    variant = os.environ.get("GHOSTLINES_PROMPT", "").strip() or CHOSEN
+    without editing code), else CHOSEN (FLUX_CHOSEN when GHOSTLINES_MODEL=flux)."""
+    from scripts.download_models import image_model
+
+    default = FLUX_CHOSEN if image_model() == "flux" else CHOSEN
+    variant = os.environ.get("GHOSTLINES_PROMPT", "").strip() or default
     if variant not in VARIANTS:
         raise ValueError(f"GHOSTLINES_PROMPT={variant!r} is not a prompt variant; expected one of {sorted(VARIANTS)}")
     return variant

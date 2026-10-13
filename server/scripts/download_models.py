@@ -159,9 +159,75 @@ LIGHTNING_8STEP = Model(
 )
 
 
+# The model that draws typed subjects. "sdxl" (the default) is SDXL-Lightning; "flux" is FLUX.1-schnell, a newer,
+# much bigger model that follows prompts far better (one subject, clean flat line art). To fit an 8 GB card its
+# transformer is a 4-bit GGUF file and its T5 text encoder is loaded in 4 bits (bitsandbytes). Switch it on with
+# GHOSTLINES_MODEL=flux (in the shell, run_live.ps1 or .env); only the model in use is downloaded.
+IMAGE_MODELS = ("sdxl", "flux")
+FLUX_REPO = "black-forest-labs/FLUX.1-schnell"
+FLUX_GGUF_REPO = "city96/FLUX.1-schnell-gguf"
+# The 4-bit transformer: the first of these that the GGUF repo has (Q4_K_S is a little sharper than Q4_0, same size).
+FLUX_GGUF_FILES = ("flux1-schnell-Q4_K_S.gguf", "flux1-schnell-Q4_0.gguf")
+
+
+def _setting(name: str, env: dict[str, str] | None) -> str:
+    """A setting from the shell, else from the .env file, else ''."""
+    return (os.environ.get(name) or (env if env is not None else read_env_file(ENV_FILE)).get(name) or "").strip()
+
+
+def image_model(env: dict[str, str] | None = None) -> str:
+    """"sdxl" or "flux", from GHOSTLINES_MODEL. "sdxl" when it isn't set."""
+    value = _setting("GHOSTLINES_MODEL", env) or "sdxl"
+    if value not in IMAGE_MODELS:
+        raise ValueError(f"GHOSTLINES_MODEL must be one of {IMAGE_MODELS}, not {value!r}")
+    return value
+
+
+def lora_setting(env: dict[str, str] | None = None) -> tuple[str, str] | None:
+    """(repo id, file name) of the style LoRA added to SDXL-Lightning, from GHOSTLINES_LORA="<repo id>:<file>", or
+    None. A LoRA is a small add-on trained on one style (e.g. coloring-book pages) that nudges SDXL toward it."""
+    value = _setting("GHOSTLINES_LORA", env)
+    if not value:
+        return None
+    repo, _, file = value.partition(":")
+    if not repo or not file:
+        raise ValueError(f"GHOSTLINES_LORA must look like <repo id>:<file name>, not {value!r}")
+    return repo, file
+
+
+FLUX_MODELS = [
+    Model(
+        repo_id=FLUX_REPO,
+        why="FLUX.1-schnell pipeline: text encoders, VAE, configs (the transformer comes from the GGUF repo)",
+        patterns=[
+            "model_index.json",
+            "scheduler/*",
+            "tokenizer/*",
+            "tokenizer_2/*",
+            "text_encoder/config.json",
+            "text_encoder/model.safetensors",
+            "text_encoder_2/*",
+            "transformer/config.json",
+            "vae/*",
+        ],
+    ),
+    Model(
+        repo_id=FLUX_GGUF_REPO,
+        why="FLUX.1-schnell transformer, 4-bit GGUF (fits an 8 GB card)",
+        patterns=[FLUX_GGUF_FILES],
+    ),
+]
+
+
 def models_to_fetch(env: dict[str, str]) -> list[Model]:
-    """MODELS, plus the 8-step UNet when it's switched on."""
-    return MODELS + ([LIGHTNING_8STEP] if lightning_steps(env) == 8 else [])
+    """MODELS, plus the 8-step UNet, FLUX.1-schnell and the style LoRA when they're switched on."""
+    extra = [LIGHTNING_8STEP] if lightning_steps(env) == 8 else []
+    if image_model(env) == "flux":
+        extra += FLUX_MODELS
+    lora = lora_setting(env)
+    if lora:
+        extra.append(Model(repo_id=lora[0], why="style LoRA for SDXL-Lightning (GHOSTLINES_LORA)", patterns=[lora[1]]))
+    return MODELS + extra
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -9,7 +9,17 @@ from __future__ import annotations
 import gc
 import os
 
-from scripts.download_models import ENV_FILE, lightning_file, lightning_steps, read_env_file
+from scripts.download_models import (
+    ENV_FILE,
+    FLUX_GGUF_FILES,
+    FLUX_GGUF_REPO,
+    FLUX_REPO,
+    image_model,  # noqa: F401 - generate.py reads it as models.image_model
+    lightning_file,
+    lightning_steps,
+    lora_setting,
+    read_env_file,
+)
 
 BASE_REPO = "stabilityai/stable-diffusion-xl-base-1.0"
 LIGHTNING_REPO = "ByteDance/SDXL-Lightning"
@@ -17,6 +27,8 @@ LIGHTNING_FILE = "sdxl_lightning_4step_unet.safetensors"  # the default; lightni
 CONTROLNET_REPO = "TheMistoAI/MistoLine"  # SDXL ControlNet that follows line art (photo path only)
 ANNOTATORS_REPO = "lllyasviel/Annotators"  # weights for controlnet_aux's LineartDetector
 OWL_REPO = "google/owlv2-base-patch16-ensemble"  # finds parts (head, ear, ...) from text labels
+FLUX_STEPS = 4  # FLUX.1-schnell is distilled for 1-4 steps, without guidance
+LORA_SCALE = 0.8  # how strongly a style LoRA (GHOSTLINES_LORA) pulls SDXL toward its style (1 = fully)
 
 # Cards with this much VRAM or less can't hold SDXL at once, so parts wait on the CPU until needed.
 # 8.5 rather than 8 because an "8 GB" card reports slightly under 8.0.
@@ -81,12 +93,63 @@ def load_lightning(with_controlnet: bool = False):
 
     # Lightning was distilled with "trailing" timesteps; other spacings give blurry results.
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
+    lora = lora_setting()
+    if lora:
+        # Merged into the UNet's weights once, so drawing with it costs no extra time.
+        pipe.load_lora_weights(lora[0], weight_name=lora[1])
+        pipe.fuse_lora(lora_scale=LORA_SCALE)
+        pipe.unload_lora_weights()  # the merged weights stay; only the separate LoRA copy goes
     _, vram_gb = gpu_info()
     if vram_gb <= OFFLOAD_VRAM_GB:
         pipe.enable_model_cpu_offload()
     else:
         pipe.to("cuda")
     return pipe
+
+
+def flux_gguf_path() -> str:
+    """The downloaded 4-bit FLUX.1-schnell transformer (the first of FLUX_GGUF_FILES in the cache)."""
+    from huggingface_hub import hf_hub_download, try_to_load_from_cache
+
+    for name in FLUX_GGUF_FILES:
+        path = try_to_load_from_cache(FLUX_GGUF_REPO, name)
+        if isinstance(path, str):
+            return path
+    return hf_hub_download(FLUX_GGUF_REPO, FLUX_GGUF_FILES[0])  # offline: fails with a clear "not in the cache"
+
+
+def load_flux():
+    """FLUX.1-schnell, made to fit an 8 GB card: the 12-billion-parameter transformer is a 4-bit GGUF file (about
+    7 GB), the T5 text encoder is loaded in 4 bits (bitsandbytes), and every part waits on the CPU until it's needed.
+    Generate with FLUX_STEPS steps and guidance 0. Used for typed subjects when GHOSTLINES_MODEL=flux."""
+    import torch
+    from diffusers import FluxPipeline, FluxTransformer2DModel, GGUFQuantizationConfig
+    from transformers import BitsAndBytesConfig, T5EncoderModel
+
+    transformer = FluxTransformer2DModel.from_single_file(
+        flux_gguf_path(),
+        quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16),
+        config=FLUX_REPO,
+        subfolder="transformer",
+        torch_dtype=torch.bfloat16,
+    )
+    text_encoder_2 = T5EncoderModel.from_pretrained(
+        FLUX_REPO,
+        subfolder="text_encoder_2",
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16
+        ),
+        torch_dtype=torch.bfloat16,
+    )
+    pipe = FluxPipeline.from_pretrained(
+        FLUX_REPO, transformer=transformer, text_encoder_2=text_encoder_2, torch_dtype=torch.bfloat16
+    )
+    pipe.enable_model_cpu_offload()  # even a 4-bit FLUX doesn't fit an 8 GB card all at once
+    return pipe
+
+
+def is_flux(pipe) -> bool:
+    return type(pipe).__name__.startswith("Flux")
 
 
 def photo_pipeline_from(text_pipe):

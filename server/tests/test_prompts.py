@@ -16,8 +16,10 @@ def test_every_variant_names_the_subject_once_and_asks_for_white(variant):
     template = VARIANTS[variant]
     assert template.count("{subject}") == 1
     assert "white" in template
-    # SDXL reads at most 77 tokens; 45 words keeps us safely under that.
-    assert len(line_art_prompt("a coffee mug", variant).split()) <= 45
+    # SDXL reads at most 77 tokens; 45 words keeps us safely under that. FLUX's T5 reads 256, so its prompts may
+    # say more (80 words stays well under).
+    limit = 80 if variant.startswith("flux") else 45
+    assert len(line_art_prompt("a coffee mug", variant).split()) <= limit
 
 
 def test_chosen_variant_exists():
@@ -50,3 +52,16 @@ def test_chosen_prompt_stays_short_at_every_difficulty(difficulty):
 def test_unknown_difficulty_is_rejected():
     with pytest.raises(ValueError):
         line_art_prompt("a fox", difficulty="hard")
+
+
+def test_flux_gets_its_own_prompt_unless_one_is_chosen(monkeypatch):
+    from pipeline.prompts import FLUX_CHOSEN, active_variant
+
+    monkeypatch.delenv("GHOSTLINES_PROMPT", raising=False)
+    monkeypatch.setenv("GHOSTLINES_MODEL", "flux")
+    assert active_variant() == FLUX_CHOSEN
+    monkeypatch.setenv("GHOSTLINES_PROMPT", "icon_plain")
+    assert active_variant() == "icon_plain"
+    monkeypatch.setenv("GHOSTLINES_MODEL", "sdxl")
+    monkeypatch.delenv("GHOSTLINES_PROMPT")
+    assert active_variant() == CHOSEN

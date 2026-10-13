@@ -76,3 +76,75 @@ def test_every_photo_subject_is_an_allowed_prompt_and_listed_once():
 
     assert len(PHOTO_SUBJECTS) == len(set(PHOTO_SUBJECTS))
     assert not [s for s in PHOTO_SUBJECTS if safety.blocked_prompt(s)]
+
+
+def fake_torch(monkeypatch):
+    """_generate only needs torch.Generator(...).manual_seed(...); the tests don't need the real (GPU) torch."""
+    import sys
+    import types
+
+    class Generator:
+        def __init__(self, device):
+            pass
+
+        def manual_seed(self, seed):
+            return self
+
+    monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(Generator=Generator))
+
+
+class FakeFlux:
+    """Stands in for diffusers' FluxPipeline: records how it was called."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, prompt, **kwargs):
+        from PIL import Image
+
+        self.calls.append((prompt, kwargs))
+        return type("Out", (), {"images": [Image.new("RGB", (kwargs["width"], kwargs["height"]), "white")]})()
+
+
+FakeFlux.__name__ = "FluxPipeline"  # models.is_flux looks at the class name
+
+
+def test_flux_draws_typed_subjects_at_768_in_4_steps_with_its_own_prompt(monkeypatch):
+    fake_models(monkeypatch)
+    fake_torch(monkeypatch)
+    flux = FakeFlux()
+    monkeypatch.setattr(models, "load_flux", lambda: flux)
+    monkeypatch.setenv("GHOSTLINES_MODEL", "flux")
+    monkeypatch.delenv("GHOSTLINES_PROMPT", raising=False)
+    monkeypatch.setenv("GHOSTLINES_LORA_WORDS", "Coloring Book")  # SDXL-only: never added to FLUX's prompt
+    images = generate.from_prompt("a cat", "medium", n=2, seed=5)
+    assert [im.size for im in images] == [(768, 768), (768, 768)]
+    prompt, kwargs = flux.calls[0]
+    assert "a cat" in prompt and "coloring book" in prompt and not prompt.startswith("Coloring Book")
+    assert kwargs["num_inference_steps"] == models.FLUX_STEPS and kwargs["guidance_scale"] == 0.0
+    assert (kwargs["width"], kwargs["height"]) == (768, 768)
+    assert len(flux.calls) == 2  # one draft per seed
+    generate.from_prompt("a dog", n=1)
+    assert len(flux.calls) == 3  # the pipeline was loaded once and reused
+
+
+def test_sdxl_stays_the_default_and_gets_the_lora_trigger_words(monkeypatch):
+    calls = []
+
+    class FakeSdxl:
+        def __call__(self, prompt, **kwargs):
+            from PIL import Image
+
+            calls.append((prompt, kwargs))
+            return type("Out", (), {"images": [Image.new("RGB", (kwargs["width"], kwargs["height"]), "white")]})()
+
+    fake_torch(monkeypatch)
+    monkeypatch.setattr(models, "load_lightning", lambda with_controlnet=False: FakeSdxl())
+    monkeypatch.setattr(models, "free_gpu", lambda: None)
+    monkeypatch.setattr(generate, "_cache", {})
+    monkeypatch.delenv("GHOSTLINES_MODEL", raising=False)
+    monkeypatch.setenv("GHOSTLINES_LORA_WORDS", "Coloring Book")
+    [image] = generate.from_prompt("a cat", n=1)
+    prompt, kwargs = calls[0]
+    assert prompt.startswith("Coloring Book, ") and (kwargs["width"], kwargs["height"]) == (1024, 1024)
+    assert image.size == (768, 768)

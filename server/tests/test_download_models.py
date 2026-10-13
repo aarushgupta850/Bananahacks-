@@ -52,3 +52,31 @@ def test_lightning_downloads_only_the_4_step_unet():
         "sdxl_lightning_4step.safetensors",
     ]
     assert pick_files(lightning.patterns, repo) == (["sdxl_lightning_4step_unet.safetensors"], [])
+
+
+def test_flux_and_a_lora_are_only_downloaded_when_switched_on(monkeypatch):
+    from scripts.download_models import FLUX_GGUF_REPO, FLUX_REPO, image_model, lora_setting, models_to_fetch
+
+    for name in ("GHOSTLINES_MODEL", "GHOSTLINES_LORA", "GHOSTLINES_LIGHTNING_STEPS"):
+        monkeypatch.delenv(name, raising=False)
+    repos = lambda env: [m.repo_id for m in models_to_fetch(env)]  # noqa: E731
+    assert image_model({}) == "sdxl" and lora_setting({}) is None
+    assert FLUX_REPO not in repos({}) and FLUX_GGUF_REPO not in repos({})
+    assert {FLUX_REPO, FLUX_GGUF_REPO} <= set(repos({"GHOSTLINES_MODEL": "flux"}))
+    with_lora = models_to_fetch({"GHOSTLINES_LORA": "someone/coloring-lora:coloring.safetensors"})
+    assert with_lora[-1].repo_id == "someone/coloring-lora" and with_lora[-1].patterns == ["coloring.safetensors"]
+
+
+def test_bad_model_and_lora_settings_are_refused(monkeypatch):
+    import pytest
+
+    from scripts.download_models import image_model, lora_setting
+
+    monkeypatch.delenv("GHOSTLINES_MODEL", raising=False)
+    monkeypatch.delenv("GHOSTLINES_LORA", raising=False)
+    with pytest.raises(ValueError):
+        image_model({"GHOSTLINES_MODEL": "dalle"})
+    with pytest.raises(ValueError):
+        lora_setting({"GHOSTLINES_LORA": "no-file-name"})
+    monkeypatch.setenv("GHOSTLINES_MODEL", "flux")  # the shell wins over .env
+    assert image_model({"GHOSTLINES_MODEL": "sdxl"}) == "flux"

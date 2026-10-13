@@ -77,3 +77,21 @@ of 21. To turn one off, put a `#` in front of its line in `run_live.ps1` and res
 | `GHOSTLINES_LIVE_CANDIDATES = "3"` | Drafts per live lesson | Each draft adds about 5 s (4-step) or 9 s (8-step); the app waits 38 s |
 
 Try them on "a monkey" and "a basketball" (and a cat, to check nothing got worse), and keep a lesson under about 30 s.
+
+## Image models (optional)
+
+Typed subjects (and photos, which are named and then drawn from text) are drawn by SDXL-Lightning by default.
+Two switches try something else. Set them in `run_live.ps1` (or the shell), download with
+`python server/scripts/download_models.py` under the same settings, then restart the server.
+
+- `GHOSTLINES_MODEL=flux`: FLUX.1-schnell, a newer and much bigger model that follows the prompt far better (one
+  whole subject, clean flat outlines). On the 8 GB card its transformer is a 4-bit GGUF file and its T5 text encoder
+  is loaded in 4 bits, so it needs `pip install gguf bitsandbytes` (in requirements.txt) and about 17 GB of downloads.
+  It draws straight at 768 px in 4 steps. Its own prompt is `flux_line` in `pipeline/prompts.py`.
+- `GHOSTLINES_LORA=<repo id>:<file>` (with `GHOSTLINES_LORA_WORDS=<trigger words>`): a style LoRA merged into
+  SDXL-Lightning's UNet at load time, e.g. a coloring-book LoRA. No extra time per drawing.
+
+To compare them on the same 20 subjects, through exactly the live pipeline (stop the live server first):
+
+    $env:GHOSTLINES_MODEL = "flux"; python server/scripts/bakeoff.py --out server/out/bake/flux-1 --drafts 1
+
