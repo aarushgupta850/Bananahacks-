@@ -2,6 +2,8 @@
 
 import random
 
+import numpy as np
+
 from PIL import Image, ImageDraw
 
 from pipeline.quality import line_metrics
@@ -90,3 +92,19 @@ def test_separate_subjects_counts_two_things_drawn_but_not_details_inside_one():
     draw.line([(160, 700), (190, 700)], fill="black", width=6)       # and a small mark below: too small to count
     assert separate_subjects(house) == 1
     assert separate_subjects(blank()) == 0
+
+
+def test_biggest_subject_keeps_one_of_two_things_drawn_centered_and_nothing_else():
+    from pipeline.quality import biggest_subject, separate_subjects
+
+    assert biggest_subject(clean_circle()) is None                     # one subject: nothing to do
+    two = blank()
+    draw = ImageDraw.Draw(two)
+    draw.rectangle((60, 60, 700, 330), outline="black", width=8)       # a big car on top...
+    draw.rectangle((200, 470, 560, 680), outline="black", width=8)     # ...and a smaller one below it
+    alone = biggest_subject(two)
+    assert alone is not None and separate_subjects(alone) == 1
+    ink = np.asarray(alone.convert("L")) < 128
+    rows = np.nonzero(ink.any(axis=1))[0]
+    assert abs((rows[0] + rows[-1]) / 2 - 384) <= 4                    # the big one, moved to the middle
+    assert np.ptp(rows) < 300                                           # and only the big one
