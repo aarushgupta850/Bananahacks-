@@ -77,3 +77,37 @@ of 21. To turn one off, put a `#` in front of its line in `run_live.ps1` and res
 | `GHOSTLINES_LIVE_CANDIDATES = "3"` | Drafts per live lesson | Each draft adds about 5 s (4-step) or 9 s (8-step); the app waits 38 s |
 
 Try them on "a monkey" and "a basketball" (and a cat, to check nothing got worse), and keep a lesson under about 30 s.
+
+## Drawing with OpenAI (optional switch)
+
+SDXL-Lightning has to draw in 4 or 8 steps to fit the live time limit on an 8 GB card, and it still draws some
+subjects badly (lopsided monkeys, stray furniture and lines around the subject). The server can instead ask
+OpenAI's image model for the drafts. Everything after the drafts stays the same: choosing the cleanest, tracing,
+OWLv2 parts, the picture safety check and the lesson order. Code: `server/pipeline/openai_images.py`, prompt:
+`openai_prompt` in `server/pipeline/prompts.py`.
+
+1. Make an API key at https://platform.openai.com/api-keys (the account needs billing set up; image models may
+   also need the organization to be verified).
+2. Add these lines to `.env` in the repo root (never commit it):
+   ```
+   OPENAI_API_KEY=sk-...
+   GHOSTLINES_IMAGE_MODEL=openai
+   ```
+   (or remove the `#` in front of `GHOSTLINES_IMAGE_MODEL` in `run_live.ps1`).
+3. Restart `run_live.ps1`. The warm-up now also asks OpenAI for 2 pictures.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `GHOSTLINES_IMAGE_MODEL` | `sdxl` | `openai` draws the drafts with OpenAI |
+| `GHOSTLINES_OPENAI_MODEL` | `gpt-image-1` | Any OpenAI image model, e.g. `dall-e-3` |
+| `GHOSTLINES_OPENAI_QUALITY` | `medium` | `low` is faster and cheaper, `high` slower and dearer (gpt-image models only) |
+| `GHOSTLINES_LIVE_CANDIDATES` | 2 with OpenAI | Drafts per lesson. They are requested at the same time, so more aren't slower, but each one is paid for |
+
+Notes:
+- Each lesson costs a few cents (2 pictures). See OpenAI's pricing page for the current price per picture.
+- A picture takes about 20-40 s, so with OpenAI the server waits up to 75 s and the app up to 80 s.
+- If OpenAI's own safety system refuses a prompt, the user sees the same "Let's draw something else." message.
+- Typed subjects and photos (OWLv2 names the photo, then the name is drawn) use OpenAI. Happy accidents
+  (`?happy=1`) still uses SDXL img2img, so SDXL loads only if someone uses it.
+- The GPU is still needed for OWLv2 (parts, naming photos, the safety check).
+

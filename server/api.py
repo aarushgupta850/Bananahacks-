@@ -12,8 +12,8 @@ Endpoints:
 - POST /generate {prompt?, imageBase64?, difficulty} -> a Pack whose images are data: URLs.
 - POST /regenerate {prompt, canvasBase64, difficulty} -> "Happy accidents" (behind ?happy=1 in the app): a new
   Pack whose drawing is redrawn around what the user has drawn so far, without the lines they already drew.
-  One job at a time (busy: 503). Answers within 35 s or gives up (504), because the web app stops
-  waiting at 38 s. Bad input: 400, with a message. No clean drawing: 422.
+  One job at a time (busy: 503). Answers within 35 s (75 s with OpenAI drawing) or gives up (504), because the
+  web app stops waiting at 80 s. Bad input: 400, with a message. No clean drawing: 422.
 
 Safety (see pipeline/safety.py): prompts are 80 characters or less, letters, numbers, spaces and simple
 punctuation, checked against a blocklist that also catches disguised words, and always wrapped in the line-art
@@ -55,9 +55,17 @@ MAX_PROMPT_CHARS = 80  # the same as the input box in SubjectPicker.tsx
 PROMPT_PATTERN = re.compile(r"[A-Za-z0-9 '\-,.!?&]+")  # letters, numbers, spaces and simple punctuation
 MAX_IMAGE_BYTES = 15 * 1024 * 1024  # phone photos are often 3 to 10 MB
 MAX_PHOTO_SIDE = 1536  # bigger photos are scaled down first: OWLv2 looks at them at 960 x 960 anyway
-# A lesson takes about 18-24 s on the RTX 4060 Ti (more when the PC is short of memory). The web app
-# (web/src/lib/live.ts) gives up after 38 s, so answer before that.
+# A lesson takes about 18-24 s on the RTX 4060 Ti (more when the PC is short of memory). OpenAI's image model
+# (GHOSTLINES_IMAGE_MODEL=openai) can take longer, about 20-40 s a picture. The web app (web/src/lib/live.ts) gives
+# up after 80 s, so answer before that.
 TIMEOUT_S = 35
+OPENAI_TIMEOUT_S = 75
+
+
+def timeout_s() -> int:
+    from pipeline import openai_images
+
+    return OPENAI_TIMEOUT_S if openai_images.enabled() else TIMEOUT_S
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
@@ -67,9 +75,14 @@ LIVE_REDRAW_CANDIDATES = 3  # Happy accidents (img2img)
 
 def live_candidates() -> int:
     """Drafts per live lesson: GHOSTLINES_LIVE_CANDIDATES when set, else LIVE_CANDIDATES with the 4-step model and
-    2 with the 8-step one (each 8-step draft takes about twice as long, and the app waits only 38 s)."""
+    2 with the 8-step one (each 8-step draft takes about twice as long, and the app waits only 38 s). OpenAI: 2,
+    because each picture costs money (they are drawn at the same time, so more wouldn't be slower)."""
     if os.environ.get("GHOSTLINES_LIVE_CANDIDATES"):
         return max(1, int(os.environ["GHOSTLINES_LIVE_CANDIDATES"]))
+    from pipeline import openai_images
+
+    if openai_images.enabled():
+        return 2
     from scripts.download_models import lightning_steps
 
     return 2 if lightning_steps() == 8 else LIVE_CANDIDATES
@@ -409,9 +422,9 @@ async def run_job(name: str, prompt: str | None, difficulty: str, job, image_byt
 
     task.add_done_callback(finished)
     try:
-        pack = await asyncio.wait_for(asyncio.shield(task), TIMEOUT_S)
+        pack = await asyncio.wait_for(asyncio.shield(task), timeout_s())
     except asyncio.TimeoutError:
-        log.info("%s %r (%s): timed out after %d s", name, prompt, difficulty, TIMEOUT_S)
+        log.info("%s %r (%s): timed out after %d s", name, prompt, difficulty, timeout_s())
         return JSONResponse({"error": "timeout"}, status_code=504)
     except safety.UnsafeContent as error:
         log.info("%s %r: refused by the picture check (%s)", name, prompt, error)

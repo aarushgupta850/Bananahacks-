@@ -34,9 +34,9 @@ from PIL import Image, ImageDraw, ImageOps
 SERVER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVER_DIR))  # so `pipeline` and `scripts` import when run as a script
 
-from pipeline import schema  # noqa: E402
+from pipeline import openai_images, schema  # noqa: E402
 from pipeline.order import build_plan  # noqa: E402
-from pipeline.prompts import active_variant, line_art_prompt  # noqa: E402
+from pipeline.prompts import active_variant, line_art_prompt, openai_prompt  # noqa: E402
 from pipeline.quality import biggest_subject, line_metrics, separate_subjects, symmetry  # noqa: E402
 from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
 from pipeline.strays import has_ring, is_cut_off, remove_strays  # noqa: E402
@@ -471,7 +471,8 @@ def pipeline_stages(
     return [
         source,
         {"id": "candidates", "label": f"{n_candidates} AI drafts", "images": candidate_paths,
-         "text": f"SDXL-Lightning drew {n_candidates} line-art drafts, {lightning_steps()} steps each."},
+         "text": openai_images.drafts_text(n_candidates) if openai_images.enabled()
+         else f"SDXL-Lightning drew {n_candidates} line-art drafts, {lightning_steps()} steps each."},
         {"id": "chosen", "label": "Chosen drawing", "image": candidate_paths[chosen],
          "text": f"The cleanest draft, traced into {n_strokes} strokes (a lesson keeps {MIN_STROKES}-{MAX_STROKES})."},
         {"id": "skeleton", "label": "Traced lines", "image": "pipeline/skeleton.webp",
@@ -551,7 +552,8 @@ def make_pack(
     `source_note` says how a photo became the subject, in the "How this lesson was made" panel.
 
     generate(seed) returns candidate drawings (seeds seed, seed + 1, ...); detect(image) returns parts."""
-    prompt_text = line_art_prompt(subject_words, variant=active_variant(), difficulty=difficulty)
+    prompt_text = (openai_prompt(subject_words, difficulty) if openai_images.enabled()  # the prompt actually sent
+                   else line_art_prompt(subject_words, variant=active_variant(), difficulty=difficulty))
     tries = []
     for attempt in range(retries + 1):
         first_seed = seed + attempt * RETRY_SEED_OFFSET
