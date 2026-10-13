@@ -256,12 +256,14 @@ function describeChange(w: Weakness, test: Analysis, retest: Analysis): string {
 }
 
 function coach(test: Analysis, retest: Analysis): Coaching {
-  // A weakness from the test counts as improved when the retest no longer has it.
+  // A weakness from the test counts as improved when the retest no longer has it. A part left out of the
+  // retest is never "improved" (its size error is gone only because there is no part to measure), like the real engine.
   const stillWeak = allWeaknesses(retest)
+  const missingNow = (w: Weakness) => w.partId !== null && retest.parts.some((r) => r.partId === w.partId && r.missing)
   const fix = allWeaknesses(test).slice(0, MAX_WEAKNESSES).map((w): CoachItem => ({
     text: describeChange(w, test, retest),
     partId: w.partId,
-    status: stillWeak.some((r) => r.kind === w.kind && r.partId === w.partId) ? 'not-yet' : 'improved',
+    status: missingNow(w) || stillWeak.some((r) => r.kind === w.kind && r.partId === w.partId) ? 'not-yet' : 'improved',
   }))
 
   const fixedParts = new Set(fix.map((item) => item.partId))
