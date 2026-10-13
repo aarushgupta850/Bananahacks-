@@ -66,6 +66,15 @@ export const config = {
   minPlanCoverage: 0.3,     // a child part whose plan lines cover under 30% of its box is judged by position only
   partMinCoverage: 0.2,     // a part whose lines pass near under 20% of its own plan lines counts as missing...
   partCoverDistance: 0.12,  // ...where near is within 12% of the diagonal (generous: a part drawn too small still counts)
+  // A part that got no strokes takes back a stroke that matches one of its plan strokes as a shape (analyze.ts
+  // rescueMissingParts): the stroke is moved onto the plan stroke and scaled to its size, within this range...
+  rescueScaleRange: [0.6, 1.6] as [number, number],
+  rescueMaxShape: 0.15,     // ...and then lies within 15% of the plan stroke's size of it, on average...
+  rescueMaxOffset: 0.15,    // ...and its center is within 15% of the diagonal of the plan stroke's center
+  rescueClearWin: 0.8,      // ...and it fits there at least 20% better than the part it was given to (shape + offset)...
+  rescueAloneMaxShape: 0.08, // ...or, when it fits nothing of that part, its shape there is within 8%, anywhere within the distance limit
+  rescueExactShape: 0.05,   // a stroke whose shape is within 5% of one of the part's lines only needs to fit better
+  rescuePasses: 3,          // a stroke that moves can empty another part, which then gets its turn: at most 3 rounds
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
   roundPartRatio: 1.3,      // parts whose long side is < 1.3x their short side have no reliable tilt
