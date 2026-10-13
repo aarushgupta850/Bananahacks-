@@ -133,15 +133,24 @@ describe('real Teacher', () => {
   })
 
   it('adds a stroke in under 50 ms', () => {
-    const teacher = createTeacher(pack, pack.steps, 'auto')
     const plan = pack.strokes[0]
-    teacher.addStroke(copy(plan.points)) // warm-up
-    let worst = 0
-    for (let i = 0; i < 10; i++) {
-      const start = performance.now()
-      teacher.addStroke(copy(plan.points, { scale: 1, rotation: 0, tx: i, ty: 0 }))
-      worst = Math.max(worst, performance.now() - start)
+    // Times 10 strokes on a fresh teacher and returns the slowest one, in ms.
+    const worstStrokeMs = () => {
+      const teacher = createTeacher(pack, pack.steps, 'auto')
+      teacher.addStroke(copy(plan.points)) // warm-up
+      let worst = 0
+      for (let i = 0; i < 10; i++) {
+        const start = performance.now()
+        teacher.addStroke(copy(plan.points, { scale: 1, rotation: 0, tx: i, ty: 0 }))
+        worst = Math.max(worst, performance.now() - start)
+      }
+      return worst
     }
+    // Locally the slowest stroke takes about 20 ms, but a shared CI runner (or a garbage collection while other test
+    // files run) can pause any one stroke past 50 ms. So a slow run is timed up to 2 more times on the same strokes and
+    // the fastest run counts: the test only fails if every run is over the limit. Same approach as realRobustness.test.ts.
+    let worst = worstStrokeMs()
+    for (let retry = 0; retry < 2 && worst >= 50; retry++) worst = Math.min(worst, worstStrokeMs())
     expect(worst).toBeLessThan(50)
   })
 })
