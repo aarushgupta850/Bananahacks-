@@ -94,19 +94,18 @@ SUBJECTS_JOIN_PX = 2  # at that size, ink this close counts as one shape (8 px a
 SUBJECTS_MIN_SHARE = 0.08  # a shape whose box covers at least this share of the whole drawing's box is a subject
 
 
-def separate_subjects(image: Image.Image) -> int:
-    """How many separate, big shapes the drawing has: 1 for one subject, 2 for two cars stacked or a sneaker with a
-    loose sole drawn beside it. A shape counts if its bounding box covers at least SUBJECTS_MIN_SHARE of the whole
-    drawing's, and isn't mostly inside a bigger one's (a window inside a house, a mug's inner mark). On 815 live drafts
-    it flagged 25, nearly all of them two subjects, a ring around the subject or a drawing broken in two."""
+def _subject_boxes(image: Image.Image) -> tuple[np.ndarray, list[tuple[int, int, int, int, int]]]:
+    """The drawing's separate big shapes, at SUBJECTS_SIZE: a label map, and each shape's (top, bottom, left, right,
+    label), biggest first. A shape lying mostly inside a bigger one (a window inside a house, a mug's inner mark)
+    doesn't count."""
     gray = np.asarray(image.convert("L").resize((SUBJECTS_SIZE, SUBJECTS_SIZE)), dtype=np.uint8)
     ink = gray < INK_LEVEL
     if ink.sum() < 10:
-        return 0
+        return np.zeros_like(ink, dtype=int), []
     labels, _ = ndimage.label(ndimage.binary_dilation(ink, iterations=SUBJECTS_JOIN_PX))
     rows, cols = np.nonzero(ink)
     whole = (np.ptp(rows) + 1) * (np.ptp(cols) + 1)
-    boxes = [(s[0].start, s[0].stop, s[1].start, s[1].stop) for s in ndimage.find_objects(labels)]
+    boxes = [(s[0].start, s[0].stop, s[1].start, s[1].stop, i + 1) for i, s in enumerate(ndimage.find_objects(labels))]
 
     def area(b) -> int:
         return (b[1] - b[0]) * (b[3] - b[2])
@@ -116,4 +115,38 @@ def separate_subjects(image: Image.Image) -> int:
         return overlap >= 0.5 * area(a)
 
     big = [b for b in boxes if area(b) >= SUBJECTS_MIN_SHARE * whole]
-    return sum(not any(b is not o and area(o) > area(b) and mostly_inside(b, o) for o in big) for b in big)
+    top = [b for b in big if not any(b is not o and area(o) > area(b) and mostly_inside(b, o) for o in big)]
+    return labels, sorted(top, key=area, reverse=True)
+
+
+def separate_subjects(image: Image.Image) -> int:
+    """How many separate, big shapes the drawing has: 1 for one subject, 2 for two cars stacked or a sneaker with a
+    loose sole drawn beside it. A shape counts if its bounding box covers at least SUBJECTS_MIN_SHARE of the whole
+    drawing's, and isn't mostly inside a bigger one's (a window inside a house, a mug's inner mark). On 815 live drafts
+    it flagged 25, nearly all of them two subjects, a ring around the subject or a drawing broken in two."""
+    return len(_subject_boxes(image)[1])
+
+
+def biggest_subject(image: Image.Image) -> Image.Image | None:
+    """The drawing's biggest separate shape alone, centered on a blank page of the same colour, or None when the
+    drawing has just one. The last resort when every draft drew several subjects: "a car" once came back as a sheet
+    of six cars in both drafts, and one car makes a far better lesson than six. (fit_to_page then scales it up.)"""
+    labels, boxes = _subject_boxes(image)
+    if len(boxes) < 2:
+        return None
+    rgb = image.convert("RGB")
+    width, height = rgb.size
+    top, bottom, left, right, _ = boxes[0]
+    sy, sx = height / SUBJECTS_SIZE, width / SUBJECTS_SIZE
+    box = (int(left * sx), int(top * sy), int(right * sx), int(bottom * sy))
+    pixels = np.asarray(rgb).copy()
+    drawn = np.asarray(rgb.convert("L")) < 200
+    page = np.median(pixels[~drawn], axis=0) if (~drawn).any() else np.array([255, 255, 255])
+    # The other subjects' ink goes, even where an edge pokes into this one's box (the next car's roof). Details
+    # inside this one that aren't joined to its outline (windows, eyes) are separate shapes too, and stay.
+    others = np.isin(labels, [b[4] for b in boxes[1:]]).astype(np.uint8) * 255
+    pixels[np.asarray(Image.fromarray(others).resize((width, height))) > 0] = page.astype(np.uint8)
+    # A fresh page, not the old one with the other shapes painted over: that left their faint gray edges behind.
+    alone = Image.new("RGB", (width, height), tuple(int(v) for v in page))
+    alone.paste(Image.fromarray(pixels).crop(box), ((width - (box[2] - box[0])) // 2, (height - (box[3] - box[1])) // 2))
+    return alone

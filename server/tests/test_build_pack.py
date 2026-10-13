@@ -265,6 +265,29 @@ def test_a_simple_lesson_keeps_few_strokes_and_its_reference_shows_just_those():
     assert ink < 0.5 * original
 
 
+def test_when_every_draft_draws_several_subjects_the_lesson_teaches_the_biggest():
+    # "a car" once came back as a sheet of six cars in both drafts; the lesson taught all six.
+    from build_pack import make_pack
+    from pipeline.quality import separate_subjects
+
+    cars = Image.new("RGB", (768, 768), (220, 220, 220))
+    draw = ImageDraw.Draw(cars)
+    for top, left, right in [(60, 60, 700), (420, 180, 580)]:       # a big car and a smaller one below it
+        draw.rectangle((left, top, right, top + 220), outline=INK, width=8)
+        for wheel in (left + 80, right - 80):
+            draw.ellipse((wheel - 40, top + 180, wheel + 40, top + 260), outline=INK, width=8)
+        for x in range(left + 60, right - 100, 140):                # windows and a door, so one car is a lesson
+            draw.rectangle((x, top + 40, x + 90, top + 110), outline=INK, width=6)
+    logs = []
+    pack, assets = make_pack(pack_id="live-car-medium", subject="car", title="Car", difficulty="medium",
+                             source_kind="prompt", prompt="car", subject_words="car", seed=0,
+                             generate=lambda seed: [cars] * 2, detect=lambda image: [], retries=0,
+                             log=logs.append, always=True, rate=True)
+    assert any("keeping only the biggest" in line for line in logs)
+    assert separate_subjects(Image.open(io.BytesIO(assets["target.png"]))) == 1
+    assert pack["strokes"]
+
+
 def test_a_rated_pack_with_few_strokes_says_simple_even_when_detailed_was_asked_for():
     from build_pack import make_pack
 

@@ -37,7 +37,7 @@ sys.path.insert(0, str(SERVER_DIR))  # so `pipeline` and `scripts` import when r
 from pipeline import schema  # noqa: E402
 from pipeline.order import build_plan  # noqa: E402
 from pipeline.prompts import active_variant, line_art_prompt  # noqa: E402
-from pipeline.quality import line_metrics, separate_subjects, symmetry  # noqa: E402
+from pipeline.quality import biggest_subject, line_metrics, separate_subjects, symmetry  # noqa: E402
 from pipeline.frame import fit_to_page, remove_frame  # noqa: E402
 from pipeline.strays import has_ring, is_cut_off, remove_strays  # noqa: E402
 from pipeline.trace import ink_mask, points_along, skeleton_of, trace  # noqa: E402
@@ -597,6 +597,19 @@ def make_pack(
             f"No candidate had {min_strokes}-{MAX_STROKES} strokes and a clean score (stroke counts: {counts}). "
             "Try another --seed or a simpler --prompt."
         )
+
+    if candidates[chosen].subjects >= 2:
+        # Every draft drew several subjects (else the penalty would have picked a single one): teach the biggest.
+        alone = biggest_subject(candidates[chosen].image)
+        if alone is not None:
+            alone = fit_to_page(alone)
+            strokes = trace(alone)
+            if len(strokes) >= min_strokes:
+                c = candidates[chosen]
+                candidates[chosen] = Candidate(alone, strokes, line_metrics(alone)["score"], c.cut_off,
+                                               has_ring(strokes), c.symmetry, separate_subjects(alone))
+                log(f"  candidate {chosen} drew {c.subjects} separate subjects: keeping only the biggest "
+                    f"({len(strokes)} strokes)")
 
     best = candidates[chosen]
     n_traced = len(best.strokes)
