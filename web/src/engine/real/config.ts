@@ -24,12 +24,26 @@ export const config = {
 
   // ---------- teacher (teacher.ts) ----------
   adaptMaxRotationDeg: 0,   // guides never turn: a tilting guide made the whole drawing look off (Oct 13)
-  adaptBlend: 0.6,          // during calibration, move 60% of the way to the newly fitted transform...
-  adaptCalibrationStrokes: 3, // ...for the first 3 good strokes (the last lands exactly on the fit), then the
-                            // guides are locked for the rest of the lesson, like a printed shadow: guides that
-                            // kept sliding after every stroke left the lines already drawn looking off (Oct 13)
-  adaptMinAccuracy: 0,      // a stroke must score above this to calibrate. Not higher: someone drawing 50 px
-                            // off-centre scores low against the guides not yet moved, and is who calibration is for
+  // Calibrate once, then lock (Oct 13, "the pictures move"). The guides may move only during the first 3 strokes
+  // that trace a guide, and only within the first 8 strokes of the lesson; after that they never move again, like
+  // a printed shadow. A move goes all the way to the fitted place in one go (no creeping 60% at a time), and only
+  // when the fit is clearly somewhere else: small differences are hand wobble, and chasing them made the guides
+  // and the trace twitch after every stroke.
+  adaptCalibrationStrokes: 3, // strokes that traced a guide (matched, long enough, along one guide) may calibrate...
+  adaptLastStroke: 5,       // ...and only within the first 5 strokes (a first move at stroke 32 was a big jump)
+  adaptMaxMoves: 2,         // the guides move at most twice in a lesson (usually once, on the first stroke)
+  adaptMinMove: 16,         // px: a fit that moves the drawing less than this (at any corner) is wobble: no move.
+                            // A natural hand lands each stroke up to about 10 px off, which used to nudge the guides
+  adaptMaxResidual: 0.05,   // a stroke whose shape still sits this far from its guide after fitting (mean distance,
+                            // of the diagonal) is a badly drawn line, not a shifted drawing: it doesn't calibrate
+  adaptScaleRange: [0.75, 1.35] as [number, number], // the guides are never resized beyond this
+  adaptScaleMinSpan: 0.3,   // until the traced lines span this much of the diagonal, only shift (one small line
+                            // says where the user draws, but not how big)...
+  adaptMinScaleChange: 0.08, // ...and the size changes only when the fit is at least 8% bigger or smaller: a 5%
+                            // "resize" from one line drawn a bit big moved the far side of the drawing 35 px
+  adaptLengthRatio: 1.35,   // a stroke within 1.35x of its guide's length (longer or shorter) traced that one guide
+  adaptLostStrokes: 2,      // strokes in a row near the guides' original places (and far from the calibrated ones)
+                            // before the guides go back there; one stray stroke never moves them
   adaptMaxPairs: 512,       // keep at most this many matched point pairs (the most recent ones)
   autoWindow: 5,            // auto mode looks at the last 5 matched strokes
   autoFadeAbove: 0.8,       // ...and gives less help when their mean accuracy is above this
