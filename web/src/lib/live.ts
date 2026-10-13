@@ -14,8 +14,9 @@ const HEALTH_TRIES = 2
 // the app waits and asks again, a few times (a lesson takes about 20 s).
 export const BUSY_RETRIES = 4
 export const BUSY_WAIT_MS = 6_000
-// A lesson takes the GPU PC about 18-24 s; the server gives up at 35 s, so the app waits a little longer than that.
-const GENERATE_TIMEOUT_MS = 38_000
+// A lesson takes the GPU PC about 18-24 s with SDXL, longer when OpenAI draws (server/pipeline/openai_images.py).
+// The server gives up at 35 s (75 s with OpenAI), so the app waits a little longer than that.
+const GENERATE_TIMEOUT_MS = 80_000
 
 // offline: no server configured or unreachable; timeout: no answer in time; busy: already running a job
 // (HTTP 429/503); rejected: the server refused the request, e.g. a blocked prompt (HTTP 400/422);
@@ -127,7 +128,7 @@ export async function photoAsJpeg(base64: string): Promise<string> {
   }
 }
 
-// Asks the live server to build a pack from a prompt or a photo (base64). Takes up to 38 s.
+// Asks the live server to build a pack from a prompt or a photo (base64). Takes up to 80 s.
 export async function generate(request: GenerateRequest, onBusy?: (wait: number) => void): Promise<Pack> {
   if (!request.prompt && !request.imageBase64) throw new LiveError('rejected', 'generate needs a prompt or a photo')
   const imageBase64 = request.imageBase64 ? await photoAsJpeg(request.imageBase64) : undefined
@@ -142,7 +143,7 @@ export interface RegenerateRequest {
 
 // "Happy accidents" (only behind ?happy=1): asks the live server to redraw the target around what the user has
 // drawn so far. Returns a new pack without the lines already drawn; start a new Teacher on it with
-// engine.createTeacher(pack, pack.steps, mode). Same errors and 38 s limit as generate.
+// engine.createTeacher(pack, pack.steps, mode). Same errors and 80 s limit as generate.
 export async function regenerate(request: RegenerateRequest): Promise<Pack> {
   return postForPack('/regenerate', request)
 }

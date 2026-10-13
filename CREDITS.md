@@ -14,6 +14,7 @@ Downloaded by `server/scripts/download_models.py`; licenses as listed on each mo
 | MistoLine (TheMistoAI) | SDXL ControlNet that redraws a photo's lines cleanly (photo packs) | CreativeML Open RAIL++-M | https://huggingface.co/TheMistoAI/MistoLine |
 | Annotators: line-art detector (lllyasviel) | Pulling line art out of a photo, via controlnet-aux | Listed as "other" on the model page | https://huggingface.co/lllyasviel/Annotators |
 | OWLv2 base patch16 ensemble (Google) | Finding parts (head, ear, tail...) in a drawing from text labels | Apache-2.0 | https://huggingface.co/google/owlv2-base-patch16-ensemble |
+| OpenAI image API, gpt-image-1 (OpenAI; optional, off by default) | Line-art drafts for live lessons when the server sets GHOSTLINES_IMAGE_MODEL=openai | Proprietary paid API, OpenAI Terms of Use | https://platform.openai.com/docs/guides/image-generation |
 
 ## Fonts
 

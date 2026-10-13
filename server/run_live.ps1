@@ -15,6 +15,9 @@ $env:GHOSTLINES_LIGHTNING_STEPS = "8"   # cleaner, more even lines; about twice 
 $env:GHOSTLINES_PROMPT = "icon_even"    # asks for smooth, symmetrical curves (balls, faces)
 $env:GHOSTLINES_PREFER_SYMMETRY = "1"   # of near-equally clean drafts, keep the most mirror-symmetric one
 # $env:GHOSTLINES_LIVE_CANDIDATES = "3"   # drafts per live lesson (default: 3, or 2 with 8 steps)
+# Draw with OpenAI's image model instead of SDXL (see server/LIVE.md, "Drawing with OpenAI"). Needs OPENAI_API_KEY
+# in .env (never committed). Costs money per picture. Remove the # to turn it on.
+# $env:GHOSTLINES_IMAGE_MODEL = "openai"
 
 # If the server stops (it exits by itself when a GPU job hangs, see STUCK_S in api.py), start it again.
 # Close this window, or press Ctrl+C, to stop it for good.

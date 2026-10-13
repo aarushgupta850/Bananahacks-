@@ -129,3 +129,32 @@ def line_art_prompt(subject: str, variant: str = CHOSEN, difficulty: str = "medi
     if DIFFICULTY_HINTS[difficulty]:
         subject = f"{subject}, {DIFFICULTY_HINTS[difficulty]}"
     return VARIANTS[variant].format(subject=subject)
+
+
+# The prompt for OpenAI's image model (pipeline/openai_images.py), in plain sentences: unlike SDXL-Lightning it reads
+# long prompts and follows "no ..." instructions. Asks for what tracing and the lesson need: even outlines, the whole
+# subject, nothing else in the picture, no fills or shading (they trace into scribbles).
+OPENAI_PROMPT = (
+    "A simple black line drawing of {subject}, for a beginner's step-by-step drawing lesson. "
+    "Clean, smooth, closed black outlines, all the same medium thickness, on a plain pure white background. "
+    "The whole subject is centered and fully in the picture, with white space around it. {detail} "
+    "Round and mirror-image parts (faces, eyes, wheels, balls) are drawn smooth and even. "
+    "Only the subject: no background, no ground line, no shadows, no shading, no hatching, no texture strokes, "
+    "no color, no gray, no solid black areas, no text, no frame or border."
+)
+
+OPENAI_DETAIL = {
+    "simple": "Use as few lines as possible: the outline and the main shapes only.",
+    "medium": "Use a moderate number of lines: the outline, the main shapes and a few key details.",
+    "detailed": "Include the outline, the main shapes and the important inner details, still as clean lines.",
+}
+
+
+def openai_prompt(subject: str, difficulty: str = "medium") -> str:
+    """The OpenAI prompt for one subject, e.g. 'a monkey'."""
+    subject = " ".join(subject.split())
+    if not subject:
+        raise ValueError("subject must not be empty")
+    if difficulty not in OPENAI_DETAIL:
+        raise ValueError(f"unknown difficulty {difficulty!r}, expected one of {list(OPENAI_DETAIL)}")
+    return OPENAI_PROMPT.format(subject=subject, detail=OPENAI_DETAIL[difficulty])

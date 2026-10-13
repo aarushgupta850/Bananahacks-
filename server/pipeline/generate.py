@@ -127,7 +127,12 @@ def _generate_batch(pipe, prompt: str, seeds: list[int]) -> list[Image.Image]:
 def from_prompt(subject: str, difficulty: str = "medium", n: int = 4, seed: int = 0) -> list[Image.Image]:
     """n candidate drawings of `subject`, 768 x 768, using seeds seed, seed+1, ... so a build can be repeated.
     They are drawn one by one. (In one batch, 3 drafts took 9-11 s instead of 16-17 s in a test script, but in the
-    live server, with OWLv2 also on the 8 GB card, a batch of 4 overflowed into shared memory and took 30 s.)"""
+    live server, with OWLv2 also on the 8 GB card, a batch of 4 overflowed into shared memory and took 30 s.)
+    With GHOSTLINES_IMAGE_MODEL=openai, OpenAI draws them instead (pipeline/openai_images.py) and SDXL isn't loaded."""
+    from pipeline import openai_images
+
+    if openai_images.enabled():
+        return openai_images.from_prompt(subject, difficulty, n=n)
     pipe = _pipeline("text")
     prompt = line_art_prompt(subject, variant=active_variant(), difficulty=difficulty)
     return [_generate(pipe, prompt, seed + i) for i in range(n)]
