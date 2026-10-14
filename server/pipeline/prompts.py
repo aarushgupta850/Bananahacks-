@@ -156,10 +156,14 @@ OPENAI_PROMPT = (
     "no color, no gray, no solid black areas, no text, no frame or border."
 )
 
+# On Oct 13, "medium" drawings came back with 9-25 lines, which build_pack.rate_difficulty labels "simple" (a
+# lesson needs 26-50 lines to be "medium"). So medium and detailed ask for the inner lines a lesson can teach.
 OPENAI_DETAIL = {
     "simple": "Use as few lines as possible: the outline and the main shapes only.",
-    "medium": "Use a moderate number of lines: the outline, the main shapes and a few key details.",
-    "detailed": "Include the outline, the main shapes and the important inner details, still as clean lines.",
+    "medium": ("Use a moderate number of lines: the outline, the main shapes, and the inner lines that show how it "
+               "is built (eyes, ears, paws, panels, windows, wheels, folds), about 30 to 40 separate lines in all."),
+    "detailed": ("Include the outline, the main shapes and the important inner details (features, panels, folds, "
+                 "patterns drawn as lines), about 50 separate clean lines in all."),
 }
 
 
