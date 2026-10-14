@@ -37,11 +37,14 @@ redrawn with a line-art detector and the MistoLine ControlNet.
 
 **Live lessons** (optional; setup in [server/LIVE.md](server/LIVE.md)): when our GPU server is online,
 "Make your own" on the subject picker builds a lesson from anything you type, or from a photo. It takes about
-15 to 20 seconds on an RTX 4060 Ti.
+20 to 30 seconds. For the demo, OpenAI's gpt-image-1 draws the line art (when the server has an OpenAI key);
+otherwise SDXL-Lightning draws it on our RTX 4060 Ti, and it also takes over for any request OpenAI fails.
+The lesson comes out at the difficulty you pick: drafts with enough lines for it are preferred, and when every
+draft is too simple the AI is asked once more for more detail.
 
 - **Photos:** the browser turns the photo into a JPEG of at most 1536 px, so WebP and iPhone HEIC photos (in
   Safari) work. OWLv2 recognizes what the photo shows, from a list of about 100 drawable subjects ("a mug",
-  "a dog", "a bicycle"), and SDXL-Lightning draws that subject fresh, exactly like a typed one. The lesson's
+  "a dog", "a bicycle"), and the image AI draws that subject fresh, exactly like a typed one. The lesson's
   "How this lesson was made" panel shows your photo and what it was recognized as. (Redrawing the photo itself
   came out as hundreds of broken strokes on real photos, so nearly every photo was refused.) If you type a name
   with the photo, that name is used. A photo OWLv2 can't name gets a hint to type what it is.
@@ -61,8 +64,9 @@ redrawn with a line-art detector and the MistoLine ControlNet.
 - **Stroke matching:** checks each stroke against its guide with Fréchet and Chamfer distances.
 - **Adaptive guides:** moves the guides to where you're drawing with a rotation-limited Procrustes fit, and fades
   the help (Guided → Hints → Check-in) as your accuracy rises.
-- **Measuring improvement:** aligns your whole drawing with the target (ICP), so size and position don't count
-  against you, then measures each part's size, position, shape and tilt. Every score and percentage on screen
+- **Measuring improvement:** aligns your whole drawing with the target (ICP, tried from many starting positions),
+  so where you draw on the canvas doesn't count against you, but size does: draw it to scale with the reference
+  (within 15%). Then it measures each part's size, position, shape and tilt. Every score and percentage on screen
   comes from these measurements.
 
 More: [project description](docs/DESCRIPTION.md), [write-up](docs/WRITEUP.md) and [demo video plan](docs/VIDEO.md).
@@ -108,7 +112,8 @@ The full rules are in [CLAUDE.md](CLAUDE.md), [web/CLAUDE.md](web/CLAUDE.md) and
   own part of the project to plan, write and test code, and we directed and reviewed what it wrote. We also
   used it to review the drawing engine and to click through the app in a headless browser before merging.
 - **Image AI models** are part of the product itself: the pack pipeline in [`/server`](server) uses
-  SDXL with SDXL-Lightning to draw the line art (and, with img2img, for Happy accidents), a line-art
+  SDXL with SDXL-Lightning to draw the line art (and, with img2img, for Happy accidents), OpenAI's gpt-image-1 to
+  draw live lessons for the demo, a line-art
   detector and the MistoLine ControlNet for photo packs built offline, and OWLv2 to find each drawing's
   parts, to recognize what a live photo shows, and to check pictures for nudity and weapons. They are listed with their licenses in
   [CREDITS.md](CREDITS.md).

@@ -317,7 +317,8 @@ function Scores({ before, after }: { before: Score; after: Score }) {
         </dl>
         <p className="score-note">
           Scores are out of 100. Proportion counts most, then shape, then line. Proportion and line only count in
-          full once your drawing matches the target's shape. Drawing bigger, smaller or off-center never costs points.
+          full once your drawing matches the target's shape. Where you draw on the canvas never costs points, but size
+          does: a drawing more than 15% bigger or smaller than the reference loses proportion points.
         </p>
       </div>
     </div>

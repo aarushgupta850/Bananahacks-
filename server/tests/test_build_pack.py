@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw
 from pydantic import ValidationError
 
 import build_pack
-from build_pack import Candidate, build, choose, parse_args, update_index
+from build_pack import Candidate, build, choose, choose_anyway, parse_args, update_index
 from pipeline import schema
 
 REPO = Path(__file__).resolve().parents[2]
@@ -549,3 +549,12 @@ def test_choose_counts_strays_and_the_review():
     assert choose([strayed, clean]) == 1
     wrong = Candidate(None, [[(0, 0), (1, 1)]] * 30, 5.0, review=Review(False, True))
     assert choose([wrong, clean]) == 1
+
+
+def test_choose_prefers_a_draft_with_enough_strokes_for_the_difficulty():
+    simple_looking = Candidate(None, [[(0, 0), (1, 1)]] * 15, 10.0)  # cleaner, but a simple drawing
+    medium_looking = Candidate(None, [[(0, 0), (1, 1)]] * 34, 30.0)
+    assert choose([simple_looking, medium_looking]) == 0  # no band: the cleanest
+    assert choose([simple_looking, medium_looking], band_min=26) == 1  # "medium" asked for: enough lines first
+    assert choose_anyway([simple_looking, medium_looking], band_min=26) == 1
+    assert choose([simple_looking], band_min=26) == 0  # nothing has enough: still a lesson

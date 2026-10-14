@@ -50,6 +50,7 @@ DIFFICULTIES = ["simple", "medium", "detailed"]  # must match Difficulty in web/
 N_CANDIDATES = 4
 RETRY_SEED_OFFSET = 100  # the retry uses seeds this far from the first try's
 REVIEW_SEED_OFFSET = 500  # make_pack: the drafts asked for again after a failed review use seeds this far away
+DETAIL_SEED_OFFSET = 700  # make_pack: drafts asked for again with more detail (all too simple) use seeds this far away
 MIN_STROKES, MAX_STROKES = 6, 60  # the quality gate (server/CLAUDE.md)
 SIMPLE_MAX_STROKES = 25  # rate_difficulty: a drawing with at most this many strokes is "simple"...
 MEDIUM_MAX_STROKES = 50  # ...at most this many "medium", more "detailed"
@@ -155,10 +156,12 @@ def looks_good(candidate: Candidate) -> bool:
 STRAY_RETRY_SHARE = 0.05  # looks_good: a draft whose lines were more than 5% strays asks for new drafts
 
 
-def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
+def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES,
+           band_min: int = 0) -> int | None:
     """Index of the best candidate inside the stroke gate, or None. In order of preference: a whole subject (not
     cut off at the edge), then the lowest cost (the cleanest, counting what simplifying to `limit` would remove), then
-    the fewest strokes. (Fitting the limit used to come before cleanliness, so a faint, sketchy cat with 48 strokes
+    the fewest strokes. A draft with at least `band_min` strokes (enough lines for the difficulty asked for: a "medium"
+    lesson needs more than a simple one's 25) comes before one with fewer. (Fitting the limit used to come before cleanliness, so a faint, sketchy cat with 48 strokes
     beat a crisp one with 54 for a 50-stroke lesson. Before that, fewest strokes first kept drawings with dashed or
     broken lines over cleaner ones.)"""
     usable = [
@@ -167,10 +170,12 @@ def choose(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: i
     ]
     if not usable:
         return None
-    return min(usable, key=lambda i: (candidates[i].cut_off, cost(candidates[i], limit), len(candidates[i].strokes)))
+    return min(usable, key=lambda i: (candidates[i].cut_off, len(candidates[i].strokes) < band_min,
+                                      cost(candidates[i], limit), len(candidates[i].strokes)))
 
 
-def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES) -> int | None:
+def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES, limit: int = MAX_STROKES,
+                  band_min: int = 0) -> int | None:
     """When no candidate fits the gate: one that is clean and loses little when simplified (a 112-stroke house
     trimmed to 25 was unrecognizable), preferring a whole subject and one that isn't colored. So a clean giraffe with
     82 strokes beats a messy 73-stroke one. None if every candidate is blank. (A colored one is retraced in black.)"""
@@ -179,7 +184,8 @@ def choose_anyway(candidates: list[Candidate], min_strokes: int = MIN_STROKES, l
         return None
     best = min((candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) for i in usable)
     group = [i for i in usable if (candidates[i].cut_off, candidates[i].score >= REJECTED_SCORE) == best]
-    return min(group, key=lambda i: (cost(candidates[i], limit), len(candidates[i].strokes)))
+    return min(group, key=lambda i: (len(candidates[i].strokes) < band_min, cost(candidates[i], limit),
+                                     len(candidates[i].strokes)))
 
 
 DETAIL_BOOST = 3.0  # simplify: a stroke inside a detail part (an eye, the nose, a door) counts as this much longer
@@ -584,7 +590,7 @@ def make_pack(
     subject_words: str, seed: int, generate, detect, retries: int = 1, photo: Image.Image | None = None, log=print,
     always: bool = False, check_drawing=None, rate: bool = False, limit: int = MAX_STROKES,
     min_strokes: int = MIN_STROKES, source_note: str | None = None, review=None, regenerate=None,
-    finish_by: float | None = None,
+    finish_by: float | None = None, band_min: int = 0, more_detail=None,
 ) -> tuple[dict, dict[str, bytes]]:
     """Builds a pack in memory: (pack.json dict, {asset path: file bytes}). Used by build() to write files and
     by the live server (api.py) to return images as data: URLs. Raises NoCleanCandidate if nothing fits, unless
@@ -608,7 +614,11 @@ def make_pack(
     server, with Gemini) returns a gemini.Review per draft, or None; the answers count when choosing (cost). When no
     draft looks_good and there is time to make another round before `finish_by` (a time.monotonic() value; the
     round is assumed to take as long as the first), `regenerate(seed)` (or generate) is asked for new drafts once,
-    and the best of all of them is used."""
+    and the best of all of them is used.
+
+    `band_min` (the live server) is the fewest strokes the difficulty asked for needs (rate_difficulty: a "medium"
+    lesson has more than 25). Drafts with that many are preferred, and when every draft has fewer and there is time,
+    `more_detail(seed)` is asked for new drafts once (Oct 14: a "medium" request often came back as a simple drawing)."""
     started = time.monotonic()
     prompt_text = (openai_prompt(subject_words, difficulty) if openai_images.enabled()  # the prompt actually sent
                    else line_art_prompt(subject_words, variant=active_variant(), difficulty=difficulty))
@@ -650,11 +660,11 @@ def make_pack(
         first_seed = seed + attempt * RETRY_SEED_OFFSET
         candidates = make_candidates(generate(first_seed), first_seed)
         tries.append(candidates)
-        chosen = choose(candidates, min_strokes, limit)
+        chosen = choose(candidates, min_strokes, limit, band_min)
         if chosen is not None:
             break
     else:
-        chosen = choose_anyway(candidates, min_strokes, limit) if always else None
+        chosen = choose_anyway(candidates, min_strokes, limit, band_min) if always else None
         if chosen is not None:
             log(f"  no candidate fit {min_strokes}-{MAX_STROKES} strokes: using candidate {chosen}, simplified")
     asked_again = False
@@ -667,21 +677,31 @@ def make_pack(
         first_seed = seed + REVIEW_SEED_OFFSET
         candidates = candidates + make_candidates((regenerate or generate)(first_seed), first_seed, len(candidates))
         asked_again = True
-        chosen = choose(candidates, min_strokes, limit)
+        chosen = choose(candidates, min_strokes, limit, band_min)
         if chosen is None and always:
-            chosen = choose_anyway(candidates, min_strokes, limit)
+            chosen = choose_anyway(candidates, min_strokes, limit, band_min)
+    if (more_detail is not None and finish_by is not None and candidates and band_min
+            and all(len(c.strokes) < band_min for c in candidates)
+            and time.monotonic() + round_s <= finish_by):
+        # Every draft is simpler than the difficulty asked for: ask once more, for more detail, and choose from all.
+        log(f"  every draft has under {band_min} strokes (too simple for {difficulty}): asking for more detail")
+        first_seed = seed + DETAIL_SEED_OFFSET
+        candidates = candidates + make_candidates(more_detail(first_seed), first_seed, len(candidates))
+        chosen = choose(candidates, min_strokes, limit, band_min)
+        if chosen is None and always:
+            chosen = choose_anyway(candidates, min_strokes, limit, band_min)
     if always and chosen is not None and candidates[chosen].cut_off:
         # The only drafts inside the gate are cut off at the edge (a giraffe's neck, cropped): a whole subject is
         # better even if it has too many strokes and gets simplified.
         uncut = [c if not c.cut_off else Candidate(c.image, [], c.score) for c in candidates]  # cut ones can't win
-        whole = choose_anyway(uncut, min_strokes, limit)
+        whole = choose_anyway(uncut, min_strokes, limit, band_min)
         if whole is not None:
             chosen = whole
             log(f"  candidate {chosen} is a whole subject: using it instead of a cut-off one, simplified")
     if always and chosen is not None:
         # The live server simplifies any draft to the limit, so the 60-stroke gate only says which drafts fit as
         # drawn: a cleaner draft just over it, or one without a ring around the subject, makes the better lesson.
-        overall = choose_anyway(candidates, min_strokes, limit)
+        overall = choose_anyway(candidates, min_strokes, limit, band_min)
         if overall is not None and overall != chosen:
             chosen = overall
             log(f"  candidate {chosen} is cleaner, counting what simplifying removes: using it, simplified")

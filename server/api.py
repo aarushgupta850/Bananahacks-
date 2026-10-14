@@ -76,6 +76,11 @@ def timeout_s() -> int:
 # The most strokes a live lesson keeps, by the difficulty asked for. The AI draws busy pictures whatever it is
 # asked (a "simple" cat had 51 strokes), so a simple lesson keeps only the drawing's 25 longest strokes.
 LIVE_STROKE_LIMITS = {"simple": 25, "medium": 50, "detailed": 60}
+# The fewest strokes each difficulty needs, so the lesson comes out as the difficulty asked for (build_pack's
+# rate_difficulty labels up to 25 strokes simple and up to 50 medium). Drafts with this many are preferred, and when
+# all are simpler, the AI is asked once more for more detail (DETAIL_HINT).
+LIVE_STROKE_MINIMUMS = {"simple": 0, "medium": 26, "detailed": 51}
+DETAIL_HINT = "with more inner details drawn as clean lines"
 LIVE_CANDIDATES = 3  # one fewer draft than offline packs: about 16 s of generation instead of 22
 LIVE_REDRAW_CANDIDATES = 3  # Happy accidents (img2img)
 
@@ -301,6 +306,9 @@ def build_live_pack(prompt: str | None, image: bytes | None, difficulty: str) ->
         review=(lambda images: gemini.review(images, words)) if gemini.enabled() else None,
         regenerate=lambda seed: gen.from_prompt(f"{words}, {RETRY_HINT}", difficulty, n=live_candidates(), seed=seed),
         finish_by=started + timeout_s() - FINISH_MARGIN_S,
+        # The lesson should come out as the difficulty asked for: prefer drafts with enough lines, ask for more detail.
+        band_min=LIVE_STROKE_MINIMUMS[difficulty],
+        more_detail=lambda seed: gen.from_prompt(f"{words}, {DETAIL_HINT}", difficulty, n=live_candidates(), seed=seed),
     )
     return with_data_urls(pack, assets)
 
