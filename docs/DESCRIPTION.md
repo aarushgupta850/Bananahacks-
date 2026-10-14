@@ -8,5 +8,6 @@ a side-by-side report card show the measured change (in our own run, [our run: t
 Every lesson is made by image AI: SDXL-Lightning draws the line art, the pipeline traces it into strokes,
 OWLv2 finds and labels the parts, and the strokes are ordered the way an artist draws. A "How this lesson was
 made" panel shows each step. When our GPU server is online, you can also type any subject or upload a photo
-and get a new lesson in about 15 to 20 seconds. The whole app runs in the browser, so anyone can try it at
+and get a new lesson in about 20 to 30 seconds (drawn by OpenAI's gpt-image-1 for the demo, or SDXL-Lightning on
+our GPU). The whole app runs in the browser, so anyone can try it at
 https://aarushgupta850.github.io/Bananahacks-/.

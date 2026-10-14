@@ -27,7 +27,7 @@ describe('real analyze', () => {
     expect(a.alignedStrokes).toHaveLength(visible.length)
   })
 
-  it('does not penalize drawing the whole fox 30% smaller', () => {
+  it('measures every part of a fox drawn 30% smaller as right (the whole size is scored on its own)', () => {
     const a = analyze(pack, copyOf(visible, (s) => scaleAbout(s.points, [384, 384], 0.7)))
     expect(a.overallScale).toBeGreaterThan(0.65)
     expect(a.overallScale).toBeLessThan(0.75)

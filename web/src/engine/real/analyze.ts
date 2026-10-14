@@ -1,11 +1,12 @@
 // Measures a solo drawing (the test or the retest) against the target, part by part.
 // Every number the report shows starts here.
 import type { Analysis, Box, Pack, Part, PartMetric, Point, TimedPoint, UserStroke } from '../types'
-import { align, targetPoints } from './align'
+import { align, alignCandidates, targetPoints, type Alignment } from './align'
 import { config } from './config'
 import {
   applyTransform, bbox, boxCenter, clamp, diagonal, length, meanNearest, PointGrid, resample, symmetricChamfer,
 } from './geometry'
+import { score } from './lesson'
 import { isTap } from './match'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -326,136 +327,151 @@ export function analyze(fullPack: Pack, strokes: UserStroke[]): Analysis {
   const travel = raw.map(travelRatio)
   const counts = travel.map((t) => t <= config.scribbleDropRatio)
   const lines = raw.filter((_, k) => counts[k])
-  const { transform, overallScale, overallOffset } = align(lines.length > 0 ? lines : raw, target)
-  const aligned = raw.map((s) => s.map((p) => applyTransform(transform, p)))
-  const alignedStrokes: UserStroke[] = drawn.map((s, k) => ({
-    points: s.points.map((p, i): TimedPoint => [round2(aligned[k][i][0]), round2(aligned[k][i][1]), p[2], p[3]]),
-  }))
+  // The drawing is lined up the way align() finds, and a few other ways (alignCandidates), so where on the canvas
+  // the user drew doesn't cost points (Oct 14: Aarush's careful fox scored 81 in place but 34 drawn 200 px lower).
+  // - Another fit only counts when it makes the drawing look like the subject (config.alignCandidateMinShape):
+  //   random lines shouldn't get extra chances to land on the target.
+  // - The fit whose shape matches best is kept. Among fits within config.alignSwitchMargin of the best shape, the
+  //   one that scores best overall wins (align()'s own on a tie). Shape comes first: judged by the total alone, a
+  //   skewed fit could "find" a part that was left out.
+  const userLines = lines.length > 0 ? lines : raw
+  const first = measure(align(userLines, target))
+  const tried = [first, ...alignCandidates(userLines, target).map(measure).filter((a) => a.shapeSimilarity >= config.alignCandidateMinShape)]
+  const bestShape = Math.max(...tried.map((a) => a.shapeSimilarity))
+  const close = tried.filter((a) => a.shapeSimilarity >= bestShape - config.alignSwitchMargin)
+  return close.reduce((best, a) => (score(a).total > score(best).total ? a : best))
 
-  const targetBox = bbox(target)
-  const targetDiagonal = diagonal(targetBox) || pack.size
-  const userAll = aligned.filter((_, k) => counts[k]).flatMap((s) => resample(s, config.alignPointsPerStroke))
-  const height = targetBox[3] || 1
+  function measure({ transform, overallScale, overallOffset }: Alignment): Analysis {
+    const aligned = raw.map((s) => s.map((p) => applyTransform(transform, p)))
+    const alignedStrokes: UserStroke[] = drawn.map((s, k) => ({
+      points: s.points.map((p, i): TimedPoint => [round2(aligned[k][i][0]), round2(aligned[k][i][1]), p[2], p[3]]),
+    }))
 
-  // 2. Give each stroke to the part whose plan lines it sits closest to. Strokes far from every part are
-  // ignored, and so are strokes closest to plan lines that belong to no part.
-  const partSets = partPointSets(pack)
-  const unlabeled = unlabeledPoints(pack)
-  const byStroke = aligned.map((stroke, k) => {
-    const points = resample(stroke, config.alignPointsPerStroke)
-    if (!counts[k]) return { points, part: null, distance: Infinity } // a heavy scribble measures no part
-    let bestPart: string | null = null
-    let bestDistance = unlabeled.length > 0 ? meanNearest(points, unlabeled) : Infinity
-    for (const [partId, partPoints] of partSets) {
-      const d = meanNearest(points, partPoints)
-      if (d < bestDistance) {
-        bestDistance = d
-        bestPart = partId
+    const targetBox = bbox(target)
+    const targetDiagonal = diagonal(targetBox) || pack.size
+    const userAll = aligned.filter((_, k) => counts[k]).flatMap((s) => resample(s, config.alignPointsPerStroke))
+    const height = targetBox[3] || 1
+
+    // 2. Give each stroke to the part whose plan lines it sits closest to. Strokes far from every part are
+    // ignored, and so are strokes closest to plan lines that belong to no part.
+    const partSets = partPointSets(pack)
+    const unlabeled = unlabeledPoints(pack)
+    const byStroke = aligned.map((stroke, k) => {
+      const points = resample(stroke, config.alignPointsPerStroke)
+      if (!counts[k]) return { points, part: null, distance: Infinity } // a heavy scribble measures no part
+      let bestPart: string | null = null
+      let bestDistance = unlabeled.length > 0 ? meanNearest(points, unlabeled) : Infinity
+      for (const [partId, partPoints] of partSets) {
+        const d = meanNearest(points, partPoints)
+        if (d < bestDistance) {
+          bestDistance = d
+          bestPart = partId
+        }
       }
+      return {
+        points,
+        part: bestPart && bestDistance <= config.partMaxDistance * targetDiagonal ? bestPart : null,
+        distance: bestDistance, // how far the stroke is from the plan lines it was given to
+      }
+    })
+    const parentFrames = placeSmallStrokesInsideTheirParent(pack, partSets, byStroke, targetDiagonal)
+    rescueMissingParts(pack, byStroke, targetDiagonal)
+    const assigned = new Map<string, Point[]>()
+    for (const { points, part } of byStroke) {
+      if (part) assigned.set(part, [...(assigned.get(part) ?? []), ...points])
     }
+
+    // 3. Measure each part: size, position, width/height ratio and tilt, all in target space. The alignment has
+    // already taken out the drawing's overall size and position, so what is left is the part's own error.
+    const parts = pack.parts.map((part): PartMetric => {
+      const drawnPoints = assigned.get(part.id)
+      if (!drawnPoints || drawnPoints.length === 0) return missingPart(part.id, part.label)
+      // A part needs some real line of its own to count as drawn: its assigned lines must pass near at least
+      // config.partMinCoverage of the part's own plan lines (within config.partCoverDistance, generous, so a part
+      // drawn too small or a little out of place still counts). Before this a cat drawn without its tail got the
+      // end of the body line next to it as "tail", and was told "Tail 65% too small" instead of "Forgot the tail".
+      // (Line length was tried first: real drawings simplify detailed parts, a careful fox had 18% of the legs'
+      // plan length, so length marked drawn parts missing.)
+      const ownPlan = pack.strokes.filter((s) => s.partId === part.id && s.tier !== 'construction').map((s) => s.points)
+      const ownInk = byStroke.flatMap((b, k) => (b.part === part.id ? [aligned[k]] : []))
+      if (ownPlan.length > 0 && shareNear(ownPlan, ownInk, targetDiagonal, config.partCoverDistance) < config.partMinCoverage) {
+        return missingPart(part.id, part.label)
+      }
+      const userPoints = drawnPoints
+      const isChild = parentFrames.has(part.id) // a part inside another, like the eyes in the head
+      const planPoints = partSets.get(part.id) ?? []
+      // When the plan lines cover only a little of the part's box (a pack whose left eye was traced into the cheek
+      // line has one eye stroke for "eyes"), the part's size can't be judged: only its position is, against the box.
+      const [bx0, by0, bw, bh] = part.box
+      const covered = bbox(planPoints)[2] * bbox(planPoints)[3] >= config.minPlanCoverage * bw * bh
+      const sizeKnown = !isChild || covered
+      const tBox = sizeKnown ? bbox(planPoints) : part.box
+      const uBox = bbox(userPoints)
+      const sizeError = sizeKnown ? diagonal(uBox) / Math.max(diagonal(tBox), 1) - 1 : 0
+      const [ux, uy] = boxCenter(uBox)
+      const [tx, ty] = boxCenter(tBox)
+      const offset = { dx: (ux - tx) / height, dy: (uy - ty) / height }
+      const ratio = (b: Box) => Math.max(b[2], 8) / Math.max(b[3], 8) // 8 px floor: a flat line has no ratio
+      const aspectError = sizeKnown ? ratio(uBox) / ratio(tBox) - 1 : 0
+      const targetAxis = principalAxis(planPoints)
+      const tiltDeg = !sizeKnown || targetAxis.elongation < config.roundPartRatio
+        ? 0 // a round part (a head circle) has no reliable tilt
+        : angleDifference(principalAxis(userPoints).angleDeg, targetAxis.angleDeg)
+      const good = Math.max(Math.abs(sizeError), Math.abs(offset.dx), Math.abs(offset.dy), Math.abs(aspectError)) <= config.goodLimit
+        && Math.abs(tiltDeg) <= config.goodTiltDeg
+      return {
+        partId: part.id,
+        label: part.label,
+        missing: false,
+        sizeError: round2(sizeError),
+        offset: { dx: round2(offset.dx), dy: round2(offset.dy) },
+        aspectError: round2(aspectError),
+        tiltDeg: Math.round(tiltDeg),
+        good,
+        // Position-only parts show the target box moved by the measured offset (their size wasn't judged).
+        userBox: (sizeKnown ? inPartBoxFrame(uBox, tBox, part.box) : [bx0 + ux - tx, by0 + uy - ty, bw, bh]).map(Math.round) as Box,
+      }
+    })
+
+    // 4. Whole-drawing scores. The shape score multiplies four things, each 0-1:
+    // - closeness: how far the user's lines are from the drawing's lines on average; config.shapeScale of the
+    //   diagonal scores 0. One way only (user to drawing): lines left out are completeness's job, and measuring
+    //   them here too (both ways, as before) counted a forgotten part twice, so a neat cat without its head
+    //   scored below random lines.
+    // - completeness: how much of the drawing was drawn. Missing lines hardly change the mean distance (the
+    //   lines left out lie close to lines that were drawn), so without this a copy missing a third of its lines
+    //   scored 97. Two measures, and the smaller one counts: the user's line length against the drawing's
+    //   (config.completeInk of it counts as complete), and coverage, the share of the drawing's lines that a user
+    //   line passes close to (config.completeCoverage counts as complete). Ink alone was fooled by random lines:
+    //   14 straight lines across the page have as much ink as a fox.
+    // - precision: the share of the user's lines that lie on the drawing's lines (config.completePrecision of it
+    //   counts as fully precise). Real copies, even rough ones, measure 0.9 and up; random lines 0.5-0.8.
+    // - tidiness: the share of the ink that isn't scribbled.
+    // Scribbled ink counts for none of the first three.
+    const visiblePlan = pack.strokes.filter((s) => s.tier !== 'construction')
+    const planLines = (visiblePlan.length > 0 ? visiblePlan : pack.strokes).map((s) => s.points)
+    const drawingLength = planLines.reduce((sum, s) => sum + length(s), 0)
+    const tidyLines = aligned.filter((_, k) => travel[k] <= config.scribbleRatio)
+    const userLength = tidyLines.reduce((sum, s) => sum + length(s), 0)
+    const inkShare = drawingLength > 0 ? clamp(userLength / (config.completeInk * drawingLength), 0, 1) : 1
+    const coverShare = clamp(shareNear(planLines, tidyLines, targetDiagonal) / config.completeCoverage, 0, 1)
+    const completeness = Math.min(inkShare, coverShare)
+    const precision = clamp(shareNear(tidyLines, planLines, targetDiagonal) / config.completePrecision, 0, 1)
+    const closeness = userAll.length > 0 ? clamp(1 - meanNearest(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1) : 0
+    // The share of the ink that is scribbled (in the user's own scale, so before alignment).
+    const allInk = raw.reduce((sum, s) => sum + length(s), 0)
+    const scribbled = raw.reduce((sum, s, k) => sum + (travel[k] > config.scribbleRatio ? length(s) : 0), 0)
+    const tidy = allInk > 0 ? 1 - scribbled / allInk : 1
+    const shapeSimilarity = closeness * completeness * precision * tidy
+
     return {
-      points,
-      part: bestPart && bestDistance <= config.partMaxDistance * targetDiagonal ? bestPart : null,
-      distance: bestDistance, // how far the stroke is from the plan lines it was given to
+      parts: usedFallback ? [] : parts,
+      shapeSimilarity: round2(shapeSimilarity),
+      lineConfidence: round2(lineConfidence(aligned) * tidy), // aligned, so the 4 px re-stroke distance is in target space
+      overallScale: round2(overallScale),
+      overallOffset: { dx: round2(overallOffset.dx), dy: round2(overallOffset.dy) },
+      alignedStrokes,
+      usedFallback,
     }
-  })
-  const parentFrames = placeSmallStrokesInsideTheirParent(pack, partSets, byStroke, targetDiagonal)
-  rescueMissingParts(pack, byStroke, targetDiagonal)
-  const assigned = new Map<string, Point[]>()
-  for (const { points, part } of byStroke) {
-    if (part) assigned.set(part, [...(assigned.get(part) ?? []), ...points])
-  }
-
-  // 3. Measure each part: size, position, width/height ratio and tilt, all in target space. The alignment has
-  // already taken out the drawing's overall size and position, so what is left is the part's own error.
-  const parts = pack.parts.map((part): PartMetric => {
-    const drawnPoints = assigned.get(part.id)
-    if (!drawnPoints || drawnPoints.length === 0) return missingPart(part.id, part.label)
-    // A part needs some real line of its own to count as drawn: its assigned lines must pass near at least
-    // config.partMinCoverage of the part's own plan lines (within config.partCoverDistance, generous, so a part
-    // drawn too small or a little out of place still counts). Before this a cat drawn without its tail got the
-    // end of the body line next to it as "tail", and was told "Tail 65% too small" instead of "Forgot the tail".
-    // (Line length was tried first: real drawings simplify detailed parts, a careful fox had 18% of the legs'
-    // plan length, so length marked drawn parts missing.)
-    const ownPlan = pack.strokes.filter((s) => s.partId === part.id && s.tier !== 'construction').map((s) => s.points)
-    const ownInk = byStroke.flatMap((b, k) => (b.part === part.id ? [aligned[k]] : []))
-    if (ownPlan.length > 0 && shareNear(ownPlan, ownInk, targetDiagonal, config.partCoverDistance) < config.partMinCoverage) {
-      return missingPart(part.id, part.label)
-    }
-    const userPoints = drawnPoints
-    const isChild = parentFrames.has(part.id) // a part inside another, like the eyes in the head
-    const planPoints = partSets.get(part.id) ?? []
-    // When the plan lines cover only a little of the part's box (a pack whose left eye was traced into the cheek
-    // line has one eye stroke for "eyes"), the part's size can't be judged: only its position is, against the box.
-    const [bx0, by0, bw, bh] = part.box
-    const covered = bbox(planPoints)[2] * bbox(planPoints)[3] >= config.minPlanCoverage * bw * bh
-    const sizeKnown = !isChild || covered
-    const tBox = sizeKnown ? bbox(planPoints) : part.box
-    const uBox = bbox(userPoints)
-    const sizeError = sizeKnown ? diagonal(uBox) / Math.max(diagonal(tBox), 1) - 1 : 0
-    const [ux, uy] = boxCenter(uBox)
-    const [tx, ty] = boxCenter(tBox)
-    const offset = { dx: (ux - tx) / height, dy: (uy - ty) / height }
-    const ratio = (b: Box) => Math.max(b[2], 8) / Math.max(b[3], 8) // 8 px floor: a flat line has no ratio
-    const aspectError = sizeKnown ? ratio(uBox) / ratio(tBox) - 1 : 0
-    const targetAxis = principalAxis(planPoints)
-    const tiltDeg = !sizeKnown || targetAxis.elongation < config.roundPartRatio
-      ? 0 // a round part (a head circle) has no reliable tilt
-      : angleDifference(principalAxis(userPoints).angleDeg, targetAxis.angleDeg)
-    const good = Math.max(Math.abs(sizeError), Math.abs(offset.dx), Math.abs(offset.dy), Math.abs(aspectError)) <= config.goodLimit
-      && Math.abs(tiltDeg) <= config.goodTiltDeg
-    return {
-      partId: part.id,
-      label: part.label,
-      missing: false,
-      sizeError: round2(sizeError),
-      offset: { dx: round2(offset.dx), dy: round2(offset.dy) },
-      aspectError: round2(aspectError),
-      tiltDeg: Math.round(tiltDeg),
-      good,
-      // Position-only parts show the target box moved by the measured offset (their size wasn't judged).
-      userBox: (sizeKnown ? inPartBoxFrame(uBox, tBox, part.box) : [bx0 + ux - tx, by0 + uy - ty, bw, bh]).map(Math.round) as Box,
-    }
-  })
-
-  // 4. Whole-drawing scores. The shape score multiplies four things, each 0-1:
-  // - closeness: how far the user's lines are from the drawing's lines on average; config.shapeScale of the
-  //   diagonal scores 0. One way only (user to drawing): lines left out are completeness's job, and measuring
-  //   them here too (both ways, as before) counted a forgotten part twice, so a neat cat without its head
-  //   scored below random lines.
-  // - completeness: how much of the drawing was drawn. Missing lines hardly change the mean distance (the
-  //   lines left out lie close to lines that were drawn), so without this a copy missing a third of its lines
-  //   scored 97. Two measures, and the smaller one counts: the user's line length against the drawing's
-  //   (config.completeInk of it counts as complete), and coverage, the share of the drawing's lines that a user
-  //   line passes close to (config.completeCoverage counts as complete). Ink alone was fooled by random lines:
-  //   14 straight lines across the page have as much ink as a fox.
-  // - precision: the share of the user's lines that lie on the drawing's lines (config.completePrecision of it
-  //   counts as fully precise). Real copies, even rough ones, measure 0.9 and up; random lines 0.5-0.8.
-  // - tidiness: the share of the ink that isn't scribbled.
-  // Scribbled ink counts for none of the first three.
-  const visiblePlan = pack.strokes.filter((s) => s.tier !== 'construction')
-  const planLines = (visiblePlan.length > 0 ? visiblePlan : pack.strokes).map((s) => s.points)
-  const drawingLength = planLines.reduce((sum, s) => sum + length(s), 0)
-  const tidyLines = aligned.filter((_, k) => travel[k] <= config.scribbleRatio)
-  const userLength = tidyLines.reduce((sum, s) => sum + length(s), 0)
-  const inkShare = drawingLength > 0 ? clamp(userLength / (config.completeInk * drawingLength), 0, 1) : 1
-  const coverShare = clamp(shareNear(planLines, tidyLines, targetDiagonal) / config.completeCoverage, 0, 1)
-  const completeness = Math.min(inkShare, coverShare)
-  const precision = clamp(shareNear(tidyLines, planLines, targetDiagonal) / config.completePrecision, 0, 1)
-  const closeness = userAll.length > 0 ? clamp(1 - meanNearest(userAll, target) / (config.shapeScale * targetDiagonal), 0, 1) : 0
-  // The share of the ink that is scribbled (in the user's own scale, so before alignment).
-  const allInk = raw.reduce((sum, s) => sum + length(s), 0)
-  const scribbled = raw.reduce((sum, s, k) => sum + (travel[k] > config.scribbleRatio ? length(s) : 0), 0)
-  const tidy = allInk > 0 ? 1 - scribbled / allInk : 1
-  const shapeSimilarity = closeness * completeness * precision * tidy
-
-  return {
-    parts: usedFallback ? [] : parts,
-    shapeSimilarity: round2(shapeSimilarity),
-    lineConfidence: round2(lineConfidence(aligned) * tidy), // aligned, so the 4 px re-stroke distance is in target space
-    overallScale: round2(overallScale),
-    overallOffset: { dx: round2(overallOffset.dx), dy: round2(overallOffset.dy) },
-    alignedStrokes,
-    usedFallback,
   }
 }

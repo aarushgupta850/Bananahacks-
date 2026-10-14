@@ -30,11 +30,17 @@ describe('real drawings (M2 fixtures)', () => {
   })
 
   for (const [name, group] of groups) {
-    it(`ranks ${name}: careful > rough > careless, careful >= 80`, () => {
+    // Careful and rough may come out within 2 points of each other: since the drawing is scored wherever it was
+    // drawn (alignCandidates), Aarush's rough fox gets its best fit (82) in place too. Before, it scored 71 where
+    // it was drawn but 82 drawn 150 px up and left, so "careful > rough" held only by where rough happened to be.
+    it(`ranks ${name}: careful >= rough - 2, both far above careless, careful >= 80`, () => {
       const pack = parsePack(JSON.parse(packFiles[`../../../public/subjects/${group[0].packId}/pack.json`]), group[0].packId)
       const totals = new Map(group.map((d) => [d.quality, score(analyze(pack, d.strokes)).total]))
-      const ordered = QUALITIES.filter((q) => totals.has(q)).map((q) => totals.get(q)!)
-      for (let i = 1; i < ordered.length; i++) expect(ordered[i], JSON.stringify(Object.fromEntries(totals))).toBeGreaterThan(ordered[i - 1])
+      const table = JSON.stringify(Object.fromEntries(totals))
+      if (totals.has('careful') && totals.has('rough')) expect(totals.get('careful')!, table).toBeGreaterThanOrEqual(totals.get('rough')! - 2)
+      for (const better of ['careful', 'rough'] as const) {
+        if (totals.has(better) && totals.has('careless')) expect(totals.get(better)!, table).toBeGreaterThan(totals.get('careless')! + 30)
+      }
       if (totals.has('careful')) expect(totals.get('careful')!).toBeGreaterThanOrEqual(80)
     })
   }

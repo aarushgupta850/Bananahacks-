@@ -2,7 +2,7 @@
 // picker showing only the difficulties that subject has. "Make your own" asks the optional live generation
 // server for a new pack from a text prompt or a photo. When the server is offline the inputs are disabled with
 // a friendly note: the app never shows an error, it always offers a way forward.
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent, type MouseEvent } from 'react'
 import type { Difficulty, Pack, SubjectIndex } from '../engine/types'
 import { checkLive, generate, LiveError, PHOTO_UNREADABLE, preparePhoto, type GenerateRequest, type LiveErrorKind } from '../lib/live'
 import { loadIndex, loadPack, resolveIndexAsset } from '../lib/packs'
@@ -99,6 +99,12 @@ export default function SubjectPicker({ onNext }: { onNext: () => void }) {
       {/* Only shows once a session has been finished in this browser. */}
       <ProgressPanel />
 
+      {/* "Make your own" sits below the grid, out of sight on a laptop screen: point to it. */}
+      <a className="make-own-jump" href="#make-own" onClick={jumpToMakeOwn}>
+        Want something else? <strong>Make your own</strong> is below
+        <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"><path d="M8 3v9m-4-4 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </a>
+
       {index.kind === 'loading' && <p role="status" className="muted">Loading subjects…</p>}
 
       {index.kind === 'failed' && (
@@ -164,6 +170,16 @@ export default function SubjectPicker({ onNext }: { onNext: () => void }) {
       <MakeYourOwn onPack={start} />
     </PlaceholderScreen>
   )
+}
+
+// Scrolls to "Make your own" (smoothly, unless the user asked for reduced motion) and focuses its text box.
+function jumpToMakeOwn(event: MouseEvent<HTMLAnchorElement>) {
+  const section = document.getElementById('make-own')
+  if (!section) return
+  event.preventDefault()
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  section.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
+  section.querySelector<HTMLInputElement>('input[type="text"], input:not([type])')?.focus({ preventScroll: true })
 }
 
 // ---------- "Make your own" ----------
@@ -253,7 +269,7 @@ function MakeYourOwn({ onPack }: { onPack: (pack: Pack, request: GenerateRequest
   const waited = useSecondsSince(live.kind === 'generating')
 
   return (
-    <section className="make-own" aria-labelledby="make-own-title">
+    <section id="make-own" className="make-own" aria-labelledby="make-own-title">
       <header className="make-own-header">
         <h2 id="make-own-title">Make your own</h2>
         {enabled && <span className="live-badge"><span className="live-dot" aria-hidden="true" />Live AI</span>}

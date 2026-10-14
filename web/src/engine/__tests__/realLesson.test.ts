@@ -20,8 +20,12 @@ describe('real score', () => {
     expect(engine.score(engine.analyze(pack, copyOf())).total).toBeGreaterThanOrEqual(95)
   })
 
-  it('scores a copy drawn 30% smaller at least 90', () => {
-    expect(engine.score(engine.analyze(pack, copyOf((s) => scaleAbout(s.points, [384, 384], 0.7)))).total).toBeGreaterThanOrEqual(90)
+  it('costs points for a copy drawn 30% smaller, and says to draw it to scale', () => {
+    const toScale = engine.score(engine.analyze(pack, copyOf((s) => s.points))).total
+    const small = engine.analyze(pack, copyOf((s) => scaleAbout(s.points, [384, 384], 0.7)))
+    expect(engine.score(small).total).toBeLessThan(toScale - 8)
+    expect(engine.score(small).total).toBeGreaterThanOrEqual(70)
+    expect(engine.findWeaknesses(pack, small).map((w) => w.message)).toContain('Whole drawing 30% too small: draw it to scale with the reference')
   })
 
   it('scores an empty drawing 0', () => {

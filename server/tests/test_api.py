@@ -187,7 +187,9 @@ def jpeg_bytes() -> bytes:
 def test_a_photo_is_named_by_owlv2_and_drawn_from_that_name(monkeypatch):
     calls = live_pack_fakes(monkeypatch, "a mug")
     pack = api.build_live_pack(None, jpeg_bytes(), "medium")
-    assert calls["named"] == 1 and calls["drawn"] == ["a mug"]  # drawn from the name, like a typed subject
+    # Drawn from the name, like a typed subject. (The fake cat is too simple for "medium", so the AI is asked once
+    # more for detail, with the same name.)
+    assert calls["named"] == 1 and calls["drawn"][0] == "a mug" and all(w.startswith("a mug") for w in calls["drawn"])
     assert calls["checked"] == 2  # the photo and the chosen drawing were both checked
     assert pack["title"] == "A mug"
     assert pack["source"] == {"kind": "photo", "prompt": "a mug"}
@@ -199,7 +201,7 @@ def test_a_photo_is_named_by_owlv2_and_drawn_from_that_name(monkeypatch):
 def test_a_photo_with_a_typed_name_uses_the_name(monkeypatch):
     calls = live_pack_fakes(monkeypatch, "a cat")
     pack = api.build_live_pack("a teapot", jpeg_bytes(), "medium")
-    assert calls["named"] == 0 and calls["drawn"] == ["a teapot"]
+    assert calls["named"] == 0 and calls["drawn"][0] == "a teapot" and all(w.startswith("a teapot") for w in calls["drawn"])
     assert pack["title"] == "A teapot" and "You named your photo" in pack["pipeline"][0]["text"]
 
 
@@ -373,3 +375,12 @@ def test_a_normal_job_never_triggers_the_restart(monkeypatch, fake_build):
     run(api.generate(api.GenerateRequest(prompt="a teapot")))
     api.health()
     assert exits == [] and api._job_started is None and not api._lock.locked()
+
+
+def test_a_medium_lesson_asks_for_more_detail_when_every_draft_is_too_simple(monkeypatch):
+    calls = live_pack_fakes(monkeypatch, "a cat")
+    api.build_live_pack("a cat", None, "medium")
+    assert calls["drawn"] == ["a cat", f"a cat, {api.DETAIL_HINT}"]  # the fake cat has under 26 strokes
+    calls["drawn"].clear()
+    api.build_live_pack("a cat", None, "simple")
+    assert calls["drawn"] == ["a cat"]  # simple needs no minimum

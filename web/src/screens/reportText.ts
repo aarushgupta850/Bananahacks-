@@ -11,13 +11,13 @@ export function describeModeHistory(history: ModeChange[], startLevel: HelpLevel
   return `${HELP_NAMES[history[0].from]} → ${steps.join(' → ')}`
 }
 
-// The size note, shown only when the whole drawing was more than 15% smaller or bigger than the target.
-// overallScale 0.7 means "drew 30% smaller". Scale is never counted against the user, and the note says so.
+// The size note, shown only when the whole drawing was more than 15% smaller or bigger than the reference.
+// overallScale 0.7 means "drew 30% smaller". Size counts toward the proportion score, and the note says so.
 export function describeScale(overallScale: number): string | null {
   if (overallScale >= 0.85 && overallScale <= 1.15) return null
   const percent = Math.round(Math.abs(1 - overallScale) * 100)
   const way = overallScale < 1 ? 'smaller' : 'bigger'
-  return `Drew ${percent}% ${way} than the target (not counted against you)`
+  return `Drew ${percent}% ${way} than the reference. Size counts: draw it to scale`
 }
 
 // The score change as a badge: "+31", "−4" or "±0".

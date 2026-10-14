@@ -60,6 +60,15 @@ export const config = {
   alignScaleRange: [0.4, 2.5] as [number, number], // the fit may scale the drawing by 0.4x to 2.5x, never collapse it
   alignPreferAsDrawn: 0.7,  // the stretched first guess must fit 30% better than "as drawn" to win
   alignPointsPerStroke: 32, // points per stroke during alignment
+  // Other fits analyze() tries (align.ts alignCandidates), keeping whichever scores the drawing best, so a copy
+  // drawn off to one side or smaller isn't scored as if it were in the wrong place:
+  alignGridStep: 0.12,      // ICP also starts from a grid of shifts this share of the target's diagonal apart...
+  alignGridSteps: 2,        // ...this many steps each way (5 x 5), at the drawn size and at the box-stretched size
+  alignQuickRounds: 4,      // ICP rounds for the quick look from each start
+  alignQuickThin: 5,        // the quick look uses every 5th point of the drawing
+  alignRefine: 3,           // the best 3 quick fits are refined fully and tried
+  alignCandidateMinShape: 0.6, // ...and only fits whose shape score reaches this (real copies, lined up, score 0.6 and up)
+  alignSwitchMargin: 0.02,  // fits whose shape score is within this of the best one's are compared on the total
   partMaxDistance: 0.15,    // strokes farther than 15% of the diagonal from every part are ignored
   smallStrokeShare: 0.12,   // strokes under 12% of the diagonal (eyes, a nose) are placed inside their parent part
   onLineDistance: 0.01,     // a small stroke within 1% of the diagonal of its plan lines is never moved to a child part
@@ -75,6 +84,10 @@ export const config = {
   rescueAloneMaxShape: 0.08, // ...or, when it fits nothing of that part, its shape there is within 8%, anywhere within the distance limit
   rescueExactShape: 0.05,   // a stroke whose shape is within 5% of one of the part's lines only needs to fit better
   rescuePasses: 3,          // a stroke that moves can empty another part, which then gets its turn: at most 3 rounds
+  // Size counts (Aarush, Oct 14: "it has to be to size"). Where the drawing sits doesn't, but how big it is does:
+  // the whole drawing should be drawn to scale with the reference, filling the canvas the way the target does.
+  overallSizeTolerance: 0.15, // drawn up to 15% bigger or smaller is fine...
+  overallSizeSlope: 2.5,    // ...past that, proportion credit drops 2.5x as fast (a drawing 55% off gets none)
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
   roundPartRatio: 1.3,      // parts whose long side is < 1.3x their short side have no reliable tilt
