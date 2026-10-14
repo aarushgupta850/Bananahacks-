@@ -7,6 +7,16 @@ import { clamp } from './geometry'
 const percent = (n: number) => Math.round(Math.abs(n) * 100)
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const offsetSize = (m: PartMetric) => Math.max(Math.abs(m.offset.dx), Math.abs(m.offset.dy))
+// How far off the whole drawing's size is: 0.7 drawn = 30% too small = -0.3. An empty drawing measures 0.
+const overallSizeError = (a: Analysis) => (a.alignedStrokes.length > 0 ? a.overallScale - 1 : 0)
+// Proportion credit kept for the whole drawing's size: 1 within config.overallSizeTolerance, then less.
+const sizeCredit = (a: Analysis) =>
+  clamp(1 - config.overallSizeSlope * Math.max(0, Math.abs(overallSizeError(a)) - config.overallSizeTolerance), 0, 1)
+// "Drawing size: 30% too small", or "within 5%" once it's back in range.
+function overallSizeWords(error: number): string {
+  if (Math.abs(error) <= config.overallSizeTolerance) return percent(error) === 0 ? 'spot on' : `within ${percent(error)}%`
+  return `${percent(error)}% too ${error > 0 ? 'big' : 'small'}`
+}
 
 // "too low", "too far right"... from the bigger of the two offsets.
 function offsetWords(m: PartMetric): string {
@@ -45,6 +55,14 @@ function allWeaknesses(analysis: Analysis): Weakness[] {
         message: `${name} ${percent(m.aspectError)}% too ${m.aspectError > 0 ? 'wide' : 'narrow'}`,
       })
     }
+  }
+  // The whole drawing drawn too big or too small: it should be to scale with the reference.
+  const size = overallSizeError(analysis)
+  if (Math.abs(size) > config.overallSizeTolerance) {
+    found.push({
+      partId: null, kind: 'size', severity: clamp(Math.abs(size), 0, 1),
+      message: `Whole drawing ${percent(size)}% too ${size > 0 ? 'big' : 'small'}: draw it to scale with the reference`,
+    })
   }
   // An empty drawing has no lines to judge, so it gets no line weakness (only the missing parts).
   if (analysis.alignedStrokes.length > 0 && analysis.lineConfidence < config.lineWeakBelow) {
@@ -115,9 +133,10 @@ export function score(analysis: Analysis): Score {
     ? 0
     : Math.max(0, 1 - config.proportionSlope * (over(m.sizeError) + over(m.offset.dx) + over(m.offset.dy)))))
   const mean = perPart.reduce((sum, p) => sum + p, 0) / Math.max(perPart.length, 1)
+  // Times the whole drawing's size credit: drawn to scale with the reference, or it costs proportion points.
   const proportion = (perPart.length === 0
     ? shape
-    : (1 - config.proportionWorstShare) * mean + config.proportionWorstShare * Math.min(...perPart)) * credit
+    : (1 - config.proportionWorstShare) * mean + config.proportionWorstShare * Math.min(...perPart)) * credit * sizeCredit(analysis)
   // Whole percents, as the report shows them, and the total made from those, so the bars and the total agree.
   const pct = (n: number) => Math.round(n * 100) / 100
   const [p, s, l] = [pct(proportion), pct(shape), pct(line)]
@@ -128,6 +147,7 @@ export function score(analysis: Analysis): Score {
 // How big one weakness is in an analysis (0 = gone). Missing counts as 1; a part missing again is still 1.
 function errorOf(w: Weakness, a: Analysis): number {
   if (w.kind === 'line') return 1 - a.lineConfidence
+  if (w.kind === 'size' && w.partId === null) return Math.abs(overallSizeError(a))
   const m = a.parts.find((p) => p.partId === w.partId)
   if (!m || m.missing) return 1
   if (w.kind === 'missing') return 0
@@ -154,6 +174,9 @@ function describeFix(w: Weakness, test: Analysis, retest: Analysis): string {
   const after = retest.parts.find((p) => p.partId === w.partId)
   const name = capitalize(before?.label ?? 'part')
   if (w.kind === 'line') return `Line confidence: ${percent(test.lineConfidence)}% → ${percent(retest.lineConfidence)}%`
+  if (w.kind === 'size' && w.partId === null) {
+    return `Drawing size: ${overallSizeWords(overallSizeError(test))} → ${retest.alignedStrokes.length > 0 ? overallSizeWords(overallSizeError(retest)) : 'nothing drawn'}`
+  }
   if (w.kind === 'missing') return `${name}: missing → ${after && !after.missing ? 'drawn' : 'still missing'}`
   const now = nowWords(w, after)
   if (w.kind === 'size') return `${name} size: ${percent(before!.sizeError)}% too ${before!.sizeError > 0 ? 'big' : 'small'} → ${now}`
@@ -170,6 +193,7 @@ function spotOn(label: string, measure: 'size' | 'position', error: number): str
 // Whether a weakness is gone in the retest: back within the limit that made it a weakness.
 function fixedIn(w: Weakness, a: Analysis): boolean {
   if (w.kind === 'line') return a.alignedStrokes.length > 0 && a.lineConfidence >= config.lineWeakBelow
+  if (w.kind === 'size' && w.partId === null) return a.alignedStrokes.length > 0 && errorOf(w, a) <= config.overallSizeTolerance
   return errorOf(w, a) <= config.goodLimit
 }
 

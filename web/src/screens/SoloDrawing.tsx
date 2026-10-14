@@ -17,8 +17,8 @@ import PlaceholderScreen, { type NavProps } from './PlaceholderScreen'
 import { useCountdown } from './useCountdown'
 
 const TEXT = {
-  test: { title: 'Test', lead: 'Copy the drawing on your own. No help yet: we measure where you start.' },
-  retest: { title: 'Retest', lead: 'Draw it once more on your own, with no help, so we can measure what changed.' },
+  test: { title: 'Test', lead: 'Copy the drawing on your own, to scale with the reference. No help yet: we measure where you start.' },
+  retest: { title: 'Retest', lead: 'Draw it once more on your own, to scale with the reference, so we can measure what changed.' },
 }
 
 export default function SoloDrawing({ round, onBack, onNext }: NavProps & { round: 'test' | 'retest' }) {
@@ -75,6 +75,8 @@ export default function SoloDrawing({ round, onBack, onNext }: NavProps & { roun
             <img src={resolveAsset(pack, pack.target)} alt={`${pack.title}: the drawing to copy`} width={768} height={768} />
             <figcaption>Reference</figcaption>
           </figure>
+          {/* Size counts, position doesn't (engine: overallSizeTolerance). */}
+          <p className="scale-hint">Draw it to scale: as big on the canvas as the drawing fills this box. Size counts; where you draw it doesn&rsquo;t.</p>
         </aside>
         <div className="canvas-column">
           <ZoomStack>

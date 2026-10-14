@@ -84,6 +84,10 @@ export const config = {
   rescueAloneMaxShape: 0.08, // ...or, when it fits nothing of that part, its shape there is within 8%, anywhere within the distance limit
   rescueExactShape: 0.05,   // a stroke whose shape is within 5% of one of the part's lines only needs to fit better
   rescuePasses: 3,          // a stroke that moves can empty another part, which then gets its turn: at most 3 rounds
+  // Size counts (Aarush, Oct 14: "it has to be to size"). Where the drawing sits doesn't, but how big it is does:
+  // the whole drawing should be drawn to scale with the reference, filling the canvas the way the target does.
+  overallSizeTolerance: 0.15, // drawn up to 15% bigger or smaller is fine...
+  overallSizeSlope: 2.5,    // ...past that, proportion credit drops 2.5x as fast (a drawing 55% off gets none)
   goodLimit: 0.1,           // a part is "good" when every error is within 10%
   goodTiltDeg: 10,          // ...and it is tilted by at most 10 degrees
   roundPartRatio: 1.3,      // parts whose long side is < 1.3x their short side have no reliable tilt

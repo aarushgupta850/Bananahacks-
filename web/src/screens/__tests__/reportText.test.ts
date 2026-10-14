@@ -21,8 +21,8 @@ describe('describeScale', () => {
   })
 
   it('names the size difference otherwise', () => {
-    expect(describeScale(0.7)).toBe('Drew 30% smaller than the target (not counted against you)')
-    expect(describeScale(1.2)).toBe('Drew 20% bigger than the target (not counted against you)')
+    expect(describeScale(0.7)).toBe('Drew 30% smaller than the reference. Size counts: draw it to scale')
+    expect(describeScale(1.2)).toBe('Drew 20% bigger than the reference. Size counts: draw it to scale')
   })
 })
 

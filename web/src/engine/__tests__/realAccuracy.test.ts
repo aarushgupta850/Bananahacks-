@@ -55,18 +55,22 @@ const messages = (p: Pack, a: Analysis) => engine.findWeaknesses(p, a).map((w) =
 describe('accuracy harness: every pack', () => {
   it.each(packs.map((p) => ({ name: p.id, p })))('ranks drawings of known quality: $name', ({ p }) => {
     const perfect = run(p, D.perfectCopy(p)).s
+    const moved = run(p, D.transformed(D.perfectCopy(p), p, 1, -60, 40)).s
     const smaller = run(p, D.transformed(D.perfectCopy(p), p, 0.6, -60, 40)).s
     const sloppy = run(p, D.misplacedCopy(p)).s
     const half = run(p, D.partial(p)).s
     const lines = run(p, D.randomLines(p)).s
     const empty = run(p, [])
-    const all = { perfect, smaller, sloppy, half, lines, empty: empty.s }
+    const all = { perfect, moved, smaller, sloppy, half, lines, empty: empty.s }
     for (const [k, s] of Object.entries(all)) expectSane(s, `${p.id} ${k}`)
     const table = JSON.stringify(Object.fromEntries(Object.entries(all).map(([k, s]) => [k, s.total])))
 
     expect(perfect.total, table).toBeGreaterThanOrEqual(95)
-    // Size and position on the page are never counted against the user.
-    expect(Math.abs(smaller.total - perfect.total), table).toBeLessThanOrEqual(2)
+    // Where on the page it's drawn is never counted against the user...
+    expect(Math.abs(moved.total - perfect.total), table).toBeLessThanOrEqual(2)
+    // ...but size is (Oct 14): drawn 40% too small costs proportion points, while the shape still counts in full.
+    expect(smaller.total, table).toBeLessThan(perfect.total - 10)
+    expect(smaller.total, table).toBeGreaterThanOrEqual(60)
     // Every line a little off: clearly lower, but still a good drawing.
     expect(sloppy.total, table).toBeLessThan(perfect.total - 3)
     expect(sloppy.total, table).toBeGreaterThanOrEqual(65)
@@ -86,11 +90,14 @@ describe(`accuracy harness: ${ALL ? 'every pack' : 'sample packs'}`, () => {
   it.each(sampled.map((p) => ({ name: p.id, p })))('is fair to the way a copy is drawn: $name', ({ p }) => {
     const perfect = run(p, D.perfectCopy(p)).s
     const bigger = run(p, D.transformed(D.perfectCopy(p), p, 1.3, 30, -20)).s
+    const slightlyBigger = run(p, D.transformed(D.perfectCopy(p), p, 1.1, 30, -20)).s
     const backwards = run(p, D.reversedOrder(p)).s
     const pieces = run(p, D.splitIntoPieces(p)).s
     const doubled = run(p, D.doubledLines(p)).s
     const table = JSON.stringify({ perfect: perfect.total, bigger: bigger.total, backwards: backwards.total, pieces: pieces.total, doubled: doubled.total })
-    expect(Math.abs(bigger.total - perfect.total), table).toBeLessThanOrEqual(2)
+    // Up to 15% bigger or smaller is within the tolerance; 30% bigger costs points.
+    expect(Math.abs(slightlyBigger.total - perfect.total), table).toBeLessThanOrEqual(2)
+    expect(bigger.total, table).toBeLessThan(perfect.total - 5)
     // Order and direction of the strokes don't matter.
     expect(Math.abs(backwards.total - perfect.total), table).toBeLessThanOrEqual(1)
     // A sketchy hand (every line in short dashes) is not a scribble.
